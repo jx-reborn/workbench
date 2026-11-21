@@ -363,7 +363,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                     player.UnallocatedSkillPoints + Math.Max(1, growth.SkillPointsPerLevel));
                 player.MaxLife = (ushort)Math.Clamp(player.MaxLife + Math.Max(1, growth.LifePerLevel), 1, ushort.MaxValue);
                 player.MaxMana = (ushort)Math.Clamp(player.MaxMana + Math.Max(1, growth.ManaPerLevel), 1, ushort.MaxValue);
-                player.MaxStamina = (ushort)Math.Clamp(player.MaxStamina + Math.Max(1, growth.StaminaPerLevel), 1, ushort.MaxValue);
+                player.MaxStamina = (ushort)Math.Clamp(player.MaxStamina + Math.Max(1, growth.GetStaminaPerLevel(player.Gender)), 1, ushort.MaxValue);
                 player.OutboundSink.SendPlayerLevelUpSync(player);
             }
         }

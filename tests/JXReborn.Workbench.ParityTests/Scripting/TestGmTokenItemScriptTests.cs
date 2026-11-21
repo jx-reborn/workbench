@@ -44,14 +44,16 @@ public sealed class TestGmTokenItemScriptTests
     private static PlayerZoneState CreatePlayer(
         byte level = 1,
         int money = 0,
-        ElementSeries series = ElementSeries.Earth) =>
+        ElementSeries series = ElementSeries.Earth,
+        CharacterGender gender = CharacterGender.Male,
+        ushort maxStamina = 100) =>
         new(
             runtimeNpcId: 1001u,
             accountId: Guid.NewGuid(),
             characterId: Guid.NewGuid(),
             leaseEpoch: 1L,
             roleNameUnicode: "GmTokenTester",
-            gender: CharacterGender.Male,
+            gender: gender,
             series: series,
             level: level,
             experience: 0,
@@ -63,8 +65,8 @@ public sealed class TestGmTokenItemScriptTests
             maxLife: 100,
             currentMana: 20,
             maxMana: 40,
-            currentStamina: 80,
-            maxStamina: 100,
+            currentStamina: maxStamina,
+            maxStamina: maxStamina,
             strength: 20,
             dexterity: 15,
             vitality: 25,
@@ -388,6 +390,25 @@ public sealed class TestGmTokenItemScriptTests
             Assert.True(player.TryGetLearnedSkill(skillId, out var learned), $"Skill {skillId} was not learned.");
             Assert.Equal((ushort)1, learned.BaseLevel);
         }
+    }
+
+    [Fact]
+    public async Task GmToken_EnsureLevel_FemaleCharacter_ShouldUseFemaleStaminaPerLevel()
+    {
+        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        PlayerZoneState player = CreatePlayer(
+            level: 1,
+            series: ElementSeries.Water,
+            gender: CharacterGender.Female,
+            maxStamina: 180);
+        var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
+        var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
+        var script = new TestGmTokenItemScript();
+
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 0, 0, 6);
+
+        Assert.Equal((byte)120, player.Level);
+        Assert.Equal((ushort)1132, player.MaxStamina);
     }
 
     private sealed class StubFactionPlayerTemplateCatalog : IPlayerTemplateCatalog
