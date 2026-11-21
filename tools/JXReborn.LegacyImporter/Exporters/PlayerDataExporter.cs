@@ -83,10 +83,6 @@ public sealed class PlayerDataExporter
 
     private static List<Dictionary<string, object?>> ExportCharacterTemplates(ILegacyServerSource source, ExportCatalogRegistry registry)
     {
-        string healCode = registry.ItemCodes.Contains("kim-sang-duoc-tieu") ? "kim-sang-duoc-tieu" : "kim-sang-duoc";
-        string manaCode = registry.ItemCodes.Contains("ngung-than-dan-tieu") ? "ngung-than-dan-tieu" : "ngung-than-dan";
-        string portalCode = "tho-dia-phu";
-
         var list = new List<Dictionary<string, object?>>(10);
         int legacyFound = 0;
 
@@ -140,33 +136,7 @@ public sealed class PlayerDataExporter
                     }
                 }
 
-                var starterItems = new List<Dictionary<string, object?>>
-                {
-                    new()
-                    {
-                        ["itemCode"] = healCode,
-                        ["container"] = "immediacy",
-                        ["gridX"] = 0,
-                        ["gridY"] = 0,
-                        ["stackCount"] = 5,
-                    },
-                    new()
-                    {
-                        ["itemCode"] = manaCode,
-                        ["container"] = "immediacy",
-                        ["gridX"] = 1,
-                        ["gridY"] = 0,
-                        ["stackCount"] = 5,
-                    },
-                    new()
-                    {
-                        ["itemCode"] = portalCode,
-                        ["container"] = "immediacy",
-                        ["gridX"] = 2,
-                        ["gridY"] = 0,
-                        ["stackCount"] = 1,
-                    },
-                };
+                var starterItems = new List<Dictionary<string, object?>>();
 
                 if (secs.TryGetValue("ITEMS", out Dictionary<string, byte[]>? itemsHeaderSec))
                 {

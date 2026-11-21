@@ -50,7 +50,7 @@ public sealed class StarterVillageAndEquipmentCatalogTests
     }
 
     [Fact]
-    public void PlayerTemplateCatalog_ShouldContainAllFourCanonicalStarterItems_IncludingToanDauChuyWithDurability42()
+    public void PlayerTemplateCatalog_ShouldContainCanonicalStarterItem_ToanDauChuyWithDurability42AndNoFabricatedImmediacyItems()
     {
         var options = Options.Create(new GameAssetsOptions
         {
@@ -62,10 +62,10 @@ public sealed class StarterVillageAndEquipmentCatalogTests
         var playerCatalog = new PlayerTemplateCatalog(options, NullLogger<PlayerTemplateCatalog>.Instance);
         var itemCatalog = new ItemTemplateCatalog(options, NullLogger<ItemTemplateCatalog>.Instance);
 
-        Assert.Equal(4, playerCatalog.DefaultStarterItems.Count);
+        Assert.Single(playerCatalog.DefaultStarterItems);
 
-        // 2x Kim Sáng Dược + 1x Thổ Địa Phù on Immediacy belt (0..2)
-        Assert.Equal(3, playerCatalog.DefaultStarterItems.Count(i => i.ContainerPlace == ItemContainerPlace.Immediacy));
+        // No fabricated Immediacy belt items (matches NewPlayerIni00.ini COUNT=1)
+        Assert.DoesNotContain(playerCatalog.DefaultStarterItems, static i => i.ContainerPlace == ItemContainerPlace.Immediacy);
 
         // 1x Toàn Đầu Chùy in EquipRoom (0, 0) with MaxDurability = 42 from MeleeWeapon.txt DurMax
         StarterItemTemplate? mace = playerCatalog.DefaultStarterItems.FirstOrDefault(i =>
