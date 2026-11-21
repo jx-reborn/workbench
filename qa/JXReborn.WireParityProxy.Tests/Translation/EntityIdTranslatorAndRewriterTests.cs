@@ -63,6 +63,71 @@ public sealed class EntityIdTranslatorAndRewriterTests
         Assert.Contains("1042", result.TranslationMissReason, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RewriteRequestNpc_WhenOnlyCompact0x4DObserved_ShouldTranslateByCampAndProximity()
+    {
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncNpcMinPayload(npcId: 17354, mpsX: 52335, mpsY: 102036, camp: 6), now);
+        shadow.ApplyS2c(BuildSyncNpcMinPayload(npcId: 40012, mpsX: 52335, mpsY: 102036, camp: 6), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] reqNpcC2s = new byte[RequestNpcC2SPacket.PayloadSize];
+        new RequestNpcC2SPacket(17354u).WritePayload(reqNpcC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(reqNpcC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(40012u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+    }
+
+    [Fact]
+    public void RewriteRequestNpc_WhenOnlyCompact0x4DObservedAndCampDiffersAtExactPos_ShouldTranslateByProximityFallback()
+    {
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncNpcMinPayload(npcId: 92256, mpsX: 52224, mpsY: 101536, camp: 4), now);
+        shadow.ApplyS2c(BuildSyncNpcMinPayload(npcId: 10512, mpsX: 52224, mpsY: 101536, camp: 6), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] reqNpcC2s = new byte[RequestNpcC2SPacket.PayloadSize];
+        new RequestNpcC2SPacket(92256u).WritePayload(reqNpcC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(reqNpcC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(10512u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+    }
+
+    [Fact]
+    public void RewriteRequestObj_WhenOnly0x65StateSyncObserved_ShouldTranslateByOrderAndState()
+    {
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1132), now);
+        primary.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1133), now);
+        shadow.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1000), now);
+        shadow.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1001), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] reqObjC2s = new byte[RequestObjC2SPacket.PayloadSize];
+        new RequestObjC2SPacket(1133).WritePayload(reqObjC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(reqObjC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(1001, BinaryPrimitives.ReadInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+    }
+
     private static byte[] BuildSyncNpcPayload(uint npcId, ushort templateId, int mpsX, int mpsY, string name)
     {
         var pkt = new SyncNpcFullS2CPacket(
@@ -83,5 +148,28 @@ public sealed class EntityIdTranslatorAndRewriterTests
             RankFfId: 0,
             NameUnicode: name);
         return pkt.ToPayloadBytes();
+    }
+
+    private static byte[] BuildSyncNpcMinPayload(uint npcId, int mpsX, int mpsY, byte camp)
+    {
+        var pkt = new SyncNpcMinS2CPacket(
+            NpcId: npcId,
+            MpsX: mpsX,
+            MpsY: mpsY,
+            Doing: 1,
+            LifePer: 128,
+            State: 0,
+            Camp: camp);
+        byte[] payload = new byte[SyncNpcMinS2CPacket.PayloadSize];
+        pkt.WritePayload(payload);
+        return payload;
+    }
+
+    private static byte[] BuildObjSyncStatePayload(byte state, int objId)
+    {
+        var pkt = new ObjSyncStateS2CPacket(State: state, ObjId: objId);
+        byte[] payload = new byte[ObjSyncStateS2CPacket.PayloadSize];
+        pkt.WritePayload(payload);
+        return payload;
     }
 }

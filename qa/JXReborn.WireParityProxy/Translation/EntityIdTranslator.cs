@@ -46,28 +46,24 @@ public sealed class EntityIdTranslator
             return false;
         }
 
-        VirtualJxNpcEntity? best = null;
-        double bestDist = double.MaxValue;
+        VirtualJxNpcEntity? best = FindClosestMatchingNpc(
+            shadowNpcs.Values,
+            primaryNpc,
+            static (p, c) =>
+                (p.TemplateId > 0 && c.TemplateId == p.TemplateId) ||
+                (!string.IsNullOrWhiteSpace(p.NameUnicode) && string.Equals(c.NameUnicode, p.NameUnicode, StringComparison.Ordinal)));
 
-        foreach (VirtualJxNpcEntity candidate in shadowNpcs.Values)
+        if (best is null && primaryNpc.TemplateId == 0 && string.IsNullOrEmpty(primaryNpc.NameUnicode))
         {
-            bool templateMatch = primaryNpc.TemplateId > 0 && candidate.TemplateId == primaryNpc.TemplateId;
-            bool nameMatch = !string.IsNullOrWhiteSpace(primaryNpc.NameUnicode) &&
-                             string.Equals(candidate.NameUnicode, primaryNpc.NameUnicode, StringComparison.Ordinal);
-
-            if (!templateMatch && !nameMatch)
-            {
-                continue;
-            }
-
-            long dx = (long)candidate.MpsX - primaryNpc.MpsX;
-            long dy = (long)candidate.MpsY - primaryNpc.MpsY;
-            double dist = Math.Sqrt((dx * dx) + (dy * dy));
-            if (dist <= MaxNpcMatchDistanceMps && dist < bestDist)
-            {
-                bestDist = dist;
-                best = candidate;
-            }
+            best = FindClosestMatchingNpc(
+                shadowNpcs.Values,
+                primaryNpc,
+                static (p, c) => c.Camp == p.Camp)
+                ?? FindClosestMatchingNpc(
+                    shadowNpcs.Values,
+                    primaryNpc,
+                    static (_, _) => true,
+                    maxDistanceMps: 64.0);
         }
 
         if (best is not null)
@@ -78,6 +74,103 @@ public sealed class EntityIdTranslator
 
         shadowNpcId = 0;
         return false;
+    }
+
+    public bool TryTranslateObjId(int primaryObjId, out int shadowObjId)
+    {
+        if (primaryObjId <= 0)
+        {
+            shadowObjId = 0;
+            return false;
+        }
+
+        IReadOnlyDictionary<int, ShadowGroundObject> primaryObjs = _primary.SnapshotGroundObjects();
+        IReadOnlyDictionary<int, ShadowGroundObject> shadowObjs = _shadow.SnapshotGroundObjects();
+
+        if (!primaryObjs.TryGetValue(primaryObjId, out ShadowGroundObject primaryObj) || shadowObjs.Count == 0)
+        {
+            shadowObjId = 0;
+            return false;
+        }
+
+        if (primaryObj.HasCoords)
+        {
+            ShadowGroundObject? bestByCoord = null;
+            double bestDist = double.MaxValue;
+            foreach (ShadowGroundObject candidate in shadowObjs.Values)
+            {
+                if (!candidate.HasCoords)
+                {
+                    continue;
+                }
+
+                long dx = (long)candidate.MpsX - primaryObj.MpsX;
+                long dy = (long)candidate.MpsY - primaryObj.MpsY;
+                double dist = Math.Sqrt((dx * dx) + (dy * dy));
+                if (dist <= MaxNpcMatchDistanceMps && dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestByCoord = candidate;
+                }
+            }
+
+            if (bestByCoord is { } matched)
+            {
+                shadowObjId = matched.ObjId;
+                return true;
+            }
+        }
+
+        List<ShadowGroundObject> orderedPrimary = primaryObjs.Values.OrderBy(static o => o.FirstSeenOrder).ToList();
+        List<ShadowGroundObject> orderedShadow = shadowObjs.Values.OrderBy(static o => o.FirstSeenOrder).ToList();
+
+        List<ShadowGroundObject> sameStatePrimary = orderedPrimary.Where(o => o.State == primaryObj.State).ToList();
+        List<ShadowGroundObject> sameStateShadow = orderedShadow.Where(o => o.State == primaryObj.State).ToList();
+        int stateIdx = sameStatePrimary.FindIndex(o => o.ObjId == primaryObjId);
+        if (stateIdx >= 0 && stateIdx < sameStateShadow.Count)
+        {
+            shadowObjId = sameStateShadow[stateIdx].ObjId;
+            return true;
+        }
+
+        int fullIdx = orderedPrimary.FindIndex(o => o.ObjId == primaryObjId);
+        if (fullIdx >= 0 && fullIdx < orderedShadow.Count)
+        {
+            shadowObjId = orderedShadow[fullIdx].ObjId;
+            return true;
+        }
+
+        shadowObjId = 0;
+        return false;
+    }
+
+    private static VirtualJxNpcEntity? FindClosestMatchingNpc(
+        IEnumerable<VirtualJxNpcEntity> candidates,
+        VirtualJxNpcEntity primaryNpc,
+        Func<VirtualJxNpcEntity, VirtualJxNpcEntity, bool> predicate,
+        double maxDistanceMps = MaxNpcMatchDistanceMps)
+    {
+        VirtualJxNpcEntity? best = null;
+        double bestDist = double.MaxValue;
+
+        foreach (VirtualJxNpcEntity candidate in candidates)
+        {
+            if (!predicate(primaryNpc, candidate))
+            {
+                continue;
+            }
+
+            long dx = (long)candidate.MpsX - primaryNpc.MpsX;
+            long dy = (long)candidate.MpsY - primaryNpc.MpsY;
+            double dist = Math.Sqrt((dx * dx) + (dy * dy));
+            if (dist <= maxDistanceMps && dist < bestDist)
+            {
+                bestDist = dist;
+                best = candidate;
+            }
+        }
+
+        return best;
     }
 
     public bool TryTranslateItemByIdOrCell(

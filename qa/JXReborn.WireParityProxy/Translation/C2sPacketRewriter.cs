@@ -34,6 +34,19 @@ public sealed class C2sPacketRewriter
         byte opcode = copy[0];
         switch (opcode)
         {
+            case ProtocolOpcodes.c2s_requestnpc when copy.Length >= RequestNpcC2SPacket.PayloadSize:
+                return RewriteTargetNpc(
+                    copy,
+                    npcIdOffset: 1,
+                    checkValueOffset: -1,
+                    checkKey: 0,
+                    clientToken1,
+                    clientToken2,
+                    label: "c2s_requestnpc");
+
+            case ProtocolOpcodes.c2s_requestobj when copy.Length >= RequestObjC2SPacket.PayloadSize:
+                return RewriteTargetObj(copy);
+
             case ProtocolOpcodes.c2s_dialognpc when copy.Length >= 5:
                 return RewriteTargetNpc(
                     copy,
@@ -115,6 +128,31 @@ public sealed class C2sPacketRewriter
                 uint checkValue = MovementAntiCheatConsts.CreateCheckValue(checkKey, token1, token2);
                 BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan(checkValueOffset, 4), checkValue);
             }
+        }
+
+        return new C2sRewriteResult(copy, WasModified: modified, TranslationMissReason: null);
+    }
+
+    private C2sRewriteResult RewriteTargetObj(byte[] copy)
+    {
+        int primaryObjId = BinaryPrimitives.ReadInt32LittleEndian(copy.AsSpan(1, 4));
+        if (primaryObjId <= 0)
+        {
+            return new C2sRewriteResult(copy, WasModified: false, TranslationMissReason: null);
+        }
+
+        if (!_translator.TryTranslateObjId(primaryObjId, out int shadowObjId))
+        {
+            return new C2sRewriteResult(
+                copy,
+                WasModified: false,
+                TranslationMissReason: $"c2s_requestobj: could not translate Primary ObjId={primaryObjId} to Shadow.");
+        }
+
+        bool modified = shadowObjId != primaryObjId;
+        if (modified)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(copy.AsSpan(1, 4), shadowObjId);
         }
 
         return new C2sRewriteResult(copy, WasModified: modified, TranslationMissReason: null);

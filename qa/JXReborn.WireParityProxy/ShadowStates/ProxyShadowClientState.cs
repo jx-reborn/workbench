@@ -21,6 +21,7 @@ public sealed class ProxyShadowClientState
     private readonly Lock _sync = new();
     private readonly Dictionary<uint, VirtualJxItemSlot> _itemsById = [];
     private readonly Dictionary<uint, VirtualJxNpcEntity> _npcsById = [];
+    private readonly Dictionary<int, ShadowGroundObject> _groundObjects = [];
     private readonly Dictionary<int, ushort> _learnedSkills = [];
     private readonly Queue<S2cPacketSnapshot> _recentS2c = new();
     private readonly Queue<C2sPacketSnapshot> _recentC2s = new();
@@ -30,6 +31,7 @@ public sealed class ProxyShadowClientState
     private uint _s2cSeq;
     private uint _c2sSeq;
     private uint _dialogSeq;
+    private int _groundObjSeq;
     private ShadowDialogState _dialog = ShadowDialogState.Closed;
 
     public ProxyShadowClientState(string backendLabel)
@@ -169,6 +171,14 @@ public sealed class ProxyShadowClientState
         }
     }
 
+    public IReadOnlyDictionary<int, ShadowGroundObject> SnapshotGroundObjects()
+    {
+        lock (_sync)
+        {
+            return new Dictionary<int, ShadowGroundObject>(_groundObjects);
+        }
+    }
+
     public WorldDomSnapshot ToWorldDomSnapshot()
     {
         lock (_sync)
@@ -200,6 +210,7 @@ public sealed class ProxyShadowClientState
                     if (newMapId != MapId)
                     {
                         _npcsById.Clear();
+                        _groundObjects.Clear();
                     }
 
                     MapId = newMapId;
@@ -385,6 +396,21 @@ public sealed class ProxyShadowClientState
                             Camp = minNpc.Camp
                         };
                     }
+                    else
+                    {
+                        _npcsById[minNpc.NpcId] = new VirtualJxNpcEntity(
+                            minNpc.NpcId,
+                            TemplateId: 0,
+                            Level: 0,
+                            Kind: minNpc.Camp == 6 ? EntityKind.DialogNpc : EntityKind.Monster,
+                            Camp: minNpc.Camp,
+                            Series: ElementSeries.Metal,
+                            MpsX: minNpc.MpsX,
+                            MpsY: minNpc.MpsY,
+                            DoingState: minNpc.Doing,
+                            LifePercent128: minNpc.LifePer,
+                            NameUnicode: string.Empty);
+                    }
                 }
 
                 break;
@@ -419,6 +445,52 @@ public sealed class ProxyShadowClientState
                     {
                         _npcsById[npcId] = deadNpc with { LifePercent128 = 0 };
                     }
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_objsyncpos:
+                if (ObjSyncStateS2CPacket.TryParse(payload, out ObjSyncStateS2CPacket objState))
+                {
+                    if (_groundObjects.TryGetValue(objState.ObjId, out ShadowGroundObject existingObj))
+                    {
+                        _groundObjects[objState.ObjId] = existingObj with { State = objState.State };
+                    }
+                    else
+                    {
+                        _groundObjects[objState.ObjId] = new ShadowGroundObject(
+                            objState.ObjId,
+                            objState.State,
+                            MpsX: 0,
+                            MpsY: 0,
+                            HasCoords: false,
+                            FirstSeenOrder: ++_groundObjSeq);
+                    }
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_objadd:
+                if (ObjAddS2CPacket.TryParse(payload, out ObjAddS2CPacket objAdd))
+                {
+                    int seenOrder = _groundObjects.TryGetValue(objAdd.ObjId, out ShadowGroundObject existingObj)
+                        ? existingObj.FirstSeenOrder
+                        : ++_groundObjSeq;
+                    _groundObjects[objAdd.ObjId] = new ShadowGroundObject(
+                        objAdd.ObjId,
+                        objAdd.State,
+                        objAdd.MpsX,
+                        objAdd.MpsY,
+                        HasCoords: true,
+                        FirstSeenOrder: seenOrder);
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_objremove:
+                if (ObjRemoveS2CPacket.TryParse(payload, out ObjRemoveS2CPacket objRem))
+                {
+                    _groundObjects.Remove(objRem.ObjId);
                 }
 
                 break;
