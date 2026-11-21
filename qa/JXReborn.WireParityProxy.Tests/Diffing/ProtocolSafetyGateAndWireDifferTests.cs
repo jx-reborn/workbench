@@ -105,4 +105,80 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
 
         Assert.Empty(findings);
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_OnChangeAuraSkill_ShouldIgnorePhaseDependent0x85And0x87Presence_WhileKeepingStrictLengthAndOtherOpcodes()
+    {
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        byte[] stateInfo = new byte[11];
+        stateInfo[0] = ProtocolOpcodes.s2c_npcsyncstateinfo;
+        byte[] castDirect = new byte[25];
+        castDirect[0] = ProtocolOpcodes.s2c_castskilldirectly;
+        byte[] stateEff36 = new byte[36];
+        stateEff36[0] = ProtocolOpcodes.s2c_syncstateeffect;
+        byte[] stateEff52 = new byte[52];
+        stateEff52[0] = ProtocolOpcodes.s2c_syncstateeffect;
+
+        // 1. C2S 0x6F with phase-dependent 0x85/0x87 presence only on Shadow -> no findings
+        byte[] auraC2s = [ProtocolOpcodes.c2s_changeauraskill, 69, 0, 0, 0];
+        var auraFrame = new JxWireFrame(ProtocolOpcodes.c2s_changeauraskill, auraC2s, now, 1);
+        var auraWindow = new WireActionWindow(1, "Step087_C2S_0x6F", auraFrame, auraFrame.DecryptedPayload, false, null);
+
+        IReadOnlyList<ParityFinding> presenceFindings = differ.CompareWindow(
+            auraWindow,
+            primaryS2c: [new(ProtocolOpcodes.s2c_npcsyncstateinfo, stateInfo, now, 1)],
+            shadowS2c:
+            [
+                new(ProtocolOpcodes.s2c_npcsyncstateinfo, stateInfo, now, 1),
+                new(ProtocolOpcodes.s2c_castskilldirectly, castDirect, now, 2),
+                new(ProtocolOpcodes.s2c_syncstateeffect, stateEff36, now, 3),
+            ],
+            mapId: 53,
+            playerMpsX: 52032,
+            playerMpsY: 101696);
+
+        Assert.Empty(presenceFindings);
+
+        // 2. C2S 0x6F when BOTH emit 0x87 with mismatched payload lengths -> strict S2C.Length[0x87]
+        IReadOnlyList<ParityFinding> lengthFindings = differ.CompareWindow(
+            auraWindow,
+            primaryS2c:
+            [
+                new(ProtocolOpcodes.s2c_npcsyncstateinfo, stateInfo, now, 4),
+                new(ProtocolOpcodes.s2c_syncstateeffect, stateEff36, now, 5),
+            ],
+            shadowS2c:
+            [
+                new(ProtocolOpcodes.s2c_npcsyncstateinfo, stateInfo, now, 4),
+                new(ProtocolOpcodes.s2c_syncstateeffect, stateEff52, now, 5),
+            ],
+            mapId: 53,
+            playerMpsX: 52032,
+            playerMpsY: 101696);
+
+        Assert.Contains(lengthFindings, f => f.FieldPath == "S2C.Length[0x87]");
+
+        // 3. C2S 0x4D still flags S2C.Extra[0x85] strictly
+        byte[] skillC2s = [ProtocolOpcodes.c2s_npcskill, 0, 0, 0, 0, 69, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0];
+        var skillFrame = new JxWireFrame(ProtocolOpcodes.c2s_npcskill, skillC2s, now, 2);
+        var skillWindow = new WireActionWindow(2, "Step088_C2S_0x4D", skillFrame, skillFrame.DecryptedPayload, false, null);
+        byte[] skillCast = new byte[25];
+        skillCast[0] = ProtocolOpcodes.s2c_skillcast;
+
+        IReadOnlyList<ParityFinding> nonAuraFindings = differ.CompareWindow(
+            skillWindow,
+            primaryS2c: [new(ProtocolOpcodes.s2c_skillcast, skillCast, now, 6)],
+            shadowS2c:
+            [
+                new(ProtocolOpcodes.s2c_skillcast, skillCast, now, 6),
+                new(ProtocolOpcodes.s2c_castskilldirectly, castDirect, now, 7),
+            ],
+            mapId: 53,
+            playerMpsX: 52032,
+            playerMpsY: 101696);
+
+        Assert.Contains(nonAuraFindings, f => f.FieldPath == "S2C.Extra[0x85]");
+    }
 }

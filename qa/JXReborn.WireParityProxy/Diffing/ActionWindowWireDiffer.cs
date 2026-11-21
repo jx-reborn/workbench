@@ -67,6 +67,11 @@ public sealed class ActionWindowWireDiffer
         {
             if (!shadowByOp.TryGetValue(opcode, out List<JxWireFrame>? sFrames))
             {
+                if (IsPhaseDependentAuraPulseOpcode(window.PrimaryC2s.Opcode, opcode))
+                {
+                    continue;
+                }
+
                 findings.Add(CreateFinding(
                     FindingSeverity.Critical,
                     FindingCategory.WireProtocol,
@@ -105,6 +110,11 @@ public sealed class ActionWindowWireDiffer
         {
             if (!primaryByOp.ContainsKey(opcode))
             {
+                if (IsPhaseDependentAuraPulseOpcode(window.PrimaryC2s.Opcode, opcode))
+                {
+                    continue;
+                }
+
                 findings.Add(CreateFinding(
                     FindingSeverity.Warning,
                     FindingCategory.WireProtocol,
@@ -123,6 +133,11 @@ public sealed class ActionWindowWireDiffer
 
         return findings;
     }
+
+    private static bool IsPhaseDependentAuraPulseOpcode(byte c2sOpcode, byte s2cOpcode) =>
+        c2sOpcode == ProtocolOpcodes.c2s_changeauraskill &&
+        (s2cOpcode == ProtocolOpcodes.s2c_castskilldirectly ||
+         s2cOpcode == ProtocolOpcodes.s2c_syncstateeffect);
 
     private static Dictionary<byte, List<JxWireFrame>> GroupSignificant(IReadOnlyList<JxWireFrame> frames)
     {
