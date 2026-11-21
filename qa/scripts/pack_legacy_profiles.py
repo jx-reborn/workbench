@@ -334,13 +334,128 @@ end
 
 -- ==================== [1] FACTION, CAMP & SKILLS ====================
 function GMT_MenuFactionAndSkill()
-    Say({L("Môn phái, Phe & Kỹ năng (Chọn trục trạng thái):")}, 6,
+    Say({L("Môn phái, Phe & Kỹ năng (Chọn trục trạng thái):")}, 7,
         {L("Phe (Camp)")} .. "/GMT_MenuCamp",
         {L("Điểm Kỹ năng")} .. "/GMT_MenuSkillPoints",
         {L("Học Kỹ năng")} .. "/GMT_MenuLearnSkill",
         {L("Danh vọng & Tài lãnh đạo")} .. "/GMT_MenuReputeLead",
         {L("Trùng sinh")} .. "/GMT_MenuTransmigration",
+        {L("Gia nhập Môn phái & Xuất sư")} .. "/GMT_MenuJoinFaction",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
+end
+
+GMT_FACTION_DEFS = {{
+    {{ code = "shaolin",  camp = 1, rank = 1,  series = 0, sex = -1, base = {{10,14,4,6,8,15,16,20,11,19,271,21,273}},                  adv = {{318,319,321,709}} }},
+    {{ code = "tianwang", camp = 3, rank = 43, series = 0, sex = -1, base = {{29,30,34,23,24,26,33,31,35,37,40,42,32,36,41,324}},       adv = {{322,323,325,708}} }},
+    {{ code = "tangmen",  camp = 3, rank = 25, series = 1, sex = -1, base = {{45,43,347,303,47,50,54,343,345,349,48,58,249,341}},       adv = {{302,339,342,351,710}} }},
+    {{ code = "wudu",     camp = 2, rank = 49, series = 1, sex = -1, base = {{63,65,60,62,67,66,70,64,68,69,384,73,356,72,71,74,75}},    adv = {{353,355,390,711}} }},
+    {{ code = "emei",     camp = 1, rank = 13, series = 2, sex = 1,  base = {{80,85,77,79,93,82,89,385,86,92,88,91,252,282}},          adv = {{328,380,332,712}} }},
+    {{ code = "cuiyan",   camp = 3, rank = 31, series = 2, sex = 1,  base = {{99,102,95,97,269,105,113,100,109,108,111,114}},           adv = {{336,337,713}} }},
+    {{ code = "gaibang",  camp = 1, rank = 37, series = 3, sex = -1, base = {{119,122,115,116,129,124,274,277,125,128,130,360}},        adv = {{357,359,714}} }},
+    {{ code = "tianren",  camp = 2, rank = 55, series = 3, sex = -1, base = {{135,145,131,132,136,137,138,140,141,364,143,142,148,150}}, adv = {{361,362,391,715}} }},
+    {{ code = "wudang",   camp = 1, rank = 7,  series = 4, sex = -1, base = {{153,155,151,152,159,158,164,160,157,165,166,267}},        adv = {{365,368,716}} }},
+    {{ code = "kunlun",   camp = 3, rank = 19, series = 4, sex = -1, base = {{169,179,167,168,171,392,174,172,173,178,393,175,181,90,176,182,275,630}}, adv = {{372,375,394,717}} }},
+    {{ code = "huashan",  camp = 3, rank = 82, series = 2, sex = -1, base = {{1347,1372,1349,1374,1350,1375,1351,1376,1354,1378,1355,1379,1358,1360,1380}}, adv = {{1364,1382,1365}} }},
+}}
+
+function GMT_MenuJoinFaction()
+    Say({L("Gia nhập Môn phái & Xuất sư:")}, 14,
+        {L("Thiếu Lâm (0)")} .. "/GMT_JoinFac0",
+        {L("Thiên Vương Bang (1)")} .. "/GMT_JoinFac1",
+        {L("Đường Môn (2)")} .. "/GMT_JoinFac2",
+        {L("Ngũ Độc Giáo (3)")} .. "/GMT_JoinFac3",
+        {L("Nga My (4)")} .. "/GMT_JoinFac4",
+        {L("Thúy Yên (5)")} .. "/GMT_JoinFac5",
+        {L("Cái Bang (6)")} .. "/GMT_JoinFac6",
+        {L("Thiên Nhẫn (7)")} .. "/GMT_JoinFac7",
+        {L("Võ Đang (8)")} .. "/GMT_JoinFac8",
+        {L("Côn Lôn (9)")} .. "/GMT_JoinFac9",
+        {L("Hoa Sơn (10)")} .. "/GMT_JoinFac10",
+        {L("Xuất sư (Graduate Faction)")} .. "/GMT_GraduateFaction",
+        {L("Học toàn bộ kỹ năng môn phái hiện tại (Lv1)")} .. "/GMT_LearnAllFactionSkills",
+        {L("Quay lại")} .. "/GMT_MenuFactionAndSkill")
+end
+
+function GMT_JoinFaction(nFacId)
+    local def = GMT_FACTION_DEFS[nFacId + 1]
+    if not def then return end
+    if GetLevel() < 10 then
+        Msg2Player({L("Cần đạt cấp 10 trước khi gia nhập môn phái.")})
+        return
+    end
+    if GetFaction() ~= "" then
+        Msg2Player({L("Nhân vật đã gia nhập môn phái.")})
+        return
+    end
+    if GetSeries() ~= def.series then
+        Msg2Player({L("Ngũ hành không phù hợp với môn phái này.")})
+        return
+    end
+    if nFacId == 0 and GetSex() ~= 0 then
+        Msg2Player({L("Giới tính không phù hợp với môn phái này.")})
+        return
+    end
+    if def.sex >= 0 and GetSex() ~= def.sex then
+        Msg2Player({L("Giới tính không phù hợp với môn phái này.")})
+        return
+    end
+    SetFaction(def.code)
+    SetCamp(def.camp)
+    SetCurCamp(def.camp)
+    SetRank(def.rank)
+    SetLastFactionNumber(nFacId)
+    for i = 1, getn(def.base) do
+        local nSkill = def.base[i]
+        if HaveMagic(nSkill) < 0 then
+            AddMagic(nSkill, 0)
+        end
+    end
+    Msg2Player({L("Đã gia nhập môn phái thành công.")})
+end
+
+function GMT_JoinFac0() GMT_JoinFaction(0) end
+function GMT_JoinFac1() GMT_JoinFaction(1) end
+function GMT_JoinFac2() GMT_JoinFaction(2) end
+function GMT_JoinFac3() GMT_JoinFaction(3) end
+function GMT_JoinFac4() GMT_JoinFaction(4) end
+function GMT_JoinFac5() GMT_JoinFaction(5) end
+function GMT_JoinFac6() GMT_JoinFaction(6) end
+function GMT_JoinFac7() GMT_JoinFaction(7) end
+function GMT_JoinFac8() GMT_JoinFaction(8) end
+function GMT_JoinFac9() GMT_JoinFaction(9) end
+function GMT_JoinFac10() GMT_JoinFaction(10) end
+
+function GMT_GraduateFaction()
+    SetFaction("")
+    SetCamp(4)
+    SetCurCamp(4)
+    Msg2Player({L("Đã xuất sư.")})
+end
+
+function GMT_LearnAllFactionSkills()
+    if GetFaction() == "" then
+        Msg2Player({L("Nhân vật chưa gia nhập môn phái.")})
+        return
+    end
+    local nFac = GetLastFactionNumber()
+    local def = GMT_FACTION_DEFS[nFac + 1]
+    if not def then
+        Msg2Player({L("Nhân vật chưa gia nhập môn phái.")})
+        return
+    end
+    for i = 1, getn(def.base) do
+        local nSkill = def.base[i]
+        if HaveMagic(nSkill) < 1 then
+            AddMagic(nSkill, 1)
+        end
+    end
+    for i = 1, getn(def.adv) do
+        local nSkill = def.adv[i]
+        if HaveMagic(nSkill) < 1 then
+            AddMagic(nSkill, 1)
+        end
+    end
+    Msg2Player({L("Đã học toàn bộ kỹ năng môn phái ở cấp 1.")})
 end
 
 function GMT_MenuCamp()
@@ -501,14 +616,46 @@ function GMT_MedPack5x5()
 end
 
 function GMT_MenuEquipment()
-    Say({L("Cấp Trang bị mẫu (Atomic):")}, 6,
+    Say({L("Cấp Trang bị mẫu (Atomic):")}, 7,
         {L("Thanh Đồng Kiếm trắng Lv1 (0,0,0,1)")} .. "/GMT_EqSword1",
         {L("Cang Kiếm trắng Lv2 (0,0,0,2)")} .. "/GMT_EqSword2",
         {L("Bố Y trắng Lv1 (0,2,0,1)")} .. "/GMT_EqArmor1",
         {L("Nhẫn Xanh Lv5 seed=12345 (0,3,0,5)")} .. "/GMT_EqBlueRing5",
         {L("Kiếm Tím 6 lỗ rỗng Lv5 (0,0,0,5)")} .. "/GMT_EqPurpleSword5",
+        {L("Vũ khí thử nghiệm (9 loại)")} .. "/GMT_MenuTestWeapons",
         {L("Quay lại")} .. "/GMT_MenuItems")
 end
+
+function GMT_MenuTestWeapons()
+    Say({L("Cấp Vũ khí thử nghiệm (9 loại Lv1):")}, 10,
+        {L("Kiếm trắng Lv1 (0,0,0,1)")} .. "/GMT_Wpn0",
+        {L("Đao trắng Lv1 (0,0,1,1)")} .. "/GMT_Wpn1",
+        {L("Côn trắng Lv1 (0,0,2,1)")} .. "/GMT_Wpn2",
+        {L("Thương trắng Lv1 (0,0,3,1)")} .. "/GMT_Wpn3",
+        {L("Chùy trắng Lv1 (0,0,4,1)")} .. "/GMT_Wpn4",
+        {L("Song Đao trắng Lv1 (0,0,5,1)")} .. "/GMT_Wpn5",
+        {L("Phi Tiêu trắng Lv1 (0,1,0,1)")} .. "/GMT_Wpn6",
+        {L("Phi Đao trắng Lv1 (0,1,1,1)")} .. "/GMT_Wpn7",
+        {L("Tụ Tiễn trắng Lv1 (0,1,2,1)")} .. "/GMT_Wpn8",
+        {L("Quay lại")} .. "/GMT_MenuEquipment")
+end
+
+function GMT_GiveWeapon(nDetail, nParticular, nCells)
+    local nVer = ITEM_GetLatestItemVersion()
+    if CalcFreeItemCellCount() >= nCells then
+        AddItemEx(nVer, 0, 0, 0, nDetail, nParticular, 1, 0, 0, 0, 0, 0, 0, 0, 0)
+    end
+end
+
+function GMT_Wpn0() GMT_GiveWeapon(0, 0, 3) end
+function GMT_Wpn1() GMT_GiveWeapon(0, 1, 2) end
+function GMT_Wpn2() GMT_GiveWeapon(0, 2, 6) end
+function GMT_Wpn3() GMT_GiveWeapon(0, 3, 3) end
+function GMT_Wpn4() GMT_GiveWeapon(0, 4, 4) end
+function GMT_Wpn5() GMT_GiveWeapon(0, 5, 4) end
+function GMT_Wpn6() GMT_GiveWeapon(1, 0, 1) end
+function GMT_Wpn7() GMT_GiveWeapon(1, 1, 1) end
+function GMT_Wpn8() GMT_GiveWeapon(1, 2, 3) end
 
 function GMT_EqSword1()
     local nVer = ITEM_GetLatestItemVersion()
@@ -693,7 +840,7 @@ function GMT_Tp199() NewWorld(199, 1644, 2906) SetFightState(1) end
 -- ==================== [6] WORLD & ENTITIES ====================
 function GMT_MenuWorldEntities()
     Say({L("Thế giới & Thực thể NPC (Atomic):")}, 4,
-        {L("Triệu hồi Cọc Gỗ Lv10 (Template 413, X+64)")} .. "/GMT_SpawnDummy",
+        {L("Triệu hồi Mộc Nhân 1 tỷ HP (Template 586, X+64)")} .. "/GMT_SpawnDummy",
         {L("Triệu hồi Quái tập Lv10 (Template 1, X+96)")} .. "/GMT_SpawnMob",
         {L("Mở Tiệm Dược Điếm (Shop 39)")} .. "/GMT_OpenShop39",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
@@ -703,7 +850,7 @@ function GMT_SpawnDummy()
     local nW, nCellX, nCellY = GetWorldPos()
     local nMapIdx = SubWorldID2Idx(nW)
     if nMapIdx and nMapIdx >= 0 then
-        AddNpc(413, 10, nMapIdx, nCellX * 32 + 64, nCellY * 32, 1)
+        AddNpc(586, 90, nMapIdx, nCellX * 32 + 64, nCellY * 32, 1)
     end
 end
 

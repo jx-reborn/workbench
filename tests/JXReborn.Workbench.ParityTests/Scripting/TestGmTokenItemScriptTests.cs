@@ -1,14 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using JXReborn.GameAssets.Items;
+using JXReborn.GameAssets.PlayerTemplates;
 using JXReborn.Primitives.Characters;
 using JXReborn.Primitives.Items;
 using JXReborn.Primitives.WorldZones;
 using JXReborn.Scripts.Dialogs;
 using JXReborn.Scripts.Items;
-using JXReborn.Workbench.Scripts.Items;
+using JXReborn.TestBase.Fakes;
 using JXReborn.TestBase.SimulationHarnesses;
+using JXReborn.Workbench.Scripts.Items;
 using JXReborn.ZoneEngine.Items;
 using JXReborn.ZoneEngine.PlayerSessions;
 using JXReborn.ZoneEngine.Scripting;
@@ -19,9 +22,17 @@ namespace JXReborn.ZoneEngine.Tests.Scripting;
 
 public sealed class TestGmTokenItemScriptTests
 {
-    private static (ZoneSimulationHarness Harness, ZoneExecutionContext Context) CreateHarness(bool enableGmToken)
+    private static (ZoneSimulationHarness Harness, ZoneExecutionContext Context) CreateHarness(
+        bool enableGmToken,
+        IPlayerTemplateCatalog? playerCatalog = null)
     {
-        var harness = new ZoneSimulationHarness(new ZoneSimulationHarnessOptions());
+        var options = new ZoneSimulationHarnessOptions();
+        if (playerCatalog is not null)
+        {
+            options.Assets = new ZoneAssetServices { PlayerTemplateCatalog = playerCatalog };
+        }
+
+        var harness = new ZoneSimulationHarness(options);
         MapZoneWorker worker = harness.Workers.First();
         worker.ExecutionContext.Options.EnableTestGmToken = enableGmToken;
         worker.ExecutionContext.Options.AutoGrantGmTokenOnLogin = enableGmToken;
@@ -30,7 +41,10 @@ public sealed class TestGmTokenItemScriptTests
         return (harness, worker.ExecutionContext);
     }
 
-    private static PlayerZoneState CreatePlayer(byte level = 1, int money = 0) =>
+    private static PlayerZoneState CreatePlayer(
+        byte level = 1,
+        int money = 0,
+        ElementSeries series = ElementSeries.Earth) =>
         new(
             runtimeNpcId: 1001u,
             accountId: Guid.NewGuid(),
@@ -38,7 +52,7 @@ public sealed class TestGmTokenItemScriptTests
             leaseEpoch: 1L,
             roleNameUnicode: "GmTokenTester",
             gender: CharacterGender.Male,
-            series: ElementSeries.Earth,
+            series: series,
             level: level,
             experience: 0,
             leadExperience: 0,
@@ -288,5 +302,136 @@ public sealed class TestGmTokenItemScriptTests
         PlayerItemSlot[] remaining = player.Inventory.GetBagItems().ToArray();
         Assert.Single(remaining);
         Assert.Equal(tokenSlot.RuntimeItemId, remaining[0].RuntimeItemId);
+    }
+
+    [Fact]
+    public async Task OnUseItemAsync_TestWeaponsMenu_ShouldGrantAllNineWeaponTypes()
+    {
+        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        PlayerZoneState player = CreatePlayer(level: 10, money: 0);
+        var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
+        var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
+        var script = new TestGmTokenItemScript();
+
+        // [3] Items -> [1] Equipment -> [5] Vũ khí thử nghiệm (9 loại) -> [0..8]
+        for (int weaponIdx = 0; weaponIdx < 9; weaponIdx++)
+        {
+            await ExecutePathAsync(script, itemCtx, dialogCtx, player, 3, 1, 5, weaponIdx);
+        }
+
+        // [9] Quay lại returns to equipment menu cleanly without throwing
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 3, 1, 5, 9);
+
+        PlayerItemSlot[] bagItems = player.Inventory.GetBagItems().ToArray();
+        Assert.Equal(9, bagItems.Length);
+
+        (short Detail, short Particular)[] expectedWeapons =
+        [
+            (0, 0), // Kiếm
+            (0, 1), // Đao
+            (0, 2), // Côn
+            (0, 3), // Thương
+            (0, 4), // Chùy
+            (0, 5), // Song Đao
+            (1, 0), // Phi Tiêu
+            (1, 1), // Phi Đao
+            (1, 2), // Tụ Tiễn
+        ];
+
+        foreach ((short detail, short particular) in expectedWeapons)
+        {
+            Assert.Contains(
+                bagItems,
+                slot => slot.Genre == ItemGenreKind.Equipment &&
+                        slot.DetailType == detail &&
+                        slot.ParticularType == particular &&
+                        slot.Level == 1 &&
+                        slot.ContainerPlace == ItemContainerPlace.EquipRoom);
+        }
+    }
+
+    [Fact]
+    public async Task OnUseItemAsync_LearnAllCurrentFactionSkills_ShouldLearnFactionSkillsAtLevel1()
+    {
+        int[] shaolinBaseSkills = [10, 14, 4, 6, 8, 15, 16, 20, 11, 19, 271, 21, 273];
+        int[] shaolinAdvancedSkills = [318, 319, 321, 709];
+        var shaolinTemplate = new FactionTemplate(
+            Id: 0,
+            Code: "thieu-lam-phai",
+            Name: "Thiếu Lâm phái",
+            Series: (byte)ElementSeries.Metal,
+            Camp: 1,
+            AllowedGenders: [0],
+            SkillIds: shaolinBaseSkills,
+            Titles: [new FactionRankTitleTemplate(1, "Tảo Địa Tăng")]);
+
+        var catalog = new StubFactionPlayerTemplateCatalog(shaolinTemplate);
+        var (_, execCtx) = CreateHarness(enableGmToken: true, playerCatalog: catalog);
+        PlayerZoneState player = CreatePlayer(level: 120, series: ElementSeries.Metal);
+        var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
+        var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
+        var script = new TestGmTokenItemScript();
+
+        // Guard: before joining any faction, [1] Faction -> [5] Join Faction -> [12] Learn All is a no-op
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 1, 5, 12);
+        Assert.False(player.TryGetLearnedSkill(10, out _));
+
+        // Join Thiếu Lâm (0): [1, 5, 0]
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 1, 5, 0);
+        Assert.Equal((byte)0, player.CurrentFactionId);
+
+        // Learn all current faction skills (base + Lv90 + Lv120) at level 1: [1, 5, 12]
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 1, 5, 12);
+
+        foreach (int skillId in shaolinBaseSkills.Concat(shaolinAdvancedSkills))
+        {
+            Assert.True(player.TryGetLearnedSkill(skillId, out var learned), $"Skill {skillId} was not learned.");
+            Assert.Equal((ushort)1, learned.BaseLevel);
+        }
+    }
+
+    private sealed class StubFactionPlayerTemplateCatalog : IPlayerTemplateCatalog
+    {
+        private readonly FakePlayerTemplateCatalog _inner = new();
+        private readonly Dictionary<byte, FactionTemplate> _factions;
+
+        public StubFactionPlayerTemplateCatalog(params FactionTemplate[] factions)
+        {
+            _factions = factions.ToDictionary(static f => f.Id);
+            AllFactions = factions;
+        }
+
+        public IReadOnlyCollection<CharacterBaseTemplate> CharacterTemplates => _inner.CharacterTemplates;
+        public IReadOnlyCollection<StarterVillageTemplate> StarterVillages => _inner.StarterVillages;
+        public IReadOnlyList<StarterItemTemplate> DefaultStarterItems => _inner.DefaultStarterItems;
+        public PkRulesTemplate PkRules => _inner.PkRules;
+        public IReadOnlyList<FactionTemplate> AllFactions { get; }
+
+        public bool TryGetCharacterTemplate(ElementSeries series, CharacterGender gender, out CharacterBaseTemplate? template) =>
+            _inner.TryGetCharacterTemplate(series, gender, out template);
+
+        public bool TryGetStarterVillage(ushort villageMapId, out StarterVillageTemplate? village) =>
+            _inner.TryGetStarterVillage(villageMapId, out village);
+
+        public PlayerSeriesGrowthRuleTemplate GetSeriesGrowthRule(ElementSeries series) =>
+            _inner.GetSeriesGrowthRule(series);
+
+        public long GetRequiredExpForNextLevel(int currentLevel) =>
+            _inner.GetRequiredExpForNextLevel(currentLevel);
+
+        public bool IsRoleNameProhibited(string roleNameUnicode) =>
+            _inner.IsRoleNameProhibited(roleNameUnicode);
+
+        public PkPenaltyRuleTemplate GetPkPenaltyRule(int pkValue) =>
+            _inner.GetPkPenaltyRule(pkValue);
+
+        public bool TryGetFactionById(byte factionId, out FactionTemplate? faction) =>
+            _factions.TryGetValue(factionId, out faction);
+
+        public bool TryGetFactionByCode(string code, out FactionTemplate? faction)
+        {
+            faction = AllFactions.FirstOrDefault(f => string.Equals(f.Code, code, StringComparison.OrdinalIgnoreCase));
+            return faction is not null;
+        }
     }
 }

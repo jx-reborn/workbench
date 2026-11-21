@@ -683,6 +683,11 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 bc.SendSystemMessage($"Xuất sư: {result}.");
                 return ValueTask.CompletedTask;
             }),
+            new DialogOption("Học toàn bộ kỹ năng môn phái hiện tại (Lv1)", static c =>
+            {
+                LearnAllCurrentFactionSkills((ZoneScriptDialogContextBase)c);
+                return ValueTask.CompletedTask;
+            }),
             new DialogOption("Quay lại", static c =>
             {
                 OpenFactionAndSkillMenu((ZoneScriptDialogContextBase)c);
@@ -696,6 +701,55 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
         ctx.SendSystemMessage($"Gia nhập {name} ({factionId}): {result}.");
         return ValueTask.CompletedTask;
     }
+
+    private static void LearnAllCurrentFactionSkills(ZoneScriptDialogContextBase ctx)
+    {
+        PlayerZoneState player = ctx.Player;
+        byte factionId = player.CurrentFactionId;
+        IPlayerTemplateCatalog? playerCatalog = ctx.ExecutionContext.Assets.PlayerTemplateCatalog;
+        if (playerCatalog is null || !playerCatalog.TryGetFactionById(factionId, out FactionTemplate? faction) || faction is null)
+        {
+            ctx.SendSystemMessage("Nhân vật chưa gia nhập môn phái.");
+            return;
+        }
+
+        var skillIds = new HashSet<int>();
+        foreach (int skillId in faction.SkillIds)
+        {
+            if (skillIds.Add(skillId) &&
+                (!player.TryGetLearnedSkill(skillId, out var existing) || existing.BaseLevel < 1))
+            {
+                LearnSkillDirect(ctx, skillId, level: 1);
+            }
+        }
+
+        foreach (int advancedSkillId in GetAdvancedFactionSkills(factionId))
+        {
+            if (skillIds.Add(advancedSkillId) &&
+                (!player.TryGetLearnedSkill(advancedSkillId, out var existing) || existing.BaseLevel < 1))
+            {
+                LearnSkillDirect(ctx, advancedSkillId, level: 1);
+            }
+        }
+
+        ctx.SendSystemMessage($"Đã học toàn bộ {skillIds.Count} kỹ năng môn phái {faction.Name} ở cấp 1.");
+    }
+
+    private static ReadOnlySpan<int> GetAdvancedFactionSkills(byte factionId) => factionId switch
+    {
+        0 => [318, 319, 321, 709],       // Thiếu Lâm: Đạt Ma, Hoành Tảo, Vô Tướng + 120
+        1 => [322, 323, 325, 708],       // Thiên Vương: Phá Thiên, Truy Tinh, Truy Phong + 120
+        2 => [302, 339, 342, 351, 710],  // Đường Môn: Bạo Vũ, Nhiếp Hồn, Cửu Cung, Loạn Hoàn + 120
+        3 => [353, 355, 390, 711],       // Ngũ Độc: Âm Phong, Huyền Âm, Đoạn Cân + 120
+        4 => [328, 380, 332, 712],       // Nga My: Tam Nga, Phong Sương, Phổ Độ + 120
+        5 => [336, 337, 713],            // Thúy Yên: Băng Tung, Băng Tâm + 120
+        6 => [357, 359, 714],            // Cái Bang: Phi Long, Thiên Hạ + 120
+        7 => [361, 362, 391, 715],       // Thiên Nhẫn: Vân Long, Thiên Ngoại, Nhiếp Hồn + 120
+        8 => [365, 368, 716],            // Võ Đang: Thiên Địa, Nhân Kiếm + 120
+        9 => [372, 375, 394, 717],       // Côn Lôn: Ngạo Tuyết, Lôi Động, Túy Tiên + 120
+        10 => [1364, 1382, 1365],        // Hoa Sơn: Bí kíp 90 + 120
+        _ => [],
+    };
 
     // ==================== [2] ECONOMY & STORAGE ====================
     private static void OpenEconomyMenu(ZoneScriptDialogContextBase ctx)
@@ -1016,9 +1070,70 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 GrantEmptyPurpleSword((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
             }),
+            new DialogOption("Vũ khí thử nghiệm (9 loại)", static c =>
+            {
+                OpenTestWeaponsMenu((ZoneScriptDialogContextBase)c);
+                return ValueTask.CompletedTask;
+            }),
             new DialogOption("Quay lại", static c =>
             {
                 OpenItemsMenu((ZoneScriptDialogContextBase)c);
+                return ValueTask.CompletedTask;
+            }));
+    }
+
+    private static void OpenTestWeaponsMenu(ZoneScriptDialogContextBase ctx)
+    {
+        ctx.Say(
+            "Cấp Vũ khí thử nghiệm (9 loại Lv1):",
+            new DialogOption("Kiếm trắng Lv1 (0,0,0,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "thiet-truy-thu", "Thiết Trủy thủ", detailType: 0, particularType: 0, level: 1, width: 1, height: 3, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Đao trắng Lv1 (0,0,1,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "yeu-dao", "Yêu Đao", detailType: 0, particularType: 1, level: 1, width: 1, height: 2, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Côn trắng Lv1 (0,0,2,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "thieu-hoa-con", "Thiêu Hỏa Côn", detailType: 0, particularType: 2, level: 1, width: 2, height: 3, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Thương trắng Lv1 (0,0,3,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "thiet-thuong", "Thiết Thương", detailType: 0, particularType: 3, level: 1, width: 1, height: 3, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Chùy trắng Lv1 (0,0,4,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "toan-dau-chuy", "Toán Đầu chùy", detailType: 0, particularType: 4, level: 1, width: 2, height: 2, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Song Đao trắng Lv1 (0,0,5,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "nga-mi-thich", "Nga Mi Thích", detailType: 0, particularType: 5, level: 1, width: 2, height: 2, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Phi Tiêu trắng Lv1 (0,1,0,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "kim-tien-tieu", "Kim Tiền tiêu", detailType: 1, particularType: 0, level: 1, width: 1, height: 1, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Phi Đao trắng Lv1 (0,1,1,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "phi-dao", "Phi Đao", detailType: 1, particularType: 1, level: 1, width: 1, height: 1, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Tụ Tiễn trắng Lv1 (0,1,2,1)", static c =>
+            {
+                GrantPlainEquipment((ZoneScriptDialogContextBase)c, "tu-tien", "Tụ Tiễn", detailType: 1, particularType: 2, level: 1, width: 1, height: 3, durability: 20);
+                return ValueTask.CompletedTask;
+            }),
+            new DialogOption("Quay lại", static c =>
+            {
+                OpenEquipmentItemsMenu((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
             }));
     }

@@ -62,6 +62,13 @@ public sealed class RebornHostLauncher : IAsyncDisposable
         psi.Environment["LegacyGateway__GameServerPort"] = _options.RebornGameServerPort.ToString(CultureInfo.InvariantCulture);
         psi.Environment["ZoneEngine__EnableTestGmToken"] = "true";
         psi.Environment["ZoneEngine__AutoGrantGmTokenOnLogin"] = "true";
+        psi.Environment["ZoneEngine__TestGmTokenItemCode"] = "cam-nang-tan-thu";
+        psi.Environment["ZoneEngine__TestGmTokenScriptCode"] = @"\script\global\nobitaxd\item\camnang_gm.lua";
+        if (TryResolveWorkbenchScriptsDirectory(serverRootDir) is { } workbenchScriptsDir)
+        {
+            psi.Environment["ScriptHost__ScriptDirectories__1"] = workbenchScriptsDir;
+            psi.Environment["ScriptHost__ScriptLayers__1"] = "JXReborn.Workbench.Scripts.dll";
+        }
 
         if (!string.IsNullOrWhiteSpace(resolvedPackDir))
         {
@@ -262,6 +269,18 @@ public sealed class RebornHostLauncher : IAsyncDisposable
         ];
 
         return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private static string? TryResolveWorkbenchScriptsDirectory(string serverRootDir)
+    {
+        string workspaceRoot = Directory.GetParent(serverRootDir)?.FullName ?? serverRootDir;
+        string[] candidates =
+        [
+            Path.Combine(workspaceRoot, "workbench", "scripts"),
+            Path.Combine(AppContext.BaseDirectory, "scripts")
+        ];
+
+        return candidates.FirstOrDefault(dir => File.Exists(Path.Combine(dir, "JXReborn.Workbench.Scripts.dll")));
     }
 
     public async ValueTask DisposeAsync()
