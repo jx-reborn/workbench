@@ -479,6 +479,7 @@ public sealed class TestGmTokenItemScriptTests
 
             for (int i = 0; i < csOptions.Count; i++)
             {
+                Assert.DoesNotContain("/", csOptions[i], StringComparison.Ordinal);
                 Assert.Equal(csOptions[i], luaMenu.Options[i]);
             }
         }

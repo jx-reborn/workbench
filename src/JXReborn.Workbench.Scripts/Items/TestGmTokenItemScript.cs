@@ -107,7 +107,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 OpenAttributesMenu((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
             }),
-            new DialogOption("Sinh lực / Nội lực / Thể lực", static c =>
+            new DialogOption("Sinh lực - Nội lực - Thể lực", static c =>
             {
                 OpenVitalsMenu((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
@@ -117,7 +117,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 OpenActivityPointsMenu((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
             }),
-            new DialogOption("Danh hiệu / Quân hàm (Rank)", static c =>
+            new DialogOption("Danh hiệu - Quân hàm (Rank)", static c =>
             {
                 OpenRankMenu((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
@@ -251,7 +251,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
     {
         ctx.Say(
             "Điều chỉnh Sinh lực / Nội lực / Thể lực (Atomic):",
-            new DialogOption("Hồi đầy Sinh lực / Nội lực / Thể lực", static c =>
+            new DialogOption("Hồi đầy Sinh lực - Nội lực - Thể lực", static c =>
             {
                 RestoreVitals(((ZoneScriptDialogContextBase)c).Player);
                 c.SendSystemMessage("Đã hồi đầy Sinh lực, Nội lực và Thể lực.");
@@ -810,7 +810,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 c.OpenStoreBox();
                 return ValueTask.CompletedTask;
             }),
-            new DialogOption("Mở rộng Rương (1 / 2 / 3)", static c =>
+            new DialogOption("Mở rộng Rương (1 - 2 - 3)", static c =>
             {
                 OpenExpandableBoxMenu((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
@@ -1633,7 +1633,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 c.OpenShop(39);
                 return ValueTask.CompletedTask;
             }),
-            new DialogOption("Triệu hồi NPC / Boss theo Template ID", static c =>
+            new DialogOption("Triệu hồi NPC - Boss theo Template ID", static c =>
             {
                 c.AskClientForNumber("Nhập NPC Template ID (1..5000):", 1, 5000, static (nc, templateId) =>
                 {

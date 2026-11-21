@@ -232,9 +232,9 @@ function GMT_MenuCharacter()
     Say({L("Nhân vật & Chỉ số (Chọn trục trạng thái):")}, 6,
         {L("Cấp độ")} .. "/GMT_MenuLevel",
         {L("Tiềm năng")} .. "/GMT_MenuAttributes",
-        {L("Sinh lực / Nội lực / Thể lực")} .. "/GMT_MenuVitals",
+        {L("Sinh lực - Nội lực - Thể lực")} .. "/GMT_MenuVitals",
         {L("Điểm hoạt động (Phúc duyên, Tống Kim, Liên đấu)")} .. "/GMT_MenuActivityPoints",
-        {L("Danh hiệu / Quân hàm (Rank)")} .. "/GMT_MenuRank",
+        {L("Danh hiệu - Quân hàm (Rank)")} .. "/GMT_MenuRank",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
 
@@ -378,7 +378,7 @@ end
 
 function GMT_MenuVitals()
     Say({L("Điều chỉnh Sinh lực / Nội lực / Thể lực (Atomic):")}, 3,
-        {L("Hồi đầy Sinh lực / Nội lực / Thể lực")} .. "/GMT_RestoreVitals",
+        {L("Hồi đầy Sinh lực - Nội lực - Thể lực")} .. "/GMT_RestoreVitals",
         {L("Đưa Sinh lực về thấp (10% HP)")} .. "/GMT_LowHp10",
         {L("Quay lại")} .. "/GMT_MenuCharacter")
 end
@@ -571,11 +571,11 @@ function GMT_GraduateFaction()
 end
 
 function GMT_LearnAllFactionSkills()
-    if GetFaction() == "" then
+    local nFac = GetLastFactionNumber()
+    if GetFaction() == "" and nFac ~= 10 then
         Msg2Player({L("Nhân vật chưa gia nhập môn phái.")})
         return
     end
-    local nFac = GetLastFactionNumber()
     local def = GMT_FACTION_DEFS[nFac + 1]
     if not def then
         Msg2Player({L("Nhân vật chưa gia nhập môn phái.")})
@@ -756,7 +756,7 @@ function GMT_MenuEconomy()
         {L("Nhập số lượng ngân lượng")} .. "/GMT_AskMoney",
         {L("Xóa ngân lượng về 0")} .. "/GMT_ZeroMoney",
         {L("Mở Rương chứa đồ")} .. "/GMT_OpenBox",
-        {L("Mở rộng Rương (1 / 2 / 3)")} .. "/GMT_MenuExpandableBox",
+        {L("Mở rộng Rương (1 - 2 - 3)")} .. "/GMT_MenuExpandableBox",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
 
@@ -1172,7 +1172,7 @@ function GMT_MenuWorldEntities()
         {L("Triệu hồi Mộc Nhân 1 tỷ HP (Template 586, X+64)")} .. "/GMT_SpawnDummy",
         {L("Triệu hồi NPC luyện công 100k HP (Template 576, X+96)")} .. "/GMT_SpawnTrainer576",
         {L("Mở Tiệm Dược Điếm (Shop 39)")} .. "/GMT_OpenShop39",
-        {L("Triệu hồi NPC / Boss theo Template ID")} .. "/GMT_AskNpcTemplate",
+        {L("Triệu hồi NPC - Boss theo Template ID")} .. "/GMT_AskNpcTemplate",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
 
