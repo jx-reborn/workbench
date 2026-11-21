@@ -181,4 +181,50 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
 
         Assert.Contains(nonAuraFindings, f => f.FieldPath == "S2C.Extra[0x85]");
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_OnNpcSkill_ShouldIgnoreStochasticItemAbrade0x9B_WhileKeepingRepairStrict()
+    {
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        byte[] skillCast = new byte[25];
+        skillCast[0] = ProtocolOpcodes.s2c_skillcast;
+        byte[] itemRepair = new byte[13];
+        itemRepair[0] = ProtocolOpcodes.s2c_itemrepair;
+
+        // 1. C2S 0x4D with weapon abrade 0x9B only on Primary -> no findings
+        byte[] skillC2s = [ProtocolOpcodes.c2s_npcskill, 0, 0, 0, 0, 129, 1, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0];
+        var skillFrame = new JxWireFrame(ProtocolOpcodes.c2s_npcskill, skillC2s, now, 1);
+        var skillWindow = new WireActionWindow(1, "Step095_C2S_0x4D", skillFrame, skillFrame.DecryptedPayload, false, null);
+
+        IReadOnlyList<ParityFinding> abradeFindings = differ.CompareWindow(
+            skillWindow,
+            primaryS2c:
+            [
+                new(ProtocolOpcodes.s2c_skillcast, skillCast, now, 1),
+                new(ProtocolOpcodes.s2c_itemrepair, itemRepair, now, 2),
+            ],
+            shadowS2c: [new(ProtocolOpcodes.s2c_skillcast, skillCast, now, 1)],
+            mapId: 53,
+            playerMpsX: 52032,
+            playerMpsY: 101696);
+
+        Assert.Empty(abradeFindings);
+
+        // 2. C2S 0x7A (c2s_repairitem) still flags missing 0x9B strictly
+        byte[] repairC2s = [ProtocolOpcodes.c2s_repairitem, 0, 0, 0, 0, 0, 0, 0, 0];
+        var repairFrame = new JxWireFrame(ProtocolOpcodes.c2s_repairitem, repairC2s, now, 2);
+        var repairWindow = new WireActionWindow(2, "Step096_C2S_0x7A", repairFrame, repairFrame.DecryptedPayload, false, null);
+
+        IReadOnlyList<ParityFinding> repairFindings = differ.CompareWindow(
+            repairWindow,
+            primaryS2c: [new(ProtocolOpcodes.s2c_itemrepair, itemRepair, now, 3)],
+            shadowS2c: [],
+            mapId: 53,
+            playerMpsX: 52032,
+            playerMpsY: 101696);
+
+        Assert.Contains(repairFindings, f => f.FieldPath == "S2C.Missing[0x9B]");
+    }
 }
