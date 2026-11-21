@@ -128,6 +128,28 @@ public sealed class EntityIdTranslatorAndRewriterTests
         Assert.Equal(1001, BinaryPrimitives.ReadInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
     }
 
+    [Fact]
+    public void RewriteForShadow_ObjMouseClick_TranslatesObjIdAtOffset5AndPreservesRegionId()
+    {
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1132), now);
+        shadow.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 4007), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] mouseClickC2s = new byte[ObjMouseClickC2SPacket.PayloadSize];
+        new ObjMouseClickC2SPacket(RegionId: 0x00620064u, ObjId: 1132).WritePayload(mouseClickC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(mouseClickC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(0x00620064u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+        Assert.Equal(4007, BinaryPrimitives.ReadInt32LittleEndian(result.ShadowPayload.AsSpan(5, 4)));
+    }
+
     private static byte[] BuildSyncNpcPayload(uint npcId, ushort templateId, int mpsX, int mpsY, string name)
     {
         var pkt = new SyncNpcFullS2CPacket(

@@ -416,14 +416,11 @@ public sealed class ProxyShadowClientState
                 break;
 
             case ProtocolOpcodes.s2c_syncnpcminplayer:
-                if (payload.Length >= 15)
+                if (payload.Length >= SyncNpcMinPlayerS2CPacket.Size)
                 {
-                    uint npcId = BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(1, 4));
-                    if (npcId == SelfNpcId || SelfNpcId == 0)
-                    {
-                        MpsX = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(5, 4));
-                        MpsY = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(11, 4));
-                    }
+                    SyncNpcMinPlayerS2CPacket posPkt = MemoryMarshal.Read<SyncNpcMinPlayerS2CPacket>(payload);
+                    MpsX = posPkt.MapMpsX;
+                    MpsY = posPkt.MapMpsY;
                 }
 
                 break;

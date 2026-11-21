@@ -45,7 +45,10 @@ public sealed class C2sPacketRewriter
                     label: "c2s_requestnpc");
 
             case ProtocolOpcodes.c2s_requestobj when copy.Length >= RequestObjC2SPacket.PayloadSize:
-                return RewriteTargetObj(copy);
+                return RewriteTargetObj(copy, objIdOffset: 1, label: "c2s_requestobj");
+
+            case ProtocolOpcodes.c2s_objmouseclick when copy.Length >= ObjMouseClickC2SPacket.PayloadSize:
+                return RewriteTargetObj(copy, objIdOffset: 5, label: "c2s_objmouseclick");
 
             case ProtocolOpcodes.c2s_dialognpc when copy.Length >= 5:
                 return RewriteTargetNpc(
@@ -133,9 +136,9 @@ public sealed class C2sPacketRewriter
         return new C2sRewriteResult(copy, WasModified: modified, TranslationMissReason: null);
     }
 
-    private C2sRewriteResult RewriteTargetObj(byte[] copy)
+    private C2sRewriteResult RewriteTargetObj(byte[] copy, int objIdOffset, string label)
     {
-        int primaryObjId = BinaryPrimitives.ReadInt32LittleEndian(copy.AsSpan(1, 4));
+        int primaryObjId = BinaryPrimitives.ReadInt32LittleEndian(copy.AsSpan(objIdOffset, 4));
         if (primaryObjId <= 0)
         {
             return new C2sRewriteResult(copy, WasModified: false, TranslationMissReason: null);
@@ -146,13 +149,13 @@ public sealed class C2sPacketRewriter
             return new C2sRewriteResult(
                 copy,
                 WasModified: false,
-                TranslationMissReason: $"c2s_requestobj: could not translate Primary ObjId={primaryObjId} to Shadow.");
+                TranslationMissReason: $"{label}: could not translate Primary ObjId={primaryObjId} to Shadow.");
         }
 
         bool modified = shadowObjId != primaryObjId;
         if (modified)
         {
-            BinaryPrimitives.WriteInt32LittleEndian(copy.AsSpan(1, 4), shadowObjId);
+            BinaryPrimitives.WriteInt32LittleEndian(copy.AsSpan(objIdOffset, 4), shadowObjId);
         }
 
         return new C2sRewriteResult(copy, WasModified: modified, TranslationMissReason: null);

@@ -178,7 +178,7 @@ public sealed class PlayerDataExporter
                                 _ => "equipRoom",
                             };
 
-                            int effectiveSeries = itemSeries == 0 && seriesIdx != 0 ? -1 : itemSeries;
+                            int effectiveSeries = itemSeries;
                             starterItems.Add(new Dictionary<string, object?>
                             {
                                 ["itemCode"] = resolvedItemCode,
