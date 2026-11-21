@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using JXReborn.GameAssets.Items;
 using JXReborn.GameAssets.PlayerTemplates;
 using JXReborn.Primitives.Characters;
+using JXReborn.Primitives.Encodings;
 using JXReborn.Primitives.Items;
 using JXReborn.Primitives.WorldZones;
 using JXReborn.Scripts.Dialogs;
@@ -409,6 +414,254 @@ public sealed class TestGmTokenItemScriptTests
 
         Assert.Equal((byte)120, player.Level);
         Assert.Equal((ushort)1132, player.MaxStamina);
+    }
+
+    [Fact]
+    public async Task GmToken_AllMenus_ShouldMatchPackLegacyCamNangGmLua_1To1()
+    {
+        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        PlayerZoneState player = CreatePlayer(level: 10);
+        var recorder = (PlayerOutboundEventRecorder)player.OutboundSink;
+        var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
+        var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
+        var script = new TestGmTokenItemScript();
+
+        Dictionary<string, LegacyLuaMenu> luaMenus = ParsePackLegacyCamNangGmMenus();
+        Assert.NotEmpty(luaMenus);
+
+        (int[] Path, string LuaFunc, int ExpectedCount)[] menuSpecs =
+        [
+            ([], "GMT_OpenRootMenu", 9),
+            ([0], "GMT_MenuCharacter", 6),
+            ([0, 0], "GMT_MenuLevel", 10),
+            ([0, 1], "GMT_MenuAttributes", 5),
+            ([0, 2], "GMT_MenuVitals", 3),
+            ([0, 3], "GMT_MenuActivityPoints", 4),
+            ([0, 4], "GMT_MenuRank", 3),
+            ([1], "GMT_MenuFactionAndSkill", 7),
+            ([1, 0], "GMT_MenuCamp", 6),
+            ([1, 1], "GMT_MenuSkillPoints", 4),
+            ([1, 2], "GMT_MenuLearnSkill", 6),
+            ([1, 3], "GMT_MenuReputeLead", 4),
+            ([1, 4], "GMT_MenuTransmigration", 3),
+            ([1, 5], "GMT_MenuJoinFaction", 14),
+            ([2], "GMT_MenuEconomy", 9),
+            ([2, 7], "GMT_MenuExpandableBox", 4),
+            ([3], "GMT_MenuItems", 8),
+            ([3, 0], "GMT_MenuMedicines", 5),
+            ([3, 1], "GMT_MenuEquipment", 7),
+            ([3, 1, 5], "GMT_MenuTestWeapons", 10),
+            ([3, 2], "GMT_MenuMaterials", 6),
+            ([3, 3], "GMT_MenuDurability", 3),
+            ([3, 4], "GMT_MenuBagBoundary", 3),
+            ([3, 6], "GMT_MenuMounts", 7),
+            ([4], "GMT_MenuCombat", 6),
+            ([5], "GMT_MenuTeleport", 9),
+            ([6], "GMT_MenuWorldEntities", 5),
+            ([7], "GMT_MenuTasksAndDiag", 5),
+        ];
+
+        foreach ((int[] path, string luaFunc, int expectedCount) in menuSpecs)
+        {
+            recorder.SentDialogMenus.Clear();
+            await ExecutePathAsync(script, itemCtx, dialogCtx, player, path);
+            Assert.NotEmpty(recorder.SentDialogMenus);
+            (string csPrompt, IReadOnlyList<string> csOptions, bool isRich) = recorder.SentDialogMenus[^1];
+            Assert.False(isRich);
+            Assert.Equal(expectedCount, csOptions.Count);
+
+            Assert.True(
+                luaMenus.TryGetValue(luaFunc, out LegacyLuaMenu? luaMenu),
+                $"Legacy Lua menu '{luaFunc}' missing in pack_legacy_profiles.py.");
+            Assert.Equal(luaMenu!.DeclaredCount, luaMenu.Options.Count);
+            Assert.Equal(csOptions.Count, luaMenu.Options.Count);
+            Assert.Equal(csPrompt, luaMenu.Prompt);
+
+            for (int i = 0; i < csOptions.Count; i++)
+            {
+                Assert.Equal(csOptions[i], luaMenu.Options[i]);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GmToken_ExtendedCharacterEconomyMountsAndEntities_ShouldMatchCanonicalBehavior()
+    {
+        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        PlayerZoneState player = CreatePlayer(level: 10);
+        var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
+        var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
+        var script = new TestGmTokenItemScript();
+
+        // [0, 2, 0] restores vitals; [0, 2, 1] lowers HP to 10%
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 0, 2, 1);
+        Assert.Equal(Math.Max(1, player.EffectiveMaxLife / 10), player.CurrentLife);
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 0, 2, 0);
+        Assert.Equal(player.EffectiveMaxLife, player.CurrentLife);
+
+        // [0, 3, 0] +1,000 FuYuan syncs both FuYuan and Task 151
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 0, 3, 0);
+        Assert.Equal(1000, player.FuYuan);
+        Assert.Equal(1000, player.GetTaskValue(151));
+
+        // [0, 3, 1] BattleScore syncs BattleScore, Task 747, and Task 751
+        await ExecuteNumberInputPathAsync(script, itemCtx, dialogCtx, player, 2500, 0, 3, 1);
+        Assert.Equal(2500, player.BattleScore);
+        Assert.Equal(2500, player.GetTaskValue(PlayerTaskConsts.SongJinBattleScore));
+        Assert.Equal(2500, player.GetTaskValue(751));
+
+        // [0, 3, 2] Honor syncs Honor and Task 2501
+        await ExecuteNumberInputPathAsync(script, itemCtx, dialogCtx, player, 750, 0, 3, 2);
+        Assert.Equal(750, player.Honor);
+        Assert.Equal(750, player.GetTaskValue(2501));
+
+        // [0, 4, 0] sets Rank via number input; [0, 4, 1] clears Rank
+        await ExecuteNumberInputPathAsync(script, itemCtx, dialogCtx, player, 55, 0, 4, 0);
+        Assert.Equal((byte)55, player.RankId);
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 0, 4, 1);
+        Assert.Equal((byte)0, player.RankId);
+
+        // [1, 2, 2] sets skill 14 to Lv12; [1, 2, 3] forgets & refunds 12; [1, 2, 4] washes remaining skills
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 1, 2, 2);
+        await SubmitPendingNumberAsync(dialogCtx, player, 14);
+        await SubmitPendingNumberAsync(dialogCtx, player, 12);
+        Assert.True(player.TryGetLearnedSkill(14, out var skill14));
+        Assert.Equal((ushort)12, skill14.BaseLevel);
+
+        ushort spBeforeForget = player.UnallocatedSkillPoints;
+        await ExecuteNumberInputPathAsync(script, itemCtx, dialogCtx, player, 14, 1, 2, 3);
+        Assert.False(player.TryGetLearnedSkill(14, out _));
+        Assert.Equal((ushort)(spBeforeForget + 12), player.UnallocatedSkillPoints);
+
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 1, 2, 0);
+        Assert.True(player.TryGetLearnedSkill(14, out var skill14Lv5));
+        Assert.Equal((ushort)5, skill14Lv5.BaseLevel);
+        ushort spBeforeBlockedWash = player.UnallocatedSkillPoints;
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 1, 2, 4);
+        Assert.True(player.TryGetLearnedSkill(14, out var skill14StillLv5));
+        Assert.Equal((ushort)5, skill14StillLv5.BaseLevel);
+        Assert.Equal(spBeforeBlockedWash, player.UnallocatedSkillPoints);
+
+        // Boost to Lv50 ([0, 0, 4]) then wash skills ([1, 2, 4])
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 0, 0, 4);
+        ushort spBeforeWash = player.UnallocatedSkillPoints;
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 1, 2, 4);
+        Assert.True(player.TryGetLearnedSkill(14, out var skill14AfterWash));
+        Assert.Equal((ushort)0, skill14AfterWash.BaseLevel);
+        Assert.Equal((ushort)(spBeforeWash + 5), player.UnallocatedSkillPoints);
+
+        // [2, 7, 0..2] unlocks Expandable Box 1..3
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 2, 7, 0);
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 2, 7, 1);
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 2, 7, 2);
+        Assert.Equal((byte)0b111, player.RepositoryExpandBoxMask);
+
+        // [3, 6, 0..5] grants canonical mounts matching Legacy horse.txt
+        for (int mountIdx = 0; mountIdx < 6; mountIdx++)
+        {
+            await ExecutePathAsync(script, itemCtx, dialogCtx, player, 3, 6, mountIdx);
+        }
+
+        PlayerItemSlot[] bagItems = player.Inventory.GetBagItems().ToArray();
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.Equipment && i.DetailType == 10 && i.ParticularType == 5 && i.Level == 6);
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.Equipment && i.DetailType == 10 && i.ParticularType == 5 && i.Level == 7);
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.Equipment && i.DetailType == 10 && i.ParticularType == 5 && i.Level == 8);
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.Equipment && i.DetailType == 10 && i.ParticularType == 5 && i.Level == 9);
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.Equipment && i.DetailType == 10 && i.ParticularType == 5 && i.Level == 10);
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.Equipment && i.DetailType == 10 && i.ParticularType == 6 && i.Level == 10);
+
+        // [5, 7] sets canonical revival point on Map 53 -> RevID 19
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 5, 7);
+        Assert.Equal((ushort)53, player.RevivalMapId);
+        Assert.Equal(19, player.RevivalPointId);
+
+        // [6, 0] spawns Template 586; [6, 1] spawns Template 576; [6, 3] spawns custom Template ID
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 6, 0);
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 6, 1);
+        await ExecuteNumberInputPathAsync(script, itemCtx, dialogCtx, player, 576, 6, 3);
+    }
+
+    private static async Task ExecuteNumberInputPathAsync(
+        TestGmTokenItemScript script,
+        ZoneScriptItemContext itemCtx,
+        ZoneScriptDialogContext dialogCtx,
+        PlayerZoneState player,
+        int submittedNumber,
+        params int[] optionPath)
+    {
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, optionPath);
+        await SubmitPendingNumberAsync(dialogCtx, player, submittedNumber);
+    }
+
+    private static async Task SubmitPendingNumberAsync(
+        ZoneScriptDialogContext dialogCtx,
+        PlayerZoneState player,
+        int submittedNumber)
+    {
+        Assert.True(player.TryGetFeatureSlot(PlayerDialogFeatureSlot.SlotKey, out PlayerDialogFeatureSlot? dialogSlot));
+        Assert.True(dialogSlot!.TrySnapshotAndClearNumberCallback(submittedNumber, out var numberCb, out int validatedValue));
+        await numberCb!(dialogCtx, validatedValue);
+    }
+
+    private sealed record LegacyLuaMenu(string Prompt, int DeclaredCount, IReadOnlyList<string> Options);
+
+    private static Dictionary<string, LegacyLuaMenu> ParsePackLegacyCamNangGmMenus()
+    {
+        string repoRoot = FindWorkbenchRoot();
+        string packerPath = Path.Combine(repoRoot, "qa", "scripts", "pack_legacy_profiles.py");
+        string content = File.ReadAllText(packerPath, Encoding.UTF8);
+
+        int fnStart = content.IndexOf("def build_camnang_gm_lua(", StringComparison.Ordinal);
+        Assert.True(fnStart >= 0, $"build_camnang_gm_lua not found in {packerPath}");
+        int fnEnd = content.IndexOf("def build_clean_login_lua(", fnStart, StringComparison.Ordinal);
+        Assert.True(fnEnd > fnStart, "build_clean_login_lua boundary not found.");
+
+        string block = content[fnStart..fnEnd];
+        var menus = new Dictionary<string, LegacyLuaMenu>(StringComparer.Ordinal);
+        MatchCollection fnMatches = Regex.Matches(
+            block,
+            @"function\s+(GMT_\w+)\(\)\s*Say\(\{L\(""([^""]+)""\)\},\s*(\d+),(.*?)\nend",
+            RegexOptions.Singleline);
+
+        foreach (Match m in fnMatches)
+        {
+            string fnName = m.Groups[1].Value;
+            string prompt = VerifyTcvn3RoundTrip(m.Groups[2].Value);
+            int declaredCount = int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
+            var opts = new List<string>();
+            foreach (Match om in Regex.Matches(m.Groups[4].Value, @"\{L\(""([^""]+)""\)\}"))
+            {
+                opts.Add(VerifyTcvn3RoundTrip(om.Groups[1].Value));
+            }
+
+            menus[fnName] = new LegacyLuaMenu(prompt, declaredCount, opts);
+        }
+
+        return menus;
+    }
+
+    private static string VerifyTcvn3RoundTrip(string unicodeText)
+    {
+        byte[] encoded = Tcvn3Encoding.EncodeBytes(unicodeText);
+        string decoded = Tcvn3Encoding.DecodeNullTerminated(encoded);
+        Assert.Equal(unicodeText, decoded);
+        return unicodeText;
+    }
+
+    private static string FindWorkbenchRoot()
+    {
+        DirectoryInfo? dir = new(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "qa", "scripts", "pack_legacy_profiles.py")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate workbench root containing qa/scripts/pack_legacy_profiles.py.");
     }
 
     private sealed class StubFactionPlayerTemplateCatalog : IPlayerTemplateCatalog

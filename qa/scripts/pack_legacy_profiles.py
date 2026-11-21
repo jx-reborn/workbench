@@ -188,6 +188,23 @@ def build_camnang_gm_lua(enabled: bool) -> bytes:
     script = f"""-- Deterministic MECE + Atomic Test Harness GM Token (6, 1, 4258) for Legacy & JXReborn Parity
 IncludeLib("SETTING")
 IncludeLib("ITEM")
+IncludeLib("NPCINFO")
+
+GMT_TMP = GMT_TMP or {{}}
+
+function GMT_SetTmp(szKey, nVal)
+    if not GMT_TMP[PlayerIndex] then
+        GMT_TMP[PlayerIndex] = {{}}
+    end
+    GMT_TMP[PlayerIndex][szKey] = nVal
+end
+
+function GMT_GetTmp(szKey)
+    if not GMT_TMP[PlayerIndex] then
+        return 0
+    end
+    return GMT_TMP[PlayerIndex][szKey] or 0
+end
 
 function main(nItemIdx)
     GMT_OpenRootMenu()
@@ -212,15 +229,17 @@ end
 
 -- ==================== [0] CHARACTER & STATS ====================
 function GMT_MenuCharacter()
-    Say({L("Nhân vật & Chỉ số (Chọn trục trạng thái):")}, 4,
+    Say({L("Nhân vật & Chỉ số (Chọn trục trạng thái):")}, 6,
         {L("Cấp độ")} .. "/GMT_MenuLevel",
         {L("Tiềm năng")} .. "/GMT_MenuAttributes",
         {L("Sinh lực / Nội lực / Thể lực")} .. "/GMT_MenuVitals",
+        {L("Điểm hoạt động (Phúc duyên, Tống Kim, Liên đấu)")} .. "/GMT_MenuActivityPoints",
+        {L("Danh hiệu / Quân hàm (Rank)")} .. "/GMT_MenuRank",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
 
 function GMT_MenuLevel()
-    Say({L("Điều chỉnh Cấp độ (Atomic):")}, 9,
+    Say({L("Điều chỉnh Cấp độ (Atomic):")}, 10,
         {L("Tăng +1 cấp")} .. "/GMT_LvPlus1",
         {L("Lên cấp 10")} .. "/GMT_Lv10",
         {L("Lên cấp 20")} .. "/GMT_Lv20",
@@ -229,6 +248,7 @@ function GMT_MenuLevel()
         {L("Lên cấp 80")} .. "/GMT_Lv80",
         {L("Lên cấp 120")} .. "/GMT_Lv120",
         {L("Nhập cấp độ mục tiêu (1..200)")} .. "/GMT_AskLevel",
+        {L("Nhận điểm Kinh nghiệm (nhập số)")} .. "/GMT_AskExp",
         {L("Quay lại")} .. "/GMT_MenuCharacter")
 end
 
@@ -290,11 +310,24 @@ function GMT_OnLevelInput(nValue)
     end
 end
 
+function GMT_AskExp()
+    AskClientForNumber("GMT_OnExpInput", 1, 100000000, {L("Nhập điểm Kinh nghiệm (1..100000000):")})
+end
+
+function GMT_OnExpInput(nValue)
+    if nValue and nValue >= 1 then
+        if nValue > 100000000 then nValue = 100000000 end
+        AddOwnExp(nValue)
+        Msg2Player({L("Đã nhận điểm Kinh nghiệm.")})
+    end
+end
+
 function GMT_MenuAttributes()
-    Say({L("Điều chỉnh Điểm Tiềm năng (Atomic):")}, 4,
+    Say({L("Điều chỉnh Điểm Tiềm năng (Atomic):")}, 5,
         {L("Cộng 30 điểm Tiềm năng")} .. "/GMT_Prop30",
         {L("Cộng 50 điểm Tiềm năng")} .. "/GMT_Prop50",
         {L("Nhập điểm Tiềm năng (1..500)")} .. "/GMT_AskProp",
+        {L("Tẩy tủy Tiềm năng (Reset)")} .. "/GMT_WashAttributes",
         {L("Quay lại")} .. "/GMT_MenuCharacter")
 end
 
@@ -319,9 +352,34 @@ function GMT_OnPropInput(nValue)
     end
 end
 
+GMT_BASE_ATTRS = {{
+    {{35, 25, 25, 15}},
+    {{20, 35, 20, 25}},
+    {{25, 25, 25, 25}},
+    {{30, 20, 30, 20}},
+    {{20, 15, 25, 40}},
+}}
+
+function GMT_WashAttributes()
+    if GetLevel() < 50 then
+        Msg2Player({L("Cần đạt cấp 50 trước khi tẩy tủy.")})
+        return
+    end
+    local nSeries = GetSeries() + 1
+    local tbBase = GMT_BASE_ATTRS[nSeries]
+    if not tbBase then return end
+    local nT88 = GetTask(88)
+    AddStrg(tbBase[1] - GetStrg(1) + GetByte(nT88, 1))
+    AddDex(tbBase[2] - GetDex(1) + GetByte(nT88, 2))
+    AddVit(tbBase[3] - GetVit(1) + GetByte(nT88, 3))
+    AddEng(tbBase[4] - GetEng(1) + GetByte(nT88, 4))
+    Msg2Player({L("Đã tẩy tủy Tiềm năng.")})
+end
+
 function GMT_MenuVitals()
-    Say({L("Điều chỉnh Sinh lực / Nội lực / Thể lực (Atomic):")}, 2,
+    Say({L("Điều chỉnh Sinh lực / Nội lực / Thể lực (Atomic):")}, 3,
         {L("Hồi đầy Sinh lực / Nội lực / Thể lực")} .. "/GMT_RestoreVitals",
+        {L("Đưa Sinh lực về thấp (10% HP)")} .. "/GMT_LowHp10",
         {L("Quay lại")} .. "/GMT_MenuCharacter")
 end
 
@@ -330,6 +388,86 @@ function GMT_RestoreVitals()
     RestoreMana()
     RestoreStamina()
     Msg2Player({L("Đã hồi đầy Sinh lực, Nội lực và Thể lực.")})
+end
+
+function GMT_LowHp10()
+    local nNpc = PIdx2NpcIdx(PlayerIndex)
+    if nNpc and nNpc > 0 then
+        local nMax = NPCINFO_GetNpcCurrentMaxLife(nNpc)
+        if nMax and nMax > 0 then
+            local nLow = floor(nMax / 10)
+            if nLow < 1 then nLow = 1 end
+            NPCINFO_SetNpcCurrentLife(nNpc, nLow)
+            Msg2Player({L("Đã đặt Sinh lực về 10%.")})
+        end
+    end
+end
+
+function GMT_MenuActivityPoints()
+    Say({L("Điểm hoạt động (Phúc duyên, Tống Kim, Liên đấu):")}, 4,
+        {L("Cộng 1,000 Phúc duyên")} .. "/GMT_AddFuYuan1000",
+        {L("Nhận điểm Tống Kim (nhập số)")} .. "/GMT_AskSongJin",
+        {L("Nhận điểm Vinh dự Liên đấu (nhập số)")} .. "/GMT_AskHonor",
+        {L("Quay lại")} .. "/GMT_MenuCharacter")
+end
+
+function GMT_AddFuYuan1000()
+    local nNext = GetTask(151) + 1000
+    SetTask(151, nNext)
+    SyncTaskValue(151)
+    Msg2Player({L("Đã cộng 1,000 Phúc duyên.")})
+end
+
+function GMT_AskSongJin()
+    AskClientForNumber("GMT_OnSongJinInput", 1, 1000000, {L("Nhập điểm Tống Kim (1..1000000):")})
+end
+
+function GMT_OnSongJinInput(nValue)
+    if nValue and nValue >= 1 then
+        if nValue > 1000000 then nValue = 1000000 end
+        local nNext = GetTask(747) + nValue
+        SetTask(747, nNext)
+        SetTask(751, GetTask(751) + nValue)
+        SyncTaskValue(747)
+        SyncTaskValue(751)
+        Msg2Player({L("Đã cộng điểm Tống Kim.")})
+    end
+end
+
+function GMT_AskHonor()
+    AskClientForNumber("GMT_OnHonorInput", 1, 1000000, {L("Nhập điểm Vinh dự (1..1000000):")})
+end
+
+function GMT_OnHonorInput(nValue)
+    if nValue and nValue >= 1 then
+        if nValue > 1000000 then nValue = 1000000 end
+        SetTask(2501, GetTask(2501) + nValue)
+        SyncTaskValue(2501)
+        Msg2Player({L("Đã cộng điểm Vinh dự.")})
+    end
+end
+
+function GMT_MenuRank()
+    Say({L("Danh hiệu / Quân hàm (Rank):")}, 3,
+        {L("Nhập Rank ID (0..255)")} .. "/GMT_AskRank",
+        {L("Xóa Rank (0)")} .. "/GMT_ClearRank",
+        {L("Quay lại")} .. "/GMT_MenuCharacter")
+end
+
+function GMT_AskRank()
+    AskClientForNumber("GMT_OnRankInput", 0, 255, {L("Nhập Rank ID (0..255):")})
+end
+
+function GMT_OnRankInput(nValue)
+    if nValue and nValue >= 0 and nValue <= 255 then
+        SetRank(nValue)
+        Msg2Player({L("Đã đặt Rank ID.")})
+    end
+end
+
+function GMT_ClearRank()
+    SetRank(0)
+    Msg2Player({L("Đã xóa Rank về 0.")})
 end
 
 -- ==================== [1] FACTION, CAMP & SKILLS ====================
@@ -494,9 +632,12 @@ function GMT_OnSkillPtInput(nValue)
 end
 
 function GMT_MenuLearnSkill()
-    Say({L("Học Kỹ năng trực tiếp (Atomic):")}, 3,
+    Say({L("Học Kỹ năng trực tiếp (Atomic):")}, 6,
         {L("Học Hàng Long Bất Vũ (14) cấp 5")} .. "/GMT_LearnSkill14",
         {L("Nhập ID Kỹ năng (học cấp 1)")} .. "/GMT_AskSkillId",
+        {L("Set cấp độ Kỹ năng (Nhập ID & Cấp)")} .. "/GMT_AskSetSkillId",
+        {L("Xóa kỹ năng theo ID (Hoàn điểm)")} .. "/GMT_AskDelSkill",
+        {L("Tẩy tủy Kỹ năng (Reset)")} .. "/GMT_WashSkills",
         {L("Quay lại")} .. "/GMT_MenuFactionAndSkill")
 end
 
@@ -513,6 +654,67 @@ function GMT_OnSkillIdInput(nSkillId)
     if nSkillId and nSkillId >= 1 and nSkillId <= 2000 then
         AddMagic(nSkillId, 1)
     end
+end
+
+function GMT_AskSetSkillId()
+    AskClientForNumber("GMT_OnSetSkillId", 1, 2000, {L("Nhập ID Kỹ năng (1..2000):")})
+end
+
+function GMT_OnSetSkillId(nSkillId)
+    if nSkillId and nSkillId >= 1 and nSkillId <= 2000 then
+        GMT_SetTmp("sk_id", nSkillId)
+        AskClientForNumber("GMT_OnSetSkillLevel", 1, 63, {L("Nhập cấp độ Kỹ năng (1..63):")})
+    end
+end
+
+function GMT_OnSetSkillLevel(nLevel)
+    local nSkillId = GMT_GetTmp("sk_id")
+    if nSkillId >= 1 and nLevel and nLevel >= 1 and nLevel <= 63 then
+        AddMagic(nSkillId, nLevel)
+        Msg2Player({L("Đã set cấp độ kỹ năng.")})
+    end
+end
+
+function GMT_AskDelSkill()
+    AskClientForNumber("GMT_OnDelSkillInput", 1, 2000, {L("Nhập ID Kỹ năng cần xóa (1..2000):")})
+end
+
+function GMT_OnDelSkillInput(nSkillId)
+    if nSkillId and nSkillId >= 1 and nSkillId <= 2000 then
+        local nLv = HaveMagic(nSkillId)
+        if nLv >= 0 then
+            DelMagic(nSkillId)
+            if nLv > 0 then
+                AddMagicPoint(nLv)
+            end
+            Msg2Player({L("Đã xóa kỹ năng theo ID.")})
+        else
+            Msg2Player({L("Không tìm thấy kỹ năng để xóa.")})
+        end
+    end
+end
+
+function GMT_WashSkills()
+    if GetLevel() < 50 then
+        Msg2Player({L("Cần đạt cấp 50 trước khi tẩy tủy.")})
+        return
+    end
+    local nQg = HaveMagic(210)
+    local nExp = HaveMagic(400)
+    local nPts = RollbackSkill()
+    local nDeduct = 0
+    if nQg and nQg > 0 then nDeduct = nDeduct + nQg end
+    if nExp and nExp > 0 then nDeduct = nDeduct + nExp end
+    local nRefund = (nPts or 0) - nDeduct
+    if nRefund + GetMagicPoint() < 0 then
+        nRefund = -1 * GetMagicPoint()
+    end
+    if nRefund ~= 0 then
+        AddMagicPoint(nRefund)
+    end
+    if nQg and nQg >= 0 then AddMagic(210, nQg) end
+    if nExp and nExp >= 0 then AddMagic(400, nExp) end
+    Msg2Player({L("Đã tẩy tủy Kỹ năng.")})
 end
 
 function GMT_MenuReputeLead()
@@ -546,7 +748,7 @@ function GMT_Trans0() SetTask(99, 0) end
 
 -- ==================== [2] ECONOMY & STORAGE ====================
 function GMT_MenuEconomy()
-    Say({L("Kinh tế & Rương chứa đồ (Atomic):")}, 8,
+    Say({L("Kinh tế & Rương chứa đồ (Atomic):")}, 9,
         {L("Nhận 50,000 lượng (5 vạn)")} .. "/GMT_Earn50k",
         {L("Nhận 100,000 lượng (10 vạn)")} .. "/GMT_Earn100k",
         {L("Nhận 200,000 lượng (20 vạn)")} .. "/GMT_Earn200k",
@@ -554,6 +756,7 @@ function GMT_MenuEconomy()
         {L("Nhập số lượng ngân lượng")} .. "/GMT_AskMoney",
         {L("Xóa ngân lượng về 0")} .. "/GMT_ZeroMoney",
         {L("Mở Rương chứa đồ")} .. "/GMT_OpenBox",
+        {L("Mở rộng Rương (1 / 2 / 3)")} .. "/GMT_MenuExpandableBox",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
 
@@ -579,16 +782,105 @@ function GMT_OpenBox()
     OpenBox()
 end
 
+function GMT_MenuExpandableBox()
+    Say({L("Mở rộng Rương chứa đồ:")}, 4,
+        {L("Mở khóa Rương mở rộng 1")} .. "/GMT_UnlockBox1",
+        {L("Mở khóa Rương mở rộng 2")} .. "/GMT_UnlockBox2",
+        {L("Mở khóa Rương mở rộng 3")} .. "/GMT_UnlockBox3",
+        {L("Quay lại")} .. "/GMT_MenuEconomy")
+end
+
+function GMT_UnlockBox(nIdx)
+    OpenStoreBox(nIdx)
+    if GetFightState() == 0 then
+        OpenBox()
+    end
+    Msg2Player({L("Đã mở khóa Rương mở rộng.")})
+end
+
+function GMT_UnlockBox1() GMT_UnlockBox(1) end
+function GMT_UnlockBox2() GMT_UnlockBox(2) end
+function GMT_UnlockBox3() GMT_UnlockBox(3) end
+
 -- ==================== [3] ITEMS & INVENTORY ====================
 function GMT_MenuItems()
-    Say({L("Vật phẩm & Hành trang (Chọn nhóm):")}, 6,
+    Say({L("Vật phẩm & Hành trang (Chọn nhóm):")}, 8,
         {L("Thuốc phục hồi")} .. "/GMT_MenuMedicines",
         {L("Trang bị mẫu")} .. "/GMT_MenuEquipment",
         {L("Nguyên liệu & Tín vật")} .. "/GMT_MenuMaterials",
         {L("Độ bền trang bị")} .. "/GMT_MenuDurability",
         {L("Hành trang (Biên)")} .. "/GMT_MenuBagBoundary",
+        {L("Lấy vật phẩm theo ID (G, D, P, L)")} .. "/GMT_AskItemGenre",
+        {L("Thú cưỡi (Ngựa)")} .. "/GMT_MenuMounts",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
+
+function GMT_AskItemGenre()
+    AskClientForNumber("GMT_OnItemGenre", 0, 10, {L("Nhập Genre (0=Trang bị, 1=Thuốc, 4=Khoáng/NV, 6=Script):")})
+end
+
+function GMT_OnItemGenre(nGenre)
+    if nGenre and nGenre >= 0 and nGenre <= 10 then
+        GMT_SetTmp("it_g", nGenre)
+        AskClientForNumber("GMT_OnItemDetail", 0, 255, {L("Nhập DetailType (0..255):")})
+    end
+end
+
+function GMT_OnItemDetail(nDetail)
+    if nDetail and nDetail >= 0 and nDetail <= 255 then
+        GMT_SetTmp("it_d", nDetail)
+        AskClientForNumber("GMT_OnItemParticular", 0, 10000, {L("Nhập ParticularType (0..10000):")})
+    end
+end
+
+function GMT_OnItemParticular(nParticular)
+    if nParticular and nParticular >= 0 and nParticular <= 10000 then
+        GMT_SetTmp("it_p", nParticular)
+        AskClientForNumber("GMT_OnItemLevel", 1, 10, {L("Nhập Level (1..10):")})
+    end
+end
+
+function GMT_OnItemLevel(nLevel)
+    if nLevel and nLevel >= 1 and nLevel <= 10 then
+        local nG = GMT_GetTmp("it_g")
+        local nD = GMT_GetTmp("it_d")
+        local nP = GMT_GetTmp("it_p")
+        if CalcFreeItemCellCount() >= 1 then
+            if nG == 0 then
+                local nVer = ITEM_GetLatestItemVersion()
+                AddItemEx(nVer, 0, 0, 0, nD, nP, nLevel, 0, 0, 0, 0, 0, 0, 0, 0)
+            else
+                AddItem(nG, nD, nP, nLevel, 0, 0)
+            end
+            Msg2Player({L("Đã cấp vật phẩm theo ID.")})
+        end
+    end
+end
+
+function GMT_MenuMounts()
+    Say({L("Thú cưỡi (Ngựa):")}, 7,
+        {L("Ô Vân Đạp Tuyết (0,10,5,6)")} .. "/GMT_Mount1",
+        {L("Xích Thố (0,10,5,7)")} .. "/GMT_Mount2",
+        {L("Tuyệt ảnh (0,10,5,8)")} .. "/GMT_Mount3",
+        {L("Đích Lô (0,10,5,9)")} .. "/GMT_Mount4",
+        {L("Chiếu Dạ Ngọc Sư Tử (0,10,5,10)")} .. "/GMT_Mount5",
+        {L("Bôn Tiêu (0,10,6,10)")} .. "/GMT_Mount6",
+        {L("Quay lại")} .. "/GMT_MenuItems")
+end
+
+function GMT_GiveMount(nParticular, nLevel)
+    local nVer = ITEM_GetLatestItemVersion()
+    if CalcFreeItemCellCount() >= 6 then
+        AddItemEx(nVer, 0, 0, 0, 10, nParticular, nLevel, 0, 0, 0, 0, 0, 0, 0, 0)
+    end
+end
+
+function GMT_Mount1() GMT_GiveMount(5, 6) end
+function GMT_Mount2() GMT_GiveMount(5, 7) end
+function GMT_Mount3() GMT_GiveMount(5, 8) end
+function GMT_Mount4() GMT_GiveMount(5, 9) end
+function GMT_Mount5() GMT_GiveMount(5, 10) end
+function GMT_Mount6() GMT_GiveMount(6, 10) end
 
 function GMT_MenuMedicines()
     Say({L("Cấp Thuốc phục hồi (Atomic):")}, 5,
@@ -820,13 +1112,15 @@ end
 
 -- ==================== [5] MAP & TELEPORT ====================
 function GMT_MenuTeleport()
-    Say({L("Bản đồ & Dịch chuyển nhanh (Atomic):")}, 7,
+    Say({L("Bản đồ & Dịch chuyển nhanh (Atomic):")}, 9,
         {L("Ba Lăng Huyện - Trung tâm (53)")} .. "/GMT_Tp53",
         {L("Tương Dương Phủ (78)")} .. "/GMT_Tp78",
         {L("Dương Châu Phủ (80)")} .. "/GMT_Tp80",
         {L("Đạo Hương Thôn (101)")} .. "/GMT_Tp101",
         {L("Võ Đang Phái (81)")} .. "/GMT_Tp81",
         {L("Vũ Lăng Động - Cửa động (199)")} .. "/GMT_Tp199",
+        {L("Nhập Map ID để dịch chuyển")} .. "/GMT_AskMapId",
+        {L("Đặt điểm hồi sinh tại bản đồ hiện tại")} .. "/GMT_SetRevivalHere",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
 
@@ -837,12 +1131,48 @@ function GMT_Tp101() NewWorld(101, 1700, 3150) SetFightState(0) end
 function GMT_Tp81() NewWorld(81, 1574, 3224) SetFightState(0) end
 function GMT_Tp199() NewWorld(199, 1644, 2906) SetFightState(1) end
 
+function GMT_AskMapId()
+    AskClientForNumber("GMT_OnMapIdInput", 1, 1000, {L("Nhập Map ID (1..1000):")})
+end
+
+function GMT_OnMapIdInput(nMapId)
+    if nMapId and nMapId >= 1 and nMapId <= 1000 then
+        if SubWorldID2Idx(nMapId) >= 0 then
+            NewWorld(nMapId, 1600, 3200)
+            SetFightState(0)
+        else
+            Msg2Player({L("Bản đồ chưa được nạp trên máy chủ này.")})
+        end
+    end
+end
+
+GMT_REV_MAP = {{
+    [1] = 1,
+    [11] = 5,
+    [37] = 23,
+    [53] = 19,
+    [78] = 29,
+    [80] = 34,
+    [81] = 39,
+    [101] = 47,
+    [162] = 63,
+    [176] = 67,
+}}
+
+function GMT_SetRevivalHere()
+    local nW = GetWorldPos()
+    local nRev = GMT_REV_MAP[nW] or 1
+    SetRevPos(nW, nRev)
+    Msg2Player({L("Đã đặt điểm hồi sinh tại bản đồ hiện tại.")})
+end
+
 -- ==================== [6] WORLD & ENTITIES ====================
 function GMT_MenuWorldEntities()
-    Say({L("Thế giới & Thực thể NPC (Atomic):")}, 4,
+    Say({L("Thế giới & Thực thể NPC (Atomic):")}, 5,
         {L("Triệu hồi Mộc Nhân 1 tỷ HP (Template 586, X+64)")} .. "/GMT_SpawnDummy",
-        {L("Triệu hồi Quái tập Lv10 (Template 1, X+96)")} .. "/GMT_SpawnMob",
+        {L("Triệu hồi NPC luyện công 100k HP (Template 576, X+96)")} .. "/GMT_SpawnTrainer576",
         {L("Mở Tiệm Dược Điếm (Shop 39)")} .. "/GMT_OpenShop39",
+        {L("Triệu hồi NPC / Boss theo Template ID")} .. "/GMT_AskNpcTemplate",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
 end
 
@@ -854,16 +1184,31 @@ function GMT_SpawnDummy()
     end
 end
 
-function GMT_SpawnMob()
+function GMT_SpawnTrainer576()
     local nW, nCellX, nCellY = GetWorldPos()
     local nMapIdx = SubWorldID2Idx(nW)
     if nMapIdx and nMapIdx >= 0 then
-        AddNpc(1, 10, nMapIdx, nCellX * 32 + 96, nCellY * 32, 1)
+        AddNpc(576, 90, nMapIdx, nCellX * 32 + 96, nCellY * 32, 1)
     end
 end
 
 function GMT_OpenShop39()
     Sale(39)
+end
+
+function GMT_AskNpcTemplate()
+    AskClientForNumber("GMT_OnNpcTemplateInput", 1, 5000, {L("Nhập NPC Template ID (1..5000):")})
+end
+
+function GMT_OnNpcTemplateInput(nTplId)
+    if nTplId and nTplId >= 1 and nTplId <= 5000 then
+        local nW, nCellX, nCellY = GetWorldPos()
+        local nMapIdx = SubWorldID2Idx(nW)
+        if nMapIdx and nMapIdx >= 0 then
+            AddNpc(nTplId, 90, nMapIdx, nCellX * 32 + 64, nCellY * 32, 1)
+            Msg2Player({L("Đã triệu hồi NPC theo Template ID.")})
+        end
+    end
 end
 
 -- ==================== [7] TASKS & DIAGNOSTICS ====================

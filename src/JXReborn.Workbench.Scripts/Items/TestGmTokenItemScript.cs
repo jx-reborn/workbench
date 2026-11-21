@@ -280,6 +280,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
             {
                 PlayerZoneState p = ((ZoneScriptDialogContextBase)c).Player;
                 p.FuYuan = (int)Math.Clamp((long)p.FuYuan + 1_000, 0, int.MaxValue);
+                c.SetTask(151, p.FuYuan);
                 c.SendSystemMessage($"Đã cộng 1,000 Phúc duyên (hiện tại: {p.FuYuan}).");
                 return ValueTask.CompletedTask;
             }),
@@ -290,6 +291,8 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                     PlayerZoneState p = ((ZoneScriptDialogContextBase)nc).Player;
                     int delta = Math.Clamp(value, 1, 1_000_000);
                     p.BattleScore = (int)Math.Clamp((long)p.BattleScore + delta, 0, int.MaxValue);
+                    nc.SetTask(PlayerTaskConsts.SongJinBattleScore, p.BattleScore);
+                    nc.SetTask(751, p.BattleScore);
                     nc.SendSystemMessage($"Đã cộng {delta} điểm Tống Kim (hiện tại: {p.BattleScore}).");
                     return ValueTask.CompletedTask;
                 });
@@ -302,6 +305,7 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                     PlayerZoneState p = ((ZoneScriptDialogContextBase)nc).Player;
                     int delta = Math.Clamp(value, 1, 1_000_000);
                     p.Honor = (int)Math.Clamp((long)p.Honor + delta, 0, int.MaxValue);
+                    nc.SetTask(2501, p.Honor);
                     nc.SendSystemMessage($"Đã cộng {delta} điểm Vinh dự (hiện tại: {p.Honor}).");
                     return ValueTask.CompletedTask;
                 });
@@ -806,11 +810,6 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 c.OpenStoreBox();
                 return ValueTask.CompletedTask;
             }),
-            new DialogOption("Tiền Đồng (Coin)", static c =>
-            {
-                OpenCoinMenu((ZoneScriptDialogContextBase)c);
-                return ValueTask.CompletedTask;
-            }),
             new DialogOption("Mở rộng Rương (1 / 2 / 3)", static c =>
             {
                 OpenExpandableBoxMenu((ZoneScriptDialogContextBase)c);
@@ -819,42 +818,6 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
             new DialogOption("Quay lại", static c =>
             {
                 OpenRootMenu((ZoneScriptDialogContextBase)c);
-                return ValueTask.CompletedTask;
-            }));
-    }
-
-    private static void OpenCoinMenu(ZoneScriptDialogContextBase ctx)
-    {
-        ctx.Say(
-            $"Tiền Đồng (hiện tại: {ctx.Player.Coin}):",
-            new DialogOption("Nhận 1,000 Tiền Đồng", static c =>
-            {
-                PlayerZoneState p = ((ZoneScriptDialogContextBase)c).Player;
-                p.Coin = (int)Math.Clamp((long)p.Coin + 1_000, 0, int.MaxValue);
-                c.SendSystemMessage($"Đã nhận 1,000 Tiền Đồng (hiện tại: {p.Coin}).");
-                return ValueTask.CompletedTask;
-            }),
-            new DialogOption("Nhập số lượng Tiền Đồng (1..1000000)", static c =>
-            {
-                c.AskClientForNumber("Nhập số lượng Tiền Đồng (1..1000000):", 1, 1_000_000, static (nc, amount) =>
-                {
-                    PlayerZoneState p = ((ZoneScriptDialogContextBase)nc).Player;
-                    int clamped = Math.Clamp(amount, 1, 1_000_000);
-                    p.Coin = (int)Math.Clamp((long)p.Coin + clamped, 0, int.MaxValue);
-                    nc.SendSystemMessage($"Đã nhận {clamped} Tiền Đồng (hiện tại: {p.Coin}).");
-                    return ValueTask.CompletedTask;
-                });
-                return ValueTask.CompletedTask;
-            }),
-            new DialogOption("Xóa Tiền Đồng về 0", static c =>
-            {
-                ((ZoneScriptDialogContextBase)c).Player.Coin = 0;
-                c.SendSystemMessage("Đã đưa Tiền Đồng về 0.");
-                return ValueTask.CompletedTask;
-            }),
-            new DialogOption("Quay lại", static c =>
-            {
-                OpenEconomyMenu((ZoneScriptDialogContextBase)c);
                 return ValueTask.CompletedTask;
             }));
     }
@@ -985,10 +948,10 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
     {
         ctx.Say(
             "Thú cưỡi (Ngựa):",
-            new DialogOption("Hoàng Câu (0,10,5,1)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 1, "Hoàng Câu")),
             new DialogOption("Ô Vân Đạp Tuyết (0,10,5,6)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 6, "Ô Vân Đạp Tuyết")),
-            new DialogOption("Đích Lô (0,10,5,7)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 7, "Đích Lô")),
-            new DialogOption("Tuyệt Ảnh (0,10,5,8)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 8, "Tuyệt Ảnh")),
+            new DialogOption("Xích Thố (0,10,5,7)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 7, "Xích Thố")),
+            new DialogOption("Tuyệt ảnh (0,10,5,8)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 8, "Tuyệt ảnh")),
+            new DialogOption("Đích Lô (0,10,5,9)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 9, "Đích Lô")),
             new DialogOption("Chiếu Dạ Ngọc Sư Tử (0,10,5,10)", static c => GrantMount((ZoneScriptDialogContextBase)c, 5, 10, "Chiếu Dạ Ngọc Sư Tử")),
             new DialogOption("Bôn Tiêu (0,10,6,10)", static c => GrantMount((ZoneScriptDialogContextBase)c, 6, 10, "Bôn Tiêu")),
             new DialogOption("Quay lại", static c =>
@@ -1605,16 +1568,6 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 _ = await c.TeleportPlayerAsync(81, 1574 * 32, 3224 * 32, targetFightMode: 0)),
             new DialogOption("Vũ Lăng Động - Cửa động (199)", static async c =>
                 _ = await c.TeleportPlayerAsync(199, 1644 * 32, 2906 * 32, targetFightMode: 1)),
-            new DialogOption("Phượng Tường Phủ (1)", static async c =>
-                _ = await c.TeleportPlayerAsync(1, 1600 * 32, 3200 * 32, targetFightMode: 0)),
-            new DialogOption("Thành Đô Phủ (11)", static async c =>
-                _ = await c.TeleportPlayerAsync(11, 3100 * 32, 5000 * 32, targetFightMode: 0)),
-            new DialogOption("Biện Kinh Phủ (37)", static async c =>
-                _ = await c.TeleportPlayerAsync(37, 1700 * 32, 3100 * 32, targetFightMode: 0)),
-            new DialogOption("Đại Lý Phủ (162)", static async c =>
-                _ = await c.TeleportPlayerAsync(162, 1600 * 32, 3200 * 32, targetFightMode: 0)),
-            new DialogOption("Lâm An Phủ (176)", static async c =>
-                _ = await c.TeleportPlayerAsync(176, 1500 * 32, 3200 * 32, targetFightMode: 0)),
             new DialogOption("Nhập Map ID để dịch chuyển", static c =>
             {
                 c.AskClientForNumber("Nhập Map ID (1..1000):", 1, 1000, static async (nc, mapId) =>
@@ -1627,8 +1580,9 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
             new DialogOption("Đặt điểm hồi sinh tại bản đồ hiện tại", static c =>
             {
                 var bc = (ZoneScriptDialogContextBase)c;
-                bc.SetRevivalPoint(bc.Player.MapId, 1);
-                bc.SendSystemMessage($"Đã đặt điểm hồi sinh tại Map {bc.Player.MapId}.");
+                int revId = ResolveCanonicalRevivalPointId(bc.Player.MapId);
+                bc.SetRevivalPoint(bc.Player.MapId, revId);
+                bc.SendSystemMessage($"Đã đặt điểm hồi sinh tại Map {bc.Player.MapId} (Rev={revId}).");
                 return ValueTask.CompletedTask;
             }),
             new DialogOption("Quay lại", static c =>
@@ -1637,6 +1591,21 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 return ValueTask.CompletedTask;
             }));
     }
+
+    private static int ResolveCanonicalRevivalPointId(ushort mapId) => mapId switch
+    {
+        1 => 1,
+        11 => 5,
+        37 => 23,
+        53 => 19,
+        78 => 29,
+        80 => 34,
+        81 => 39,
+        101 => 47,
+        162 => 63,
+        176 => 67,
+        _ => 1,
+    };
 
     // ==================== [6] WORLD & ENTITIES ====================
     private static void OpenWorldEntitiesMenu(ZoneScriptDialogContextBase ctx)
