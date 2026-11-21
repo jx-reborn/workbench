@@ -14,6 +14,7 @@ public sealed class ActionWindowWireDiffer
     [
         ProtocolOpcodes.s2c_ping,
         ProtocolOpcodes.s2c_synccurplayernormal,
+        ProtocolOpcodes.s2c_syncplayermin,
         ProtocolOpcodes.s2c_syncnpcmin,
         ProtocolOpcodes.s2c_syncnpcminplayer
     ];
