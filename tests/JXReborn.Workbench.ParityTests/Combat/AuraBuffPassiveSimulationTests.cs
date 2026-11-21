@@ -701,8 +701,9 @@ public sealed class AuraBuffPassiveSimulationTests
         Assert.Contains(handle.Recorder.SyncStateEffects, e => e.NpcId == state.RuntimeNpcId && e.SkillId == 9942 && e.RemainTimeFrames == 5);
         Assert.Equal(beforePhysicsRes + 35, ((ICombatEntityState)state).PhysicsResistPercent);
 
+        handle.Recorder.Clear();
         await harness.StepFramesAsync(6);
-        Assert.Contains(handle.Recorder.SyncStateEffects, e => e.NpcId == state.RuntimeNpcId && e.SkillId == 9942 && e.RemainTimeFrames == 0);
+        Assert.DoesNotContain(handle.Recorder.SyncStateEffects, e => e.NpcId == state.RuntimeNpcId && e.SkillId == 9942);
         Assert.Equal(beforePhysicsRes, ((ICombatEntityState)state).PhysicsResistPercent);
 
         // Grant, cast, and verify NoClearOnDeath buff 9943 + ActiveAura 16 (StateSpecialId 45) across real HandlePlayerDeath + Revive
