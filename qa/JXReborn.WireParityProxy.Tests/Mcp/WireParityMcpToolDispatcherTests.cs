@@ -58,7 +58,26 @@ public sealed class WireParityMcpToolDispatcherTests
         Assert.NotNull(listResp);
         JsonArray? tools = listResp["result"]?["tools"] as JsonArray;
         Assert.NotNull(tools);
-        Assert.Equal(8, tools.Count);
+        Assert.Equal(9, tools.Count);
+
+        JsonObject? resListResp = await dispatcher.HandleRequestAsync(new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = 20,
+            ["method"] = "resources/list"
+        });
+        Assert.NotNull(resListResp);
+        Assert.Equal(WireParityMcpAppHtml.ResourceUri, resListResp["result"]?["resources"]?[0]?["uri"]?.GetValue<string>());
+
+        JsonObject? resReadResp = await dispatcher.HandleRequestAsync(new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = 21,
+            ["method"] = "resources/read",
+            ["params"] = new JsonObject { ["uri"] = WireParityMcpAppHtml.ResourceUri }
+        });
+        Assert.NotNull(resReadResp);
+        Assert.Equal(WireParityMcpAppHtml.MimeType, resReadResp["result"]?["contents"]?[0]?["mimeType"]?.GetValue<string>());
 
         JsonObject? callResp = await dispatcher.HandleRequestAsync(new JsonObject
         {

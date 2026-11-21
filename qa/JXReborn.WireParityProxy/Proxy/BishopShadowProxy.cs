@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using JXReborn.Adapter.Legacy.Ciphers;
 using JXReborn.Adapter.Legacy.Packets;
 using JXReborn.DualParityServer.Diffing;
+using JXReborn.Primitives.Characters;
 using JXReborn.WireParityProxy.Configuration;
 using JXReborn.WireParityProxy.Wire;
 
@@ -160,12 +161,11 @@ public sealed class BishopShadowProxy : IAsyncDisposable
                 _keyTable,
                 linkCts.Token).ConfigureAwait(false);
 
-            var shadowNotifyTcs = new TaskCompletionSource<NotifyPlayerLoginS2CPacket>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
+            var shadowNotifySlot = new ShadowNotifySlot();
 
             Task c2sTask = PumpClientToBackendsAsync(clientConn, primaryConn, shadowConn, linkCts.Token);
-            Task shadowS2cTask = PumpShadowS2cAsync(shadowConn, shadowNotifyTcs, linkCts.Token);
-            Task primaryS2cTask = PumpPrimaryS2cAsync(primaryConn, clientConn, shadowNotifyTcs, linkCts.Token);
+            Task shadowS2cTask = PumpShadowS2cAsync(shadowConn, shadowNotifySlot, linkCts.Token);
+            Task primaryS2cTask = PumpPrimaryS2cAsync(primaryConn, clientConn, shadowConn, shadowNotifySlot, linkCts.Token);
 
             await Task.WhenAny(c2sTask, primaryS2cTask).ConfigureAwait(false);
             await linkCts.CancelAsync().ConfigureAwait(false);
@@ -234,7 +234,7 @@ public sealed class BishopShadowProxy : IAsyncDisposable
 
     private static async Task PumpShadowS2cAsync(
         JxWireConnection shadow,
-        TaskCompletionSource<NotifyPlayerLoginS2CPacket> shadowNotifyTcs,
+        ShadowNotifySlot shadowNotifySlot,
         CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -249,7 +249,7 @@ public sealed class BishopShadowProxy : IAsyncDisposable
                 frame.DecryptedPayload.Length >= NotifyPlayerLoginS2CPacket.Size)
             {
                 NotifyPlayerLoginS2CPacket pkt = MemoryMarshal.Read<NotifyPlayerLoginS2CPacket>(frame.DecryptedPayload);
-                shadowNotifyTcs.TrySetResult(pkt);
+                shadowNotifySlot.Publish(pkt);
             }
         }
     }
@@ -257,7 +257,8 @@ public sealed class BishopShadowProxy : IAsyncDisposable
     private async Task PumpPrimaryS2cAsync(
         JxWireConnection primary,
         JxWireConnection client,
-        TaskCompletionSource<NotifyPlayerLoginS2CPacket> shadowNotifyTcs,
+        JxWireConnection shadow,
+        ShadowNotifySlot shadowNotifySlot,
         CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -273,7 +274,8 @@ public sealed class BishopShadowProxy : IAsyncDisposable
             {
                 byte[] rewritten = await HandleNotifyPlayerLoginAsync(
                     frame.DecryptedPayload,
-                    shadowNotifyTcs,
+                    shadow,
+                    shadowNotifySlot,
                     cancellationToken).ConfigureAwait(false);
                 await client.WriteEncryptedFrameAsync(rewritten, cancellationToken).ConfigureAwait(false);
                 continue;
@@ -285,20 +287,15 @@ public sealed class BishopShadowProxy : IAsyncDisposable
 
     private async Task<byte[]> HandleNotifyPlayerLoginAsync(
         byte[] primaryPayload,
-        TaskCompletionSource<NotifyPlayerLoginS2CPacket> shadowNotifyTcs,
+        JxWireConnection shadowConn,
+        ShadowNotifySlot shadowNotifySlot,
         CancellationToken cancellationToken)
     {
         NotifyPlayerLoginS2CPacket primaryPkt = MemoryMarshal.Read<NotifyPlayerLoginS2CPacket>(primaryPayload);
         string roleName = primaryPkt.GetRoleName();
 
-        NotifyPlayerLoginS2CPacket? shadowPkt = null;
-        try
-        {
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(_options.HandoffMatchTimeoutMs);
-            shadowPkt = await shadowNotifyTcs.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        NotifyPlayerLoginS2CPacket? shadowPkt = await WaitShadowNotifyAsync(shadowNotifySlot, cancellationToken).ConfigureAwait(false);
+        if (shadowPkt is null)
         {
             EmitBishopFinding(
                 FindingSeverity.Critical,
@@ -307,32 +304,48 @@ public sealed class BishopShadowProxy : IAsyncDisposable
                 $"Permit={primaryPkt.Permit}, Role='{roleName}'",
                 $"Timed out waiting {_options.HandoffMatchTimeoutMs}ms for Shadow 0x34 handoff");
         }
-
-        if (shadowPkt is { } shadow)
+        else if (primaryPkt.Permit != 0 && shadowPkt.Value.Permit == 0 && !string.IsNullOrWhiteSpace(roleName))
         {
-            if (primaryPkt.Permit != shadow.Permit)
-            {
-                EmitBishopFinding(
-                    FindingSeverity.Critical,
-                    FindingCategory.WireProtocol,
-                    "Bishop.NotifyPlayerLogin.Permit",
-                    $"Permit={primaryPkt.Permit}",
-                    $"Permit={shadow.Permit}");
-            }
-            else if (primaryPkt.Permit != 0)
-            {
-                var entry = new HandoffTicketEntry(
-                    PrimaryGuid: primaryPkt.GetTicketGuid(),
-                    PrimaryGsHost: primaryPkt.GetIpAddress().ToString(),
-                    PrimaryGsPort: primaryPkt.Port,
-                    ShadowGuid: shadow.GetTicketGuid(),
-                    ShadowGsHost: shadow.GetIpAddress().ToString(),
-                    ShadowGsPort: shadow.Port,
-                    RoleName: roleName,
-                    CreatedAtUtc: DateTimeOffset.UtcNow);
-                _handoffMap.Register(entry);
-                Interlocked.Increment(ref _handoffsCompleted);
-            }
+            EmitBishopFinding(
+                FindingSeverity.Warning,
+                FindingCategory.WireProtocol,
+                "Bishop.NotifyPlayerLogin.Permit",
+                $"Permit={primaryPkt.Permit}",
+                $"Permit={shadowPkt.Value.Permit} (auto-provisioning '{roleName}' on Shadow)");
+
+            shadowNotifySlot.Reset();
+            byte[] createPayload = new CreateCharacterC2SPacket(
+                Identity: primaryPkt.Identity,
+                Gender: CharacterGender.Male,
+                Series: ElementSeries.Metal,
+                NativePlaceId: 53,
+                RoleNameUnicode: roleName).ToPayloadBytes();
+            await shadowConn.WriteEncryptedFrameAsync(createPayload, cancellationToken).ConfigureAwait(false);
+            shadowPkt = await WaitShadowNotifyAsync(shadowNotifySlot, cancellationToken).ConfigureAwait(false);
+        }
+        else if (primaryPkt.Permit != shadowPkt.Value.Permit)
+        {
+            EmitBishopFinding(
+                FindingSeverity.Critical,
+                FindingCategory.WireProtocol,
+                "Bishop.NotifyPlayerLogin.Permit",
+                $"Permit={primaryPkt.Permit}",
+                $"Permit={shadowPkt.Value.Permit}");
+        }
+
+        if (shadowPkt is { } shadow && primaryPkt.Permit != 0 && shadow.Permit != 0)
+        {
+            var entry = new HandoffTicketEntry(
+                PrimaryGuid: primaryPkt.GetTicketGuid(),
+                PrimaryGsHost: primaryPkt.GetIpAddress().ToString(),
+                PrimaryGsPort: primaryPkt.Port,
+                ShadowGuid: shadow.GetTicketGuid(),
+                ShadowGsHost: shadow.GetIpAddress().ToString(),
+                ShadowGsPort: shadow.Port,
+                RoleName: roleName,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+            _handoffMap.Register(entry);
+            Interlocked.Increment(ref _handoffsCompleted);
         }
 
         byte[] rewritten = primaryPayload.ToArray();
@@ -350,6 +363,56 @@ public sealed class BishopShadowProxy : IAsyncDisposable
         }
 
         return rewritten;
+    }
+
+    private async Task<NotifyPlayerLoginS2CPacket?> WaitShadowNotifyAsync(
+        ShadowNotifySlot slot,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(_options.HandoffMatchTimeoutMs);
+            return await slot.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
+    private sealed class ShadowNotifySlot
+    {
+        private readonly Lock _lock = new();
+        private TaskCompletionSource<NotifyPlayerLoginS2CPacket> _tcs =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Publish(NotifyPlayerLoginS2CPacket packet)
+        {
+            TaskCompletionSource<NotifyPlayerLoginS2CPacket> target;
+            lock (_lock)
+            {
+                target = _tcs;
+            }
+
+            target.TrySetResult(packet);
+        }
+
+        public void Reset()
+        {
+            lock (_lock)
+            {
+                _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+        }
+
+        public Task<NotifyPlayerLoginS2CPacket> WaitAsync(CancellationToken cancellationToken)
+        {
+            lock (_lock)
+            {
+                return _tcs.Task.WaitAsync(cancellationToken);
+            }
+        }
     }
 
     private void EmitBishopFinding(

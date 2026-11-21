@@ -78,7 +78,8 @@ public sealed class WireParityMcpToolDispatcher
                     ["protocolVersion"] = "2024-11-05",
                     ["capabilities"] = new JsonObject
                     {
-                        ["tools"] = new JsonObject()
+                        ["tools"] = new JsonObject(),
+                        ["resources"] = new JsonObject()
                     },
                     ["serverInfo"] = new JsonObject
                     {
@@ -87,6 +88,23 @@ public sealed class WireParityMcpToolDispatcher
                     }
                 }),
                 "ping" => CreateSuccessResponse(idNode, new JsonObject()),
+                "resources/list" => CreateSuccessResponse(idNode, new JsonObject
+                {
+                    ["resources"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["uri"] = WireParityMcpAppHtml.ResourceUri,
+                            ["name"] = "WireParityProxy Dashboard",
+                            ["mimeType"] = WireParityMcpAppHtml.MimeType,
+                            ["_meta"] = new JsonObject
+                            {
+                                ["ui"] = new JsonObject { ["prefersBorder"] = false }
+                            }
+                        }
+                    }
+                }),
+                "resources/read" => HandleResourceRead(idNode, request["params"] as JsonObject),
                 "tools/list" => CreateSuccessResponse(idNode, new JsonObject
                 {
                     ["tools"] = BuildToolsList()
@@ -119,6 +137,7 @@ public sealed class WireParityMcpToolDispatcher
         {
             object payload = toolName switch
             {
+                "open_parity_dashboard" => OpenParityDashboard(),
                 "get_proxy_status" => GetProxyStatus(),
                 "get_world_state" => await GetWorldStateAsync(cancellationToken).ConfigureAwait(false),
                 "perform_action" => await PerformActionAsync(args, cancellationToken).ConfigureAwait(false),
@@ -131,7 +150,7 @@ public sealed class WireParityMcpToolDispatcher
             };
 
             string jsonText = JsonSerializer.Serialize(payload, JsonOptions);
-            return CreateSuccessResponse(idNode, new JsonObject
+            var resultObj = new JsonObject
             {
                 ["content"] = new JsonArray
                 {
@@ -142,7 +161,13 @@ public sealed class WireParityMcpToolDispatcher
                     }
                 },
                 ["isError"] = false
-            });
+            };
+            if (string.Equals(toolName, "open_parity_dashboard", StringComparison.Ordinal))
+            {
+                resultObj["structuredContent"] = JsonNode.Parse(jsonText);
+            }
+
+            return CreateSuccessResponse(idNode, resultObj);
         }
         catch (Exception ex)
         {
@@ -202,73 +227,96 @@ public sealed class WireParityMcpToolDispatcher
 
     private async Task<object> PerformActionAsync(JsonObject args, CancellationToken cancellationToken)
     {
-        JxHeadlessClient client = _driverBridge.Client
-            ?? throw new InvalidOperationException("No game.exe driver attached. Run with --standalone or --spawn.");
-
         string action = args["action"]?.GetValue<string>()
             ?? throw new ArgumentException("Missing required argument 'action'.");
 
-        switch (action.ToLowerInvariant())
+        if (string.Equals(action, "respawn", StringComparison.OrdinalIgnoreCase))
         {
-            case "move_to":
-                int x = args["mps_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_x'.");
-                int y = args["mps_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_y'.");
-                bool run = args["run"]?.GetValue<bool>() ?? true;
-                await client.MoveToAsync(x, y, mode: run ? 2 : 1, cancellationToken: cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action, x, y, run };
+            await _driverBridge.InvalidateBrokenClientAsync().ConfigureAwait(false);
+            JxHeadlessClient respawned = await _driverBridge.SpawnAgainstProxyAsync(
+                _options,
+                _bishopProxy.BoundPort,
+                _options.InteractiveWindow,
+                cancellationToken).ConfigureAwait(false);
+            return new { ok = true, action = "respawn", pid = respawned.ProcessId };
+        }
 
-            case "interact_npc":
-                uint npcDwId = args["npc_dw_id"]?.GetValue<uint>() ?? throw new ArgumentException("Missing 'npc_dw_id'.");
-                await client.InteractNpcByDwIdAsync(npcDwId, cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action, npcDwId };
+        JxHeadlessClient client = string.Equals(action, "login", StringComparison.OrdinalIgnoreCase)
+            ? await _driverBridge.EnsureAliveClientAsync(_options, _bishopProxy.BoundPort, cancellationToken).ConfigureAwait(false)
+            : _driverBridge.Client
+                ?? throw new InvalidOperationException("No live game.exe driver attached. Call perform_action(action: 'login') to spawn and login.");
 
-            case "select_dialog":
-                int optionIndex = args["option_index"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'option_index'.");
-                await client.SelectDialogAsync(optionIndex, cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action, optionIndex };
+        try
+        {
+            switch (action.ToLowerInvariant())
+            {
+                case "move_to":
+                    int x = args["mps_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_x'.");
+                    int y = args["mps_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_y'.");
+                    bool run = args["run"]?.GetValue<bool>() ?? true;
+                    await client.MoveToAsync(x, y, mode: run ? 2 : 1, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, x, y, run };
 
-            case "confirm_talk":
-                await client.ConfirmTalkAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action };
+                case "interact_npc":
+                    uint npcDwId = args["npc_dw_id"]?.GetValue<uint>() ?? throw new ArgumentException("Missing 'npc_dw_id'.");
+                    await client.InteractNpcByDwIdAsync(npcDwId, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, npcDwId };
 
-            case "use_item":
-                int arrayIndex = args["array_index"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'array_index'.");
-                int place = args["place"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'place'.");
-                int gridX = args["grid_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'grid_x'.");
-                int gridY = args["grid_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'grid_y'.");
-                await client.UseItemAsync(arrayIndex, place, gridX, gridY, cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action, arrayIndex, place, gridX, gridY };
+                case "select_dialog":
+                    int optionIndex = args["option_index"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'option_index'.");
+                    await client.SelectDialogAsync(optionIndex, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, optionIndex };
 
-            case "switch_pk":
-                int pkMode = args["pk_mode"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'pk_mode'.");
-                await client.SwitchPkAsync(pkMode, cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action, pkMode };
+                case "confirm_talk":
+                    await client.ConfirmTalkAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action };
 
-            case "send_chat":
-                int channel = args["channel"]?.GetValue<int>() ?? 0;
-                string message = args["message"]?.GetValue<string>() ?? throw new ArgumentException("Missing 'message'.");
-                await client.SendChatAsync(channel, message, cancellationToken: cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action, channel, message };
+                case "use_item":
+                    int arrayIndex = args["array_index"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'array_index'.");
+                    int place = args["place"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'place'.");
+                    int gridX = args["grid_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'grid_x'.");
+                    int gridY = args["grid_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'grid_y'.");
+                    await client.UseItemAsync(arrayIndex, place, gridX, gridY, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, arrayIndex, place, gridX, gridY };
 
-            case "login":
-                string account = args["account"]?.GetValue<string>() ?? "gm001";
-                string password = args["password"]?.GetValue<string>() ?? "123456";
-                string roleName = args["role_name"]?.GetValue<string>() ?? "ParityHero01";
-                int series = args["series"]?.GetValue<int>() ?? 0;
-                int gender = args["gender"]?.GetValue<int>() ?? 0;
-                WorldDomSnapshot entered = await client.LoginAndEnterWorldAsync(
-                    _options.BindHost,
-                    _bishopProxy.BoundPort,
-                    account,
-                    password,
-                    roleName,
-                    series: series,
-                    gender: gender,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-                return new { ok = true, action, mapId = entered.Player.MapId, mpsX = entered.Player.MpsX, mpsY = entered.Player.MpsY };
+                case "switch_pk":
+                    int pkMode = args["pk_mode"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'pk_mode'.");
+                    await client.SwitchPkAsync(pkMode, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, pkMode };
 
-            default:
-                throw new ArgumentException($"Unsupported action '{action}'.");
+                case "send_chat":
+                    int channel = args["channel"]?.GetValue<int>() ?? 0;
+                    string message = args["message"]?.GetValue<string>() ?? throw new ArgumentException("Missing 'message'.");
+                    await client.SendChatAsync(channel, message, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, channel, message };
+
+                case "login":
+                    string account = args["account"]?.GetValue<string>() ?? "gm001";
+                    string password = args["password"]?.GetValue<string>() ?? "123456";
+                    string roleName = args["role_name"]?.GetValue<string>() ?? "ParityHero01";
+                    int series = args["series"]?.GetValue<int>() ?? 0;
+                    int gender = args["gender"]?.GetValue<int>() ?? 0;
+                    WorldDomSnapshot entered = await client.LoginAndEnterWorldAsync(
+                        _options.BindHost,
+                        _bishopProxy.BoundPort,
+                        account,
+                        password,
+                        roleName,
+                        series: series,
+                        gender: gender,
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, mapId = entered.Player.MapId, mpsX = entered.Player.MpsX, mpsY = entered.Player.MpsY };
+
+                default:
+                    throw new ArgumentException($"Unsupported action '{action}'.");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            await _driverBridge.InvalidateBrokenClientAsync().ConfigureAwait(false);
+            throw new InvalidOperationException(
+                $"Driver pipe disconnected during '{action}': {ex.Message}. Retry with action: 'login' or 'respawn'.",
+                ex);
         }
     }
 
@@ -331,6 +379,35 @@ public sealed class WireParityMcpToolDispatcher
         return new { ok = true, path = dir };
     }
 
+    private object OpenParityDashboard() => new
+    {
+        status = GetProxyStatus(),
+        findings = GetProxyFindings(new JsonObject()),
+        steps = GetActionSteps()
+    };
+
+    private static JsonObject HandleResourceRead(JsonNode idNode, JsonObject? @params)
+    {
+        string? uri = @params?["uri"]?.GetValue<string>();
+        if (!string.Equals(uri, WireParityMcpAppHtml.ResourceUri, StringComparison.Ordinal))
+        {
+            return CreateErrorResponse(idNode, -32602, $"Unknown resource URI '{uri}'.");
+        }
+
+        return CreateSuccessResponse(idNode, new JsonObject
+        {
+            ["contents"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["uri"] = WireParityMcpAppHtml.ResourceUri,
+                    ["mimeType"] = WireParityMcpAppHtml.MimeType,
+                    ["text"] = WireParityMcpAppHtml.Page
+                }
+            }
+        });
+    }
+
     private object ResetDrift()
     {
         _gameServerProxy.LatestSession?.DiffCoordinator.ResetDrift();
@@ -339,6 +416,24 @@ public sealed class WireParityMcpToolDispatcher
 
     private static JsonArray BuildToolsList() =>
     [
+        new JsonObject
+        {
+            ["name"] = "open_parity_dashboard",
+            ["description"] = "Open the interactive WireParityProxy live differential dashboard inside the Antigravity pane.",
+            ["inputSchema"] = new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() },
+            ["_meta"] = new JsonObject
+            {
+                ["ui"] = new JsonObject { ["resourceUri"] = WireParityMcpAppHtml.ResourceUri },
+                ["com.google.antigravity/ui"] = new JsonObject
+                {
+                    ["entrypoints"] = new JsonArray
+                    {
+                        new JsonObject { ["type"] = "aux_pane", ["title"] = "Wire Parity" },
+                        new JsonObject { ["type"] = "global", ["title"] = "Wire Parity" }
+                    }
+                }
+            }
+        },
         CreateToolSchema(
             "get_proxy_status",
             "Get live status of Bishop/GameServer shadow proxies, traffic counters, protocol violations, and state drift.",

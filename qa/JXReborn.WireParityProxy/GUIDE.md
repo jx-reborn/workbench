@@ -65,7 +65,7 @@ Không cần chạy tay lệnh này ở terminal — dán vào cấu hình MCP c
     "jx-wire-parity": {
       "command": "dotnet",
       "args": [
-        "d:\\Projects\\jx-reborn\\workbench\\qa\\JXReborn.WireParityProxy\\bin\\Debug\\net10.0\\JXReborn.WireParityProxy.dll",
+        "d:\\Projects\\jx-reborn\\workbench\\artifacts\\mcp-bridge\\JXReborn.WireParityProxy.dll",
         "--mcp",
         "--proxy-url",
         "http://127.0.0.1:5100"

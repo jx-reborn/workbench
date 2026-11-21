@@ -86,7 +86,11 @@ public sealed class WireParityHttpMcpBridge
                 ["result"] = new JsonObject
                 {
                     ["protocolVersion"] = "2024-11-05",
-                    ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
+                    ["capabilities"] = new JsonObject
+                    {
+                        ["tools"] = new JsonObject(),
+                        ["resources"] = new JsonObject()
+                    },
                     ["serverInfo"] = new JsonObject
                     {
                         ["name"] = "jxreborn-wire-parity-bridge",
