@@ -79,6 +79,8 @@ public sealed class ProxyShadowClientState
 
     public int Camp { get; private set; }
 
+    public int CurrentCamp { get; private set; }
+
     public int AttrPoints { get; private set; }
 
     public int SkillPoints { get; private set; }
@@ -356,6 +358,7 @@ public sealed class ProxyShadowClientState
                         MpsX = npc.MapMpsX;
                         MpsY = npc.MapMpsY;
                         Camp = (int)npc.Camp;
+                        CurrentCamp = (int)npc.Camp;
                         Series = (int)npc.Series;
                     }
                     else
@@ -446,6 +449,22 @@ public sealed class ProxyShadowClientState
 
                 break;
 
+            case ProtocolOpcodes.s2c_npcchgcamp:
+                if (NpcChangeCampS2CPacket.TryParse(payload, out NpcChangeCampS2CPacket chgCamp))
+                {
+                    ApplyCampChange(chgCamp.WorldNpcId, chgCamp.BaseCamp, isCurrentCamp: false);
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_npcchangecurcamp:
+                if (NpcChangeCurCampS2CPacket.TryParse(payload, out NpcChangeCurCampS2CPacket chgCurCamp))
+                {
+                    ApplyCampChange(chgCurCamp.WorldNpcId, chgCurCamp.CurrentCamp, isCurrentCamp: true);
+                }
+
+                break;
+
             case ProtocolOpcodes.s2c_objsyncpos:
                 if (ObjSyncStateS2CPacket.TryParse(payload, out ObjSyncStateS2CPacket objState))
                 {
@@ -495,6 +514,28 @@ public sealed class ProxyShadowClientState
             case ProtocolOpcodes.s2c_scriptaction:
                 ApplyScriptAction(payload);
                 break;
+        }
+    }
+
+    private void ApplyCampChange(uint npcId, EntityCamp camp, bool isCurrentCamp)
+    {
+        if (npcId == SelfNpcId)
+        {
+            if (isCurrentCamp)
+            {
+                CurrentCamp = (int)camp;
+            }
+            else
+            {
+                Camp = (int)camp;
+            }
+
+            return;
+        }
+
+        if (_npcsById.TryGetValue(npcId, out VirtualJxNpcEntity? npc))
+        {
+            _npcsById[npcId] = npc with { Camp = (byte)camp };
         }
     }
 

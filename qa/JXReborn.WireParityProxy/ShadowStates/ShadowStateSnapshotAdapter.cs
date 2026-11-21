@@ -41,7 +41,7 @@ public static class ShadowStateSnapshotAdapter
             Kind: 0,
             Series: state.Series,
             Camp: state.Camp,
-            CurrentCamp: state.Camp,
+            CurrentCamp: state.CurrentCamp,
             Doing: 0,
             Life: state.Life,
             LifeMax: state.MaxLife,
