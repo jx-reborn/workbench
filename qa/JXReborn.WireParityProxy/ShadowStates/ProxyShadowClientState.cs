@@ -424,19 +424,101 @@ public sealed class ProxyShadowClientState
                 break;
 
             case ProtocolOpcodes.s2c_scriptaction:
-                {
-                    uint seq = ++_dialogSeq;
-                    string hex = Convert.ToHexString(payload);
-                    _dialog = new ShadowDialogState(
-                        IsOpen: true,
-                        Sequence: seq,
-                        PromptTcvn3Hex: hex,
-                        OptionsTcvn3Hex: [],
-                        IsTalk: false);
-                }
-
+                ApplyScriptAction(payload);
                 break;
         }
+    }
+
+    private void ApplyScriptAction(ReadOnlySpan<byte> payload)
+    {
+        if (!ScriptActionS2CPacket.TryParse(payload, out ScriptActionS2CPacket action))
+        {
+            return;
+        }
+
+        ReadOnlySpan<byte> content = action.Content;
+        switch (action.UiId)
+        {
+            case ScriptActionS2CPacket.UiSelectDialog:
+            {
+                if (action.Param1 != 0)
+                {
+                    SetDialogState(Convert.ToHexString(content), [], isTalk: false);
+                    return;
+                }
+
+                List<string> segments = SplitOnDelimiter(content, [0x00], maxSegments: 1 + action.OptionOrPageCount);
+                string promptHex = segments.Count > 0 ? segments[0] : string.Empty;
+                List<string> options = TakeOptions(segments, startIndex: 1, action.OptionOrPageCount);
+                SetDialogState(promptHex, options, isTalk: false);
+                break;
+            }
+
+            case ScriptActionS2CPacket.UiDescribeDialog:
+            {
+                ReadOnlySpan<byte> delimiter = [(byte)'|', (byte)' ', (byte)'|'];
+                List<string> segments = SplitOnDelimiter(content, delimiter, maxSegments: 1 + action.OptionOrPageCount);
+                string promptHex = segments.Count > 0 ? segments[0] : string.Empty;
+                List<string> options = TakeOptions(segments, startIndex: 1, action.OptionOrPageCount);
+                SetDialogState(promptHex, options, isTalk: false);
+                break;
+            }
+
+            case ScriptActionS2CPacket.UiTalkDialog:
+            {
+                ReadOnlySpan<byte> delimiter = [(byte)'|', (byte)' ', (byte)'|'];
+                List<string> segments = SplitOnDelimiter(content, delimiter, maxSegments: Math.Max(1, (int)action.OptionOrPageCount) + 1);
+                string promptHex = string.Concat(segments.Where(static s => s.Length > 0));
+                SetDialogState(promptHex, [], isTalk: true);
+                break;
+            }
+        }
+    }
+
+    private void SetDialogState(string promptTcvn3Hex, IReadOnlyList<string> optionsTcvn3Hex, bool isTalk)
+    {
+        uint seq = ++_dialogSeq;
+        _dialog = new ShadowDialogState(
+            IsOpen: true,
+            Sequence: seq,
+            PromptTcvn3Hex: promptTcvn3Hex,
+            OptionsTcvn3Hex: optionsTcvn3Hex,
+            IsTalk: isTalk);
+    }
+
+    private static List<string> SplitOnDelimiter(ReadOnlySpan<byte> content, ReadOnlySpan<byte> delimiter, int maxSegments)
+    {
+        var segments = new List<string>();
+        ReadOnlySpan<byte> remaining = content;
+        while (segments.Count < maxSegments)
+        {
+            int idx = remaining.IndexOf(delimiter);
+            if (idx < 0)
+            {
+                segments.Add(Convert.ToHexString(remaining));
+                break;
+            }
+
+            segments.Add(Convert.ToHexString(remaining[..idx]));
+            remaining = remaining[(idx + delimiter.Length)..];
+            if (remaining.IsEmpty)
+            {
+                break;
+            }
+        }
+
+        return segments;
+    }
+
+    private static List<string> TakeOptions(List<string> segments, int startIndex, int maxCount)
+    {
+        var options = new List<string>(Math.Min(maxCount, Math.Max(0, segments.Count - startIndex)));
+        for (int i = startIndex; i < segments.Count && options.Count < maxCount; i++)
+        {
+            options.Add(segments[i]);
+        }
+
+        return options;
     }
 
     private void ApplyMoveItem(PlayerMoveItemS2CPacket mv)
