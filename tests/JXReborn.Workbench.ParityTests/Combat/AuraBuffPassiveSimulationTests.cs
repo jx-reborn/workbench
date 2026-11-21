@@ -332,13 +332,22 @@ public sealed class AuraBuffPassiveSimulationTests
             handle.Recorder.SkillCastBroadcasts,
             e => e.CastDirectly && e.SkillId == 202u);
 
-        // 4. Clear aura (0) -> removes 45 from 0x7A
+        // 4. Clear aura (0) -> clears ActiveAuraSkillId and broadcasts 0x7A immediately while letting child skill 202 expire naturally via ProcessState (KNpc::SetAuraSkill(0) parity)
         handle.Recorder.Clear();
         harness.EnqueueCommand(53, new ChangeAuraSkillZoneCommand(state.CharacterId, handle.LeaseEpoch, 0));
         await harness.StepFramesAsync(1);
         Assert.Equal(0, state.ActiveAuraSkillId);
         Assert.NotEmpty(handle.Recorder.NpcStateInfoBroadcasts);
+        Assert.NotNull(state.StatusEffects.FindStateSkillEffect(202));
+
+        handle.Recorder.Clear();
+        await harness.StepFramesAsync(5);
+        Assert.Null(state.StatusEffects.FindStateSkillEffect(202));
+        Assert.NotEmpty(handle.Recorder.NpcStateInfoBroadcasts);
         Assert.DoesNotContain((byte)45, handle.Recorder.NpcStateInfoBroadcasts[^1].StateSpecialIds);
+        Assert.DoesNotContain(
+            handle.Recorder.SyncStateEffects,
+            e => e.NpcId == state.RuntimeNpcId && e.SkillId == 202 && e.RemainTimeFrames == 0);
     }
 
     [Fact]
@@ -706,10 +715,12 @@ public sealed class AuraBuffPassiveSimulationTests
         Assert.DoesNotContain(handle.Recorder.SyncStateEffects, e => e.NpcId == state.RuntimeNpcId && e.SkillId == 9942);
         Assert.Equal(beforePhysicsRes, ((ICombatEntityState)state).PhysicsResistPercent);
 
-        // Grant, cast, and verify NoClearOnDeath buff 9943 + ActiveAura 16 (StateSpecialId 45) across real HandlePlayerDeath + Revive
+        // Grant, cast, and verify NoClearOnDeath buff 9943 + ActiveAura 16 (StateSpecialId 45) across real HandlePlayerDeath + Revive.
+        // Step 3 frames so immediate CastAura child missile 92 (LifeTime=2, AutoExplode=1) completes its 3-tick vanish before death/same-spot revive while child state 202 remains active.
         harness.EnqueueCommand(53, new ChangeAuraSkillZoneCommand(state.CharacterId, handle.LeaseEpoch, 16));
-        await harness.StepFramesAsync(1);
+        await harness.StepFramesAsync(3);
         Assert.Equal(16, state.ActiveAuraSkillId);
+        Assert.NotNull(state.StatusEffects.FindStateSkillEffect(202));
 
         int activeFireResBefore9943 = ((ICombatEntityState)state).FireResistPercent;
         handle.Recorder.Clear();
