@@ -65,7 +65,7 @@ if ([string]::IsNullOrWhiteSpace($Image)) {
     $Image = if (-not [string]::IsNullOrWhiteSpace($env:LEGACY_ORACLE_IMAGE)) {
         $env:LEGACY_ORACLE_IMAGE
     } else {
-        "ghcr.io/cutect/jx-runtime-standalone:latest"
+        "ghcr.io/jx-reborn/legacy-server-standalone:latest"
     }
 }
 
@@ -208,6 +208,7 @@ if (-not ($ReuseRunning -and $isAlreadyUp -and $ForceExtract -eq "0")) {
         "-v", "${VolumeName}:/home/jxser",
         "--tmpfs", "/var/lib/mysql",
         "-e", "SERVER_IP=127.0.0.1",
+        "-e", "DISABLE_SIMS=1",
         "-e", "BISHOP_PORT=$BishopPort",
         "-e", "GS_PORT=$GameServerPort",
         "-e", "FORCE_EXTRACT=$ForceExtract",
