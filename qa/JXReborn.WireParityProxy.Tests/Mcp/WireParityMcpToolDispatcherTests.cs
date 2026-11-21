@@ -191,6 +191,86 @@ public sealed class WireParityMcpToolDispatcherTests
         Assert.True(offlineResp["result"]?["isError"]?.GetValue<bool>());
     }
 
+    [Fact]
+    public async Task ToolsList_PerformActionSchema_ShouldExposeSkillItemAttributeAndRoleActions()
+    {
+        LegacyKeyTable keyTable = LegacyKeyTable.CreateSynthetic();
+        var options = new WireParityProxyOptions
+        {
+            BishopListenPort = 0,
+            GameServerListenPort = 0,
+            AllowSyntheticKeyTableFallback = true
+        };
+        var handoffMap = new HandoffTicketMap();
+
+        await using var driverBridge = new PrimaryClientDriverBridge();
+        await using var gsProxy = new GameServerShadowProxy(options, keyTable, handoffMap);
+        await using var bishopProxy = new BishopShadowProxy(options, keyTable, handoffMap, () => gsProxy.BoundPort);
+
+        var dispatcher = new WireParityMcpToolDispatcher(
+            options,
+            bishopProxy,
+            gsProxy,
+            driverBridge,
+            new ConcurrentQueue<ParityFinding>());
+
+        JsonObject? listResp = await dispatcher.HandleRequestAsync(new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = 99,
+            ["method"] = "tools/list"
+        });
+        Assert.NotNull(listResp);
+
+        JsonArray tools = Assert.IsType<JsonArray>(listResp["result"]?["tools"]);
+        JsonObject? performTool = tools
+            .OfType<JsonObject>()
+            .FirstOrDefault(t => string.Equals(t["name"]?.GetValue<string>(), "perform_action", StringComparison.Ordinal));
+        Assert.NotNull(performTool);
+
+        JsonObject? props = performTool["inputSchema"]?["properties"] as JsonObject;
+        Assert.NotNull(props);
+
+        string[] expectedProps =
+        [
+            "series",
+            "gender",
+            "native_place_id",
+            "skill_id",
+            "src_place",
+            "src_x",
+            "src_y",
+            "dst_place",
+            "dst_x",
+            "dst_y",
+            "attribute",
+            "points",
+            "object_id"
+        ];
+        foreach (string prop in expectedProps)
+        {
+            Assert.True(props.ContainsKey(prop), $"Expected perform_action schema to define '{prop}'.");
+        }
+
+        string actionDesc = props["action"]?["description"]?.GetValue<string>() ?? string.Empty;
+        string[] expectedActions =
+        [
+            "respawn",
+            "move_item",
+            "cast_skill_target",
+            "cast_skill_pos",
+            "change_aura_skill",
+            "add_skill_point",
+            "add_attribute",
+            "pickup_obj",
+            "dismiss_login_hint"
+        ];
+        foreach (string act in expectedActions)
+        {
+            Assert.Contains(act, actionDesc, StringComparison.Ordinal);
+        }
+    }
+
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
     {
         public int CallCount { get; private set; }

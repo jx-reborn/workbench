@@ -279,6 +279,67 @@ public sealed class WireParityMcpToolDispatcher
                     await client.UseItemAsync(arrayIndex, place, gridX, gridY, cancellationToken).ConfigureAwait(false);
                     return new { ok = true, action, arrayIndex, place, gridX, gridY };
 
+                case "move_item":
+                    int srcPlace = args["src_place"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'src_place'.");
+                    int srcX = args["src_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'src_x'.");
+                    int srcY = args["src_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'src_y'.");
+                    int dstPlace = args["dst_place"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'dst_place'.");
+                    int dstX = args["dst_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'dst_x'.");
+                    int dstY = args["dst_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'dst_y'.");
+                    await client.MoveItemAsync(srcPlace, srcX, srcY, dstPlace, dstX, dstY, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, srcPlace, srcX, srcY, dstPlace, dstX, dstY };
+
+                case "cast_skill_target":
+                    int skillIdTarget = args["skill_id"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'skill_id'.");
+                    uint targetNpcDwId = args["npc_dw_id"]?.GetValue<uint>() ?? throw new ArgumentException("Missing 'npc_dw_id'.");
+                    await client.UseSkillOnTargetAsync(skillIdTarget, targetNpcDwId, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, skillId = skillIdTarget, npcDwId = targetNpcDwId };
+
+                case "cast_skill_pos":
+                    int skillIdPos = args["skill_id"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'skill_id'.");
+                    int skillMpsX = args["mps_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_x'.");
+                    int skillMpsY = args["mps_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_y'.");
+                    await client.UseSkillAtPositionAsync(skillIdPos, skillMpsX, skillMpsY, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, skillId = skillIdPos, mpsX = skillMpsX, mpsY = skillMpsY };
+
+                case "change_aura_skill":
+                    int auraSkillId = args["skill_id"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'skill_id'.");
+                    await client.ChangeAuraSkillAsync(auraSkillId, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, skillId = auraSkillId };
+
+                case "add_skill_point":
+                    int addSkillId = args["skill_id"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'skill_id'.");
+                    int skillPoints = args["points"]?.GetValue<int>() ?? 1;
+                    await client.AddSkillPointAsync(addSkillId, skillPoints, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, skillId = addSkillId, points = skillPoints };
+
+                case "add_attribute":
+                    int attribute = args["attribute"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'attribute'.");
+                    int attrPoints = args["points"]?.GetValue<int>() ?? 1;
+                    await client.AddBaseAttributeAsync(attribute, attrPoints, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, attribute, points = attrPoints };
+
+                case "pickup_obj":
+                    if (args["object_id"] is { } objIdNode)
+                    {
+                        int objectId = objIdNode.GetValue<int>();
+                        await client.PickupObjectByIdAsync(objectId, cancellationToken).ConfigureAwait(false);
+                        return new { ok = true, action, objectId };
+                    }
+
+                    if (args["array_index"] is { } objArrNode)
+                    {
+                        int objArrayIdx = objArrNode.GetValue<int>();
+                        await client.PickupObjectByArrayIndexAsync(objArrayIdx, cancellationToken).ConfigureAwait(false);
+                        return new { ok = true, action, arrayIndex = objArrayIdx };
+                    }
+
+                    throw new ArgumentException("Missing 'object_id' or 'array_index'.");
+
+                case "dismiss_login_hint":
+                    await client.DismissSystemLoginHintIfOpenAsync(cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action };
+
                 case "switch_pk":
                     int pkMode = args["pk_mode"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'pk_mode'.");
                     await client.SwitchPkAsync(pkMode, cancellationToken).ConfigureAwait(false);
@@ -296,14 +357,16 @@ public sealed class WireParityMcpToolDispatcher
                     string roleName = args["role_name"]?.GetValue<string>() ?? "ParityHero01";
                     int series = args["series"]?.GetValue<int>() ?? 0;
                     int gender = args["gender"]?.GetValue<int>() ?? 0;
+                    int nativePlaceId = args["native_place_id"]?.GetValue<int>() ?? 53;
                     WorldDomSnapshot entered = await client.LoginAndEnterWorldAsync(
                         _options.BindHost,
                         _bishopProxy.BoundPort,
                         account,
                         password,
                         roleName,
-                        series: series,
                         gender: gender,
+                        series: series,
+                        nativePlaceId: nativePlaceId,
                         cancellationToken: cancellationToken).ConfigureAwait(false);
                     return new { ok = true, action, mapId = entered.Player.MapId, mpsX = entered.Player.MpsX, mpsY = entered.Player.MpsY };
 
@@ -444,13 +507,13 @@ public sealed class WireParityMcpToolDispatcher
             new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() }),
         CreateToolSchema(
             "perform_action",
-            "Drive the single game.exe client via driver RPC (login, move_to, interact_npc, select_dialog, confirm_talk, use_item, switch_pk, send_chat).",
+            "Drive the single game.exe client via driver RPC (login, respawn, move_to, interact_npc, select_dialog, confirm_talk, use_item, move_item, cast_skill_target, cast_skill_pos, change_aura_skill, add_skill_point, add_attribute, pickup_obj, switch_pk, send_chat, dismiss_login_hint).",
             new JsonObject
             {
                 ["type"] = "object",
                 ["properties"] = new JsonObject
                 {
-                    ["action"] = new JsonObject { ["type"] = "string", ["description"] = "Action name: login | move_to | interact_npc | select_dialog | confirm_talk | use_item | switch_pk | send_chat" },
+                    ["action"] = new JsonObject { ["type"] = "string", ["description"] = "Action name: login | respawn | move_to | interact_npc | select_dialog | confirm_talk | use_item | move_item | cast_skill_target | cast_skill_pos | change_aura_skill | add_skill_point | add_attribute | pickup_obj | switch_pk | send_chat | dismiss_login_hint" },
                     ["mps_x"] = new JsonObject { ["type"] = "integer" },
                     ["mps_y"] = new JsonObject { ["type"] = "integer" },
                     ["run"] = new JsonObject { ["type"] = "boolean" },
@@ -460,12 +523,25 @@ public sealed class WireParityMcpToolDispatcher
                     ["place"] = new JsonObject { ["type"] = "integer" },
                     ["grid_x"] = new JsonObject { ["type"] = "integer" },
                     ["grid_y"] = new JsonObject { ["type"] = "integer" },
+                    ["src_place"] = new JsonObject { ["type"] = "integer" },
+                    ["src_x"] = new JsonObject { ["type"] = "integer" },
+                    ["src_y"] = new JsonObject { ["type"] = "integer" },
+                    ["dst_place"] = new JsonObject { ["type"] = "integer" },
+                    ["dst_x"] = new JsonObject { ["type"] = "integer" },
+                    ["dst_y"] = new JsonObject { ["type"] = "integer" },
+                    ["skill_id"] = new JsonObject { ["type"] = "integer" },
+                    ["attribute"] = new JsonObject { ["type"] = "integer" },
+                    ["points"] = new JsonObject { ["type"] = "integer" },
+                    ["object_id"] = new JsonObject { ["type"] = "integer" },
                     ["pk_mode"] = new JsonObject { ["type"] = "integer" },
                     ["channel"] = new JsonObject { ["type"] = "integer" },
                     ["message"] = new JsonObject { ["type"] = "string" },
                     ["account"] = new JsonObject { ["type"] = "string" },
                     ["password"] = new JsonObject { ["type"] = "string" },
-                    ["role_name"] = new JsonObject { ["type"] = "string" }
+                    ["role_name"] = new JsonObject { ["type"] = "string" },
+                    ["series"] = new JsonObject { ["type"] = "integer" },
+                    ["gender"] = new JsonObject { ["type"] = "integer" },
+                    ["native_place_id"] = new JsonObject { ["type"] = "integer" }
                 },
                 ["required"] = new JsonArray { "action" }
             }),
