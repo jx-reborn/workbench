@@ -18,7 +18,9 @@ public sealed class ActionWindowWireDiffer
         ProtocolOpcodes.s2c_syncnpcmin,
         ProtocolOpcodes.s2c_syncnpcminplayer,
         ProtocolOpcodes.s2c_objsyncpos,
-        ProtocolOpcodes.s2c_extend
+        ProtocolOpcodes.s2c_extend,
+        // DoHurt recoil rolls an independent 50% PRNG coin flip in Legacy KNpc::DoHurt, causing stochastic 0x56 bursts across dual backends.
+        ProtocolOpcodes.s2c_npchurt
     ];
 
     private int _findingSeq;

@@ -76,4 +76,33 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
         Assert.True(assessment.MapMismatch);
         Assert.Equal(FindingSeverity.Critical, assessment.Severity);
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_ShouldIgnoreStochasticNpcHurtFrame()
+    {
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        byte[] c2sPayload = [ProtocolOpcodes.c2s_npcskill, 0, 0, 0, 0, 37, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0];
+        var c2s = new JxWireFrame(ProtocolOpcodes.c2s_npcskill, c2sPayload, now, 1);
+        var window = new WireActionWindow(1, "Step064_C2S_0x4D", c2s, c2s.DecryptedPayload, false, null);
+
+        byte[] skillCast = new byte[25];
+        skillCast[0] = ProtocolOpcodes.s2c_skillcast;
+        byte[] hurtFrame = new byte[22];
+        hurtFrame[0] = ProtocolOpcodes.s2c_npchurt;
+
+        var primaryS2c = new List<JxWireFrame>
+        {
+            new(ProtocolOpcodes.s2c_skillcast, skillCast, now, 1)
+        };
+        var shadowS2c = new List<JxWireFrame>
+        {
+            new(ProtocolOpcodes.s2c_skillcast, skillCast, now, 1),
+            new(ProtocolOpcodes.s2c_npchurt, hurtFrame, now, 2)
+        };
+
+        IReadOnlyList<ParityFinding> findings = differ.CompareWindow(window, primaryS2c, shadowS2c, mapId: 53, playerMpsX: 52096, playerMpsY: 101696);
+
+        Assert.Empty(findings);
+    }
 }
