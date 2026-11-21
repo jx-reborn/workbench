@@ -62,6 +62,8 @@ public sealed class RebornHostLauncher : IAsyncDisposable
         psi.Environment["LegacyGateway__GameServerPort"] = _options.RebornGameServerPort.ToString(CultureInfo.InvariantCulture);
         psi.Environment["ZoneEngine__EnableTestGmToken"] = "true";
         psi.Environment["ZoneEngine__AutoGrantGmTokenOnLogin"] = "true";
+        psi.Environment["ZoneEngine__HeartbeatTimeoutSeconds"] = "3600";
+        psi.Environment["Application__HeartbeatTimeoutSeconds"] = "3600";
         psi.Environment["ZoneEngine__TestGmTokenItemCode"] = "cam-nang-tan-thu";
         psi.Environment["ZoneEngine__TestGmTokenScriptCode"] = @"\script\global\nobitaxd\item\camnang_gm.lua";
         if (TryResolveWorkbenchScriptsDirectory(serverRootDir) is { } workbenchScriptsDir)
