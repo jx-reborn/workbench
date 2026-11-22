@@ -19,6 +19,8 @@ namespace JXReborn.WireParityProxy.Proxy;
 /// </summary>
 public sealed class GameServerShadowProxy : IAsyncDisposable
 {
+    private static readonly TimeSpan InitialSyncBarrierTimeout = TimeSpan.FromSeconds(5);
+
     private readonly WireParityProxyOptions _options;
     private readonly LegacyKeyTable _keyTable;
     private readonly HandoffTicketMap _handoffMap;
@@ -185,6 +187,9 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                 shadowConn.WriteEncryptedFrameAsync(shadowLoginPayload, linkCts.Token)).ConfigureAwait(false);
 
             var windowLock = new Lock();
+            var primarySyncEndTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var shadowSyncEndTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            int gatedOnInitialSync = 0;
             WireActionWindow? activeWindow = null;
             CancellationTokenSource? windowTimerCts = null;
             int actionSeq = 0;
@@ -257,11 +262,32 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                     }
 
                     session.IncrementC2s();
-                    if (frame.Opcode == ProtocolOpcodes.c2s_syncend && frame.DecryptedPayload.Length >= 9)
+                    if (frame.Opcode == ProtocolOpcodes.c2s_syncend)
                     {
-                        uint t1 = BinaryPrimitives.ReadUInt32LittleEndian(frame.DecryptedPayload.AsSpan(1, 4));
-                        uint t2 = BinaryPrimitives.ReadUInt32LittleEndian(frame.DecryptedPayload.AsSpan(5, 4));
-                        session.SetClientTokens(t1, t2);
+                        if (frame.DecryptedPayload.Length >= 9)
+                        {
+                            uint t1 = BinaryPrimitives.ReadUInt32LittleEndian(frame.DecryptedPayload.AsSpan(1, 4));
+                            uint t2 = BinaryPrimitives.ReadUInt32LittleEndian(frame.DecryptedPayload.AsSpan(5, 4));
+                            session.SetClientTokens(t1, t2);
+                        }
+
+                        // Wait for Shadow's initial world sync burst (s2c_syncend) before opening Step 1 and forwarding
+                        // c2s_syncend so slower Shadow cold-start never cascades false-positive InWorld drift across Steps 1..N.
+                        if (Interlocked.Exchange(ref gatedOnInitialSync, 1) == 0 &&
+                            primarySyncEndTcs.Task.IsCompleted &&
+                            !shadowSyncEndTcs.Task.IsCompleted)
+                        {
+                            try
+                            {
+                                await shadowSyncEndTcs.Task
+                                    .WaitAsync(InitialSyncBarrierTimeout, linkCts.Token)
+                                    .ConfigureAwait(false);
+                            }
+                            catch (TimeoutException)
+                            {
+                                // Bounded safety timeout so live play cannot hang if Shadow stalls on login.
+                            }
+                        }
                     }
 
                     C2sRewriteResult rewrite = session.Rewriter.RewriteForShadow(
@@ -295,6 +321,10 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
 
                     session.IncrementPrimaryS2c();
                     session.PrimaryState.ApplyS2c(frame.DecryptedPayload, frame.TimestampUtc);
+                    if (frame.Opcode == ProtocolOpcodes.s2c_syncend)
+                    {
+                        primarySyncEndTcs.TrySetResult();
+                    }
 
                     lock (windowLock)
                     {
@@ -339,6 +369,10 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                     }
 
                     session.ShadowState.ApplyS2c(frame.DecryptedPayload, frame.TimestampUtc);
+                    if (frame.Opcode == ProtocolOpcodes.s2c_syncend)
+                    {
+                        shadowSyncEndTcs.TrySetResult();
+                    }
                 }
             }, linkCts.Token);
 

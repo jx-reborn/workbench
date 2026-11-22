@@ -1,9 +1,11 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using JXReborn.Adapter.Legacy.Ciphers;
 using JXReborn.Adapter.Legacy.Packets;
+using JXReborn.Primitives.Characters;
 using JXReborn.WireParityProxy.Configuration;
 using JXReborn.WireParityProxy.Proxy;
 using JXReborn.WireParityProxy.Wire;
@@ -173,5 +175,176 @@ public sealed class BishopAndGameServerShadowProxyTests
         Assert.NotNull(gsProxy.LatestSession);
         Assert.Equal(5000, gsProxy.LatestSession.PrimaryState.Money);
         Assert.Equal(9999, gsProxy.LatestSession.ShadowState.Money);
+    }
+
+    [Fact]
+    public async Task DelayedShadowInitialSync_ShouldWaitForShadowSyncEndBeforeStep1AndProduceZeroFindings()
+    {
+        LegacyKeyTable keyTable = LegacyKeyTable.CreateSynthetic();
+        Guid primaryGuid = Guid.NewGuid();
+        Guid shadowGuid = Guid.NewGuid();
+
+        using var primaryGsListener = new TcpListener(IPAddress.Loopback, 0);
+        using var shadowGsListener = new TcpListener(IPAddress.Loopback, 0);
+        primaryGsListener.Start();
+        shadowGsListener.Start();
+
+        var handoffMap = new HandoffTicketMap();
+        handoffMap.Register(new HandoffTicketEntry(
+            PrimaryGuid: primaryGuid,
+            PrimaryGsHost: "127.0.0.1",
+            PrimaryGsPort: (ushort)((IPEndPoint)primaryGsListener.LocalEndpoint).Port,
+            ShadowGuid: shadowGuid,
+            ShadowGsHost: "127.0.0.1",
+            ShadowGsPort: (ushort)((IPEndPoint)shadowGsListener.LocalEndpoint).Port,
+            RoleName: "DelayedHero",
+            CreatedAtUtc: DateTimeOffset.UtcNow));
+
+        var options = new WireParityProxyOptions
+        {
+            BindHost = "127.0.0.1",
+            BishopListenPort = 0,
+            GameServerListenPort = 0,
+            AllowSyntheticKeyTableFallback = true,
+            ActionWindowMs = 60
+        };
+
+        await using var gsProxy = new GameServerShadowProxy(options, keyTable, handoffMap);
+        gsProxy.Start();
+
+        long shadowSyncEndSentTick = 0;
+        long shadowC2sSyncEndReceivedTick = 0;
+
+        static byte[] StructBytes<T>(T value) where T : struct
+        {
+            byte[] bytes = new byte[Marshal.SizeOf<T>()];
+            MemoryMarshal.Write(bytes, in value);
+            return bytes;
+        }
+
+        Task RunServerAsync(TcpListener listener, int initialBurstDelayMs, bool recordTicks) => Task.Run(async () =>
+        {
+            TcpClient tcp = await listener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("fake-gs", tcp, keyTable, CancellationToken.None);
+
+            JxWireFrame? login = await conn.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(login);
+            Assert.Equal(ProtocolOpcodes.c2s_logiclogin, login.Opcode);
+
+            if (initialBurstDelayMs > 0)
+            {
+                await Task.Delay(initialBurstDelayMs);
+            }
+
+            byte[] syncWorld = StructBytes(SyncWorldS2CPacket.Create(53, 52032, 101696, 100, "Ba Lang Huyen"));
+            byte[] syncSelfNpc = new SyncNpcFullS2CPacket(
+                Camp: 0,
+                Series: ElementSeries.Metal,
+                LifePercent: 128,
+                MapMpsY: 101696,
+                DoingState: 1,
+                StateInfo: 0,
+                MapMpsX: 52032,
+                MenuState: 0,
+                GoldType: 0,
+                Kind: EntityKind.Player,
+                NpcId: 1001u,
+                MasterId: -1,
+                TemplateId: 0xFFFF,
+                Level: 1,
+                RankFfId: 0,
+                NameUnicode: "DelayedHero").ToPayloadBytes();
+            byte[] syncCurPlayer = StructBytes(new SyncCurPlayerS2CPacket
+            {
+                ProtocolType = ProtocolOpcodes.s2c_synccurplayer,
+                Id = 1001u,
+                Level = 1,
+                LifeMax = 204,
+                StaminaMax = 50,
+                Kind = (byte)EntityKind.Player,
+                ManaMax = 16
+            });
+            byte[] syncEnd = StructBytes(SyncEndS2CPacket.Create());
+            await conn.WriteEncryptedFrameAsync(syncWorld, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(syncSelfNpc, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(syncCurPlayer, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(syncEnd, CancellationToken.None);
+            if (recordTicks)
+            {
+                Volatile.Write(ref shadowSyncEndSentTick, Stopwatch.GetTimestamp());
+            }
+
+            JxWireFrame? clientSyncEnd = await conn.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(clientSyncEnd);
+            Assert.Equal(ProtocolOpcodes.c2s_syncend, clientSyncEnd.Opcode);
+            if (recordTicks)
+            {
+                Volatile.Write(ref shadowC2sSyncEndReceivedTick, Stopwatch.GetTimestamp());
+            }
+
+            byte[] moneyPkt = new byte[SyncMoneyS2CPacket.PayloadSize];
+            new SyncMoneyS2CPacket(1234, 0).WritePayload(moneyPkt);
+            await conn.WriteEncryptedFrameAsync(moneyPkt, CancellationToken.None);
+
+            // Keep server socket open until client closes so Primary EOF never cancels Shadow S2C read prematurely.
+            while (await conn.ReadDecryptedFrameAsync(CancellationToken.None) is not null)
+            {
+            }
+        });
+
+        Task primaryTask = RunServerAsync(primaryGsListener, initialBurstDelayMs: 0, recordTicks: false);
+        Task shadowTask = RunServerAsync(shadowGsListener, initialBurstDelayMs: 180, recordTicks: true);
+
+        await using (JxWireConnection clientGs = await JxWireConnection.ConnectUpstreamAsync(
+            "client-gs",
+            "127.0.0.1",
+            gsProxy.BoundPort,
+            keyTable,
+            CancellationToken.None))
+        {
+            byte[] logicLogin = new byte[17];
+            logicLogin[0] = ProtocolOpcodes.c2s_logiclogin;
+            primaryGuid.TryWriteBytes(logicLogin.AsSpan(1, 16));
+            await clientGs.WriteEncryptedFrameAsync(logicLogin, CancellationToken.None);
+
+            JxWireFrame? f1 = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            JxWireFrame? f2 = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            JxWireFrame? f3 = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            JxWireFrame? f4 = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(f1);
+            Assert.NotNull(f2);
+            Assert.NotNull(f3);
+            Assert.NotNull(f4);
+            Assert.Equal(ProtocolOpcodes.s2c_syncworld, f1.Opcode);
+            Assert.Equal(ProtocolOpcodes.s2c_syncnpc, f2.Opcode);
+            Assert.Equal(ProtocolOpcodes.s2c_synccurplayer, f3.Opcode);
+            Assert.Equal(ProtocolOpcodes.s2c_syncend, f4.Opcode);
+
+            byte[] c2sSyncEnd = new byte[9];
+            c2sSyncEnd[0] = ProtocolOpcodes.c2s_syncend;
+            BinaryPrimitives.WriteUInt32LittleEndian(c2sSyncEnd.AsSpan(1, 4), 1u);
+            BinaryPrimitives.WriteUInt32LittleEndian(c2sSyncEnd.AsSpan(5, 4), 2u);
+            await clientGs.WriteEncryptedFrameAsync(c2sSyncEnd, CancellationToken.None);
+
+            JxWireFrame? moneyFrame = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(moneyFrame);
+            Assert.Equal(ProtocolOpcodes.s2c_syncmoney, moneyFrame.Opcode);
+
+            // Allow Step 1 action window to close cleanly before disconnect.
+            await Task.Delay(120);
+        }
+
+        await Task.WhenAll(primaryTask, shadowTask);
+
+        Assert.True(shadowC2sSyncEndReceivedTick >= shadowSyncEndSentTick,
+            "Shadow must finish its s2c_syncend burst before receiving c2s_syncend and opening Step 1.");
+        Assert.NotNull(gsProxy.LatestSession);
+        Assert.True(gsProxy.LatestSession.PrimaryState.IsSyncCompleted);
+        Assert.True(gsProxy.LatestSession.ShadowState.IsSyncCompleted);
+        Assert.Equal(53, gsProxy.LatestSession.ShadowState.MapId);
+        Assert.Empty(gsProxy.LatestSession.DiffCoordinator.GetFindings());
+        Assert.False(gsProxy.LatestSession.DiffCoordinator.LatestDrift.IsDrifted);
+        Assert.Single(gsProxy.LatestSession.DiffCoordinator.GetSteps());
+        Assert.Equal(new[] { "0x61" }, gsProxy.LatestSession.DiffCoordinator.GetSteps()[0].ShadowS2cOpcodes);
     }
 }

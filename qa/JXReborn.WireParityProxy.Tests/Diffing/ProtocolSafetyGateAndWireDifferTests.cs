@@ -227,4 +227,71 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
 
         Assert.Contains(repairFindings, f => f.FieldPath == "S2C.Missing[0x9B]");
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_ShouldIgnoreTickBoundary0x4CAndAsyncCitySummary0xAC_WhileKeepingOtherS2cStrict()
+    {
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        byte[] reqNpcC2s = [ProtocolOpcodes.c2s_requestnpc, 0xC7, 0x43, 0x00, 0x00];
+        var reqFrame = new JxWireFrame(ProtocolOpcodes.c2s_requestnpc, reqNpcC2s, now, 1);
+        var window = new WireActionWindow(1, "Step042_C2S_0x49", reqFrame, reqFrame.DecryptedPayload, true, null);
+
+        byte[] legacyNpc4C = new byte[38];
+        legacyNpc4C[0] = ProtocolOpcodes.s2c_syncnpc;
+        BinaryPrimitives.WriteUInt16LittleEndian(legacyNpc4C.AsSpan(1, 2), (ushort)(legacyNpc4C.Length - 1));
+
+        byte[] rebornNpc4C = new byte[41];
+        rebornNpc4C[0] = ProtocolOpcodes.s2c_syncnpc;
+        BinaryPrimitives.WriteUInt16LittleEndian(rebornNpc4C.AsSpan(1, 2), (ushort)(rebornNpc4C.Length - 1));
+
+        byte[] legacyCitySummary0xAC = new byte[234];
+        legacyCitySummary0xAC[0] = ProtocolOpcodes.s2c_synccitysummary;
+        BinaryPrimitives.WriteUInt16LittleEndian(legacyCitySummary0xAC.AsSpan(1, 2), (ushort)(legacyCitySummary0xAC.Length - 1));
+
+        IReadOnlyList<ParityFinding> ignoredFindings = differ.CompareWindow(
+            window,
+            primaryS2c:
+            [
+                new(ProtocolOpcodes.s2c_syncnpc, legacyNpc4C, now, 1),
+                new(ProtocolOpcodes.s2c_synccitysummary, legacyCitySummary0xAC, now, 2),
+            ],
+            shadowS2c:
+            [
+                new(ProtocolOpcodes.s2c_syncnpc, rebornNpc4C, now, 1),
+            ],
+            mapId: 53,
+            playerMpsX: 52032,
+            playerMpsY: 101696);
+
+        Assert.Empty(ignoredFindings);
+
+        // Non-ignored S2C opcodes (e.g., s2c_removeitem) remain strictly checked.
+        IReadOnlyList<ParityFinding> strictFindings = differ.CompareWindow(
+            window,
+            primaryS2c: [new(ProtocolOpcodes.s2c_removeitem, [ProtocolOpcodes.s2c_removeitem, 1, 0, 0, 0], now, 3)],
+            shadowS2c: [],
+            mapId: 53,
+            playerMpsX: 52032,
+            playerMpsY: 101696);
+
+        Assert.Single(strictFindings);
+        Assert.Equal("S2C.Missing[0x60]", strictFindings[0].FieldPath);
+    }
+
+    [Fact]
+    public void ProtocolSafetyGate_WhenShadowSendsValid0xAC_ShouldPassValidation()
+    {
+        var gate = new ProtocolSafetyGate();
+        byte[] citySummary = new byte[234];
+        citySummary[0] = ProtocolOpcodes.s2c_synccitysummary;
+        BinaryPrimitives.WriteUInt16LittleEndian(citySummary.AsSpan(1, 2), (ushort)(citySummary.Length - 1));
+        citySummary[3] = 2;
+
+        ParityFinding? finding = gate.ObserveShadowS2c(citySummary, stepIndex: 42, mapId: 53, playerMpsX: 52032, playerMpsY: 101696, stepName: "Step042_C2S_0x49");
+
+        Assert.Null(finding);
+        Assert.Equal(0, gate.ViolationCount);
+    }
 }

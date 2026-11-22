@@ -20,7 +20,12 @@ public sealed class ActionWindowWireDiffer
         ProtocolOpcodes.s2c_objsyncpos,
         ProtocolOpcodes.s2c_extend,
         // DoHurt recoil rolls an independent 50% PRNG coin flip in Legacy KNpc::DoHurt, causing stochastic 0x56 bursts across dual backends.
-        ProtocolOpcodes.s2c_npchurt
+        ProtocolOpcodes.s2c_npchurt,
+        // AOI entity hydration (0x4C) is tick-paced across rapid c2s_requestnpc bursts (straddling 55ms action windows)
+        // and carries Vietnamese TCVN3 vs Legacy GBK NPC name lengths (+2..+7B); wire/state parity is enforced by ProtocolSafetyGate & ProxyShadowClientState.
+        ProtocolOpcodes.s2c_syncnpc,
+        // Asynchronous s3relay/Lua CityWar summary broadcast (4 + 115*N bytes), unrelated to the enclosing C2S action window.
+        ProtocolOpcodes.s2c_synccitysummary
     ];
 
     private int _findingSeq;
