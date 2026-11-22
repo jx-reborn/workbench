@@ -51,7 +51,8 @@ public sealed class EntityIdTranslator
             primaryNpc,
             static (p, c) =>
                 (p.TemplateId > 0 && c.TemplateId == p.TemplateId) ||
-                (!string.IsNullOrWhiteSpace(p.NameUnicode) && string.Equals(c.NameUnicode, p.NameUnicode, StringComparison.Ordinal)));
+                (!string.IsNullOrWhiteSpace(p.NameUnicode) &&
+                 string.Equals(c.NameUnicode.Trim(), p.NameUnicode.Trim(), StringComparison.Ordinal)));
 
         if (best is null && primaryNpc.TemplateId == 0 && string.IsNullOrEmpty(primaryNpc.NameUnicode))
         {
@@ -64,6 +65,14 @@ public sealed class EntityIdTranslator
                     primaryNpc,
                     static (_, _) => true,
                     maxDistanceMps: 64.0);
+        }
+        else if (best is null)
+        {
+            best = FindClosestMatchingNpc(
+                shadowNpcs.Values,
+                primaryNpc,
+                static (_, c) => c.TemplateId == 0 && string.IsNullOrEmpty(c.NameUnicode),
+                maxDistanceMps: 64.0);
         }
 
         if (best is not null)

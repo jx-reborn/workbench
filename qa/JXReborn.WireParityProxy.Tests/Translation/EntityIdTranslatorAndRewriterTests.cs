@@ -106,6 +106,48 @@ public sealed class EntityIdTranslatorAndRewriterTests
     }
 
     [Fact]
+    public void RewriteRequestNpc_WhenPrimaryNameHasTrailingSpaces_ShouldTrimAndTranslate()
+    {
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncNpcPayload(npcId: 92256, templateId: 9999, mpsX: 52224, mpsY: 101536, name: "Tiêu Dao Tử  "), now);
+        shadow.ApplyS2c(BuildSyncNpcPayload(npcId: 10512, templateId: 2537, mpsX: 52224, mpsY: 101536, name: "Tiêu Dao Tử"), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] reqNpcC2s = new byte[RequestNpcC2SPacket.PayloadSize];
+        new RequestNpcC2SPacket(92256u).WritePayload(reqNpcC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(reqNpcC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(10512u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+    }
+
+    [Fact]
+    public void RewriteRequestNpc_WhenPrimaryHydrated0x4CAndShadowOnlyCompact0x4D_ShouldTranslateByProximity()
+    {
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncNpcPayload(npcId: 92256, templateId: 2537, mpsX: 52224, mpsY: 101536, name: "Tiêu Dao Tử  "), now);
+        shadow.ApplyS2c(BuildSyncNpcMinPayload(npcId: 10512, mpsX: 52224, mpsY: 101536, camp: 6), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] reqNpcC2s = new byte[RequestNpcC2SPacket.PayloadSize];
+        new RequestNpcC2SPacket(92256u).WritePayload(reqNpcC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(reqNpcC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(10512u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+    }
+
+    [Fact]
     public void RewriteRequestObj_WhenOnly0x65StateSyncObserved_ShouldTranslateByOrderAndState()
     {
         var primary = new ProxyShadowClientState("legacy-linux");
