@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\server\src\JXReborn.Primitives\JXReborn.Primitives.csproj" />
+    <ProjectReference Include="..\..\..\server\src\JXReborn.GameAssets\JXReborn.GameAssets.csproj" />
+    <ProjectReference Include="..\..\..\pack-tieudaotu\src\JXReborn.Packs.TieuDaoTu\JXReborn.Packs.TieuDaoTu.csproj" />
+    <ProjectReference Include="..\JXReborn.LegacyImporter\JXReborn.LegacyImporter.csproj" />
+  </ItemGroup>
+</Project>

@@ -62,7 +62,7 @@ public sealed class MapDataExporter
                 continue;
             }
 
-            if (exportAllMaps && !TryReadWorBounds(source, rawSubPath, pak, out _))
+            if (exportAllMaps && !worldSetIds.Contains(mapId) && !TryReadWorBounds(source, rawSubPath, pak, out _))
             {
                 continue;
             }

@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/JXReborn.LegacyImporter/JXReborn.LegacyImporter.csproj" />
+    <Project Path="tools/JXReborn.ScriptMigrator/JXReborn.ScriptMigrator.csproj" />
   </Folder>
   <Folder Name="/qa/">
     <Project Path="qa/JXReborn.ClientDriver.Tests/JXReborn.ClientDriver.Tests.csproj" />
@@ -14,5 +15,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/JXReborn.Workbench.ParityTests/JXReborn.Workbench.ParityTests.csproj" />
+    <Project Path="tests/JXReborn.ScriptMigrator.Tests/JXReborn.ScriptMigrator.Tests.csproj" />
   </Folder>
 </Solution>
