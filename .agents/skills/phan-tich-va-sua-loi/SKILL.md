@@ -18,11 +18,12 @@ Quy trình chuẩn từ thu thập Findings/Bug → đối chiếu **Ground-Trut
 ## 1. Bất biến bắt buộc (Non-Negotiable Rules)
 
 1. **Cấm đoán mò (Zero Guessing)**: Không tự suy diễn công thức, kích thước packet, điều kiện trigger hay spawn từ trí nhớ. Mọi chi tiết kỹ thuật phải có bằng chứng từ `legacy-server/discovery/`, `legacy-client/discovery/`, Lua/settings gốc (`legacy-explore`), hoặc decompile bằng `rea` / `/discover-legacy-server`.
-2. **Fail-First TDD & Bất biến Test**:
+2. **Sai hội thoại là port lại TOÀN BỘ script gốc**: Khi gặp finding lệch hội thoại (`Dialog.Prompt`, `Dialog.Options.Count`, `Dialog.IsOpen` hoặc fallback thoại), **tuyệt đối không vá cục bộ một câu thoại đơn lẻ**; phải truy lại toàn bộ file script Lua gốc của NPC đó bên `legacy-server` và cập nhật lại đầy đủ toàn bộ cây hội thoại + logic callback tương ứng.
+3. **Fail-First TDD & Bất biến Test**:
    - **Trước khi sửa code sản xuất**: viết test tự động tái hiện đúng lỗi và chạy quan sát **FAIL (RED)** trước.
    - **Trong lúc sửa code**: **tuyệt đối không sửa test** để ép xanh.
    - **Chỉ được sửa test** khi có bằng chứng ground-truth mới (binary decompile hoặc oracle wire capture) chứng minh kỳ vọng cũ của test là sai.
-3. **Tuân thủ Hiến pháp dự án (`server/.specify/memory/constitution.md`)**:
+4. **Tuân thủ Hiến pháp dự án (`server/.specify/memory/constitution.md`)**:
    - Không ghi raw disassembly address (`0x08...`, `FUN_00...`), tên file C++ độc quyền vào `server/src/`, `server/tests/` (`SolutionArchitectureComplianceTests`).
    - Mọi công cụ/vật phẩm GM & test hook **chỉ tự bật trong `Development` dưới `Debug`**, luôn tắt ở `Production` và `Release`.
    - Đọc/đóng file theo chuẩn repo (1 top-level type mỗi file, `sealed class`).
@@ -56,6 +57,11 @@ Quy trình chuẩn từ thu thập Findings/Bug → đối chiếu **Ground-Trut
        - Sau khi sửa Tier 1 JSON, chạy `JXReborn.PackCompiler` để build lại `pack-tieudaotu/dist/server/server.pack`.
      - **Nhóm B — Đã có trong `pack-tieudaotu` nhưng lệch thuộc tính hoặc `EntityIdTranslator` dịch hụt**: Đối chiếu `kind`, `camp`, tên (kể cả dấu cách thừa cuối tên trên Legacy như `"Tiêu Dao Tử  "`) giữa Legacy với `core.npcs.json`/`global-spawns.npcs.json`; chuẩn hoá dữ liệu pack theo gốc và/hoặc bổ sung trim tên + fallback theo khoảng cách `<= 64 mps` trong `EntityIdTranslator` khi Shadow mới có `0x4D` chưa hydrate `0x4C`.
      - **Nhóm C — NPC động tồn đọng do `--reuse-legacy`**: Boot lại `legacy-oracle-test` sạch ở T=0 (không dùng `--reuse-legacy`).
+   - **Quy trình xử lý riêng khi sai/thiếu hội thoại (`Dialog.Prompt`, `Dialog.Options.Count`, `Dialog.IsOpen`, fallback dialog)**:
+     - **Tuyệt đối không sửa vá mỗi câu thoại bị cảnh báo**.
+     - Lập tức dùng [legacy-explore](../legacy-explore/SKILL.md) truy ngược từ tọa độ/tên NPC hoặc đoạn text mẫu (`<#><link=...`, tiêu đề, option) sang **toàn bộ file script Lua gốc** trên `legacy-server` (kèm các file `Include` liên quan).
+     - Đọc hết toàn bộ cây hội thoại (`main()`, tất cả hàm con `Say` / `Describe` / `CreateTaskSay` / `Talk`, từng nhánh điều kiện Task/Item/Money/Level/Faction và từng hành động thực thi khi chọn option).
+     - Cập nhật/port lại **đầy đủ toàn bộ script hội thoại của NPC đó** vào `pack-tieudaotu` (Tier 1 JSON dialogs/spawns + C# script layer, biên dịch lại `server.pack` / script DLL nếu cần) kèm test Fail-First TDD bao phủ các nhánh chính.
    - **Lỗi/hạn chế ở tầng so sánh `WireParityProxy`**: race lúc login chưa qua `s2c_syncend`, packet bất đồng bộ liên tiến trình (`s3relay` `0xFA`, `0xAC`), hoặc dữ liệu bản địa hóa hợp lệ (`0x4C` Việt hoá TCVN3 vs GBK) cần xử lý ở `GameServerShadowProxy` / `ActionWindowWireDiffer` mà vẫn giữ kiểm tra `ProtocolSafetyGate` + `ProxyShadowClientState`.
 
 ---
