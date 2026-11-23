@@ -123,6 +123,8 @@ public sealed class WireParityScenarioAndPathfinderTests
     {
         IMapCatalog? mapCatalog = ProxyMapCatalogLoader.TryGetDefault();
         Assert.NotNull(mapCatalog);
+        using ProxyClientPakObstacleReader? pakObstacles = ProxyClientPakObstacleReader.TryOpenFromTemplate();
+        Assert.NotNull(pakObstacles);
 
         string mapsScenarioDir = FindScenarioMapsDirectory();
         var supportedStepTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -190,6 +192,15 @@ public sealed class WireParityScenarioAndPathfinderTests
                     Assert.True(
                         mapCatalog.TryGetRegionObstacleGrid(stepMapId, rx, ry, out _),
                         $"Step '{step.Name}' coord ({tx},{ty}) region ({rx},{ry}) is outside loaded regions for map {stepMapId}.");
+
+                    if (string.Equals(step.Type, "gm_teleport", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int mpsX = (tx * 32) + 16;
+                        int mpsY = (ty * 32) + 16;
+                        Assert.Equal(0, mapCatalog.GetCellObstacle(stepMapId, mpsX, mpsY) & 0x0F);
+                        Assert.Equal(0, pakObstacles.GetCellObstacle(stepMapId, mpsX, mpsY));
+                        Assert.Equal(0u, mapCatalog.GetCellTrapId(stepMapId, mpsX, mpsY));
+                    }
                 }
 
                 if (step.MpsX is { } mx && step.MpsY is { } my)

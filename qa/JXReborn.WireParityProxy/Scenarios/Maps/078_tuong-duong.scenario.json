@@ -1,0 +1,789 @@
+{
+  "name": "TuongDuongFullGroundTruthSurvey",
+  "mapId": 78,
+  "description": "100% Legacy Ground-Truth end-to-end survey for Tuong Duong (Map 78) and Secret Tunnel (Map 79): Regions A-F, 5 unlocked LSIM_Startup NPCs, Wudang 20/50/60 quests, Casino input_number, Beggar Skill 400, 4 gates, SongJin <40 block vs Lv80->324 portal, Maps 81/90/101 portals, and Map 78 <-> Map 79 round-trip.",
+  "account": "gm_td_01",
+  "password": "123456",
+  "roleName": "KhaoSat78",
+  "nativePlaceId": 53,
+  "autoExportFailingCaptures": true,
+  "steps": [
+    {
+      "name": "LoginStarterVillage",
+      "type": "login",
+      "region": "Init",
+      "notes": "Create/enter Lv1 char on nativePlaceId 53, then teleport immediately to Tuong Duong (Map 78) Nha Mon RevPos 29."
+    },
+    {
+      "name": "TeleportToTuongDuongNhaMon",
+      "type": "gm_teleport",
+      "region": "Khu A - Nha Mon",
+      "mapId": 78,
+      "tileX": 1577,
+      "tileY": 3238
+    },
+    {
+      "name": "ClickBox1SetRevPos29",
+      "type": "click_object",
+      "region": "Khu A - Nha Mon",
+      "mapId": 78,
+      "tileX": 1562,
+      "tileY": 3218,
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "CloseBox1",
+      "type": "close_dialog",
+      "region": "Khu A - Nha Mon"
+    },
+    {
+      "name": "ClickNoticeBoard1",
+      "type": "click_object",
+      "region": "Khu A - Nha Mon",
+      "mapId": 78,
+      "tileX": 1608,
+      "tileY": 3219,
+      "maxRadiusTiles": 10,
+      "notes": "ShowLadder(3, 1, 2, 3)."
+    },
+    {
+      "name": "CloseNoticeBoard1",
+      "type": "close_dialog",
+      "region": "Khu A - Nha Mon"
+    },
+    {
+      "name": "CheckDaTauLv1Block",
+      "type": "interact_npc",
+      "region": "Khu A - Lv1 Checks",
+      "mapId": 78,
+      "tileX": 1595,
+      "tileY": 3288,
+      "npcName": "Dã Tẩu",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "CloseDaTauLv1Block",
+      "type": "close_dialog",
+      "region": "Khu A - Lv1 Checks"
+    },
+    {
+      "name": "CheckCityStationLv1",
+      "type": "interact_npc",
+      "region": "Khu A - Lv1 Checks",
+      "mapId": 78,
+      "tileX": 1509,
+      "tileY": 3138,
+      "npcName": "Xa phu",
+      "maxRadiusTiles": 12,
+      "notes": "Legacy CityStationCommon allows Lv 1 while Reborn MinTravelLevel=5 blocks."
+    },
+    {
+      "name": "CloseCityStationLv1",
+      "type": "close_dialog",
+      "region": "Khu A - Lv1 Checks"
+    },
+    {
+      "name": "TeleportNearSongJinPortalLv1",
+      "type": "gm_teleport",
+      "region": "Khu D - SongJin Block",
+      "mapId": 78,
+      "tileX": 1766,
+      "tileY": 3081
+    },
+    {
+      "name": "EnableCombatBeforeSongJinLv1",
+      "type": "gm_set_fight_mode",
+      "region": "Khu D - SongJin Block",
+      "value": 1
+    },
+    {
+      "name": "StepSongJinPortalLv1Blocked",
+      "type": "step_trap",
+      "region": "Khu D - SongJin Block",
+      "mapId": 78,
+      "trapId": 948300338,
+      "expectedMapId": 78,
+      "notes": "GetLevel() < 40 displays Talk warning and stays on Map 78."
+    },
+    {
+      "name": "SetLevel20AndMoney",
+      "type": "gm_set_level",
+      "region": "Khu A - Unlocked LSIM",
+      "level": 20
+    },
+    {
+      "name": "SetMoney200k",
+      "type": "gm_set_money",
+      "region": "Khu A - Unlocked LSIM",
+      "value": 200000
+    },
+    {
+      "name": "TeleportLeagueMatchOfficers",
+      "type": "gm_teleport",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1552,
+      "tileY": 3120
+    },
+    {
+      "name": "InteractSuGiaKietXuat",
+      "type": "interact_npc",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1546,
+      "tileY": 3117,
+      "npcName": "Sứ giả kiệt xuất",
+      "maxRadiusTiles": 12,
+      "notes": "Unlocked by LSIM_Startup stub (autoexec.lua:640)."
+    },
+    {
+      "name": "CloseSuGiaKietXuat",
+      "type": "close_dialog",
+      "region": "Khu A - Unlocked LSIM"
+    },
+    {
+      "name": "InteractSuGiaLienDau",
+      "type": "interact_npc",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1558,
+      "tileY": 3116,
+      "npcName": "Sứ giả liên đấu",
+      "maxRadiusTiles": 12,
+      "notes": "Unlocked by LSIM_Startup stub (tpl=87)."
+    },
+    {
+      "name": "CloseSuGiaLienDau",
+      "type": "close_dialog",
+      "region": "Khu A - Unlocked LSIM"
+    },
+    {
+      "name": "TeleportThanNongLaoGia",
+      "type": "gm_teleport",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1522,
+      "tileY": 3216
+    },
+    {
+      "name": "InteractThanNongLaoGia",
+      "type": "interact_npc",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1519,
+      "tileY": 3214,
+      "npcName": "Thần Nông Lão Gia",
+      "maxRadiusTiles": 12,
+      "notes": "Unlocked by LSIM_Startup stub (autoexec.lua:706, tpl=1446)."
+    },
+    {
+      "name": "CloseThanNongLaoGia",
+      "type": "close_dialog",
+      "region": "Khu A - Unlocked LSIM"
+    },
+    {
+      "name": "TeleportNhaMonSquare",
+      "type": "gm_teleport",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1612,
+      "tileY": 3202
+    },
+    {
+      "name": "InteractNguDoanVan",
+      "type": "interact_npc",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1616,
+      "tileY": 3200,
+      "npcName": "Ngu Doãn Văn",
+      "maxRadiusTiles": 12,
+      "notes": "Unlocked by G_TASK:LoadAllConfig (autoexec.lua:717, tpl=1843)."
+    },
+    {
+      "name": "CloseNguDoanVan",
+      "type": "close_dialog",
+      "region": "Khu A - Unlocked LSIM"
+    },
+    {
+      "name": "InteractTangNhanThanBi",
+      "type": "interact_npc",
+      "region": "Khu A - Unlocked LSIM",
+      "mapId": 78,
+      "tileX": 1601,
+      "tileY": 3227,
+      "npcName": "Tăng Nhân Thần Bí",
+      "maxRadiusTiles": 14,
+      "notes": "Unlocked by AutoFunctions:Run (autoexec.lua:721, tpl=71)."
+    },
+    {
+      "name": "CloseTangNhanThanBi",
+      "type": "close_dialog",
+      "region": "Khu A - Unlocked LSIM"
+    },
+    {
+      "name": "TeleportCenterCrawler",
+      "type": "gm_teleport",
+      "region": "Khu A - Center Crawler",
+      "mapId": 78,
+      "tileX": 1570,
+      "tileY": 3222
+    },
+    {
+      "name": "CrawlCentralSpecialNpcs",
+      "type": "crawl_region_npcs",
+      "region": "Khu A - Center Crawler",
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu",
+        "Thuyền Phu",
+        "Công Bình Tử",
+        "Võ Lâm truyền nhân",
+        "Thần bí Thương Nhân",
+        "Chủ sòng bạc",
+        "Vệ binh thành môn"
+      ]
+    },
+    {
+      "name": "SetWudang20State40",
+      "type": "gm_set_task",
+      "region": "Khu B - Wudang 20",
+      "taskId": 5,
+      "value": 5160
+    },
+    {
+      "name": "GrantTatteredRobeItem66",
+      "type": "gm_grant_item",
+      "region": "Khu B - Wudang 20",
+      "genre": 4,
+      "detailType": 66,
+      "particularType": 0,
+      "level": 1
+    },
+    {
+      "name": "InteractGrocerWudang20Step40",
+      "type": "interact_npc",
+      "region": "Khu B - Wudang 20",
+      "mapId": 78,
+      "tileX": 1629,
+      "tileY": 3260,
+      "npcName": "Chủ tiệm tạp hóa",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmGrocerWudang20Step40",
+      "type": "confirm_talk",
+      "region": "Khu B - Wudang 20"
+    },
+    {
+      "name": "GrantSilkItem67",
+      "type": "gm_grant_item",
+      "region": "Khu B - Wudang 20",
+      "genre": 4,
+      "detailType": 67,
+      "particularType": 0,
+      "level": 1
+    },
+    {
+      "name": "InteractGrocerWudang20Step50",
+      "type": "interact_npc",
+      "region": "Khu B - Wudang 20",
+      "mapId": 78,
+      "tileX": 1629,
+      "tileY": 3260,
+      "npcName": "Chủ tiệm tạp hóa",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmGrocerWudang20Step50",
+      "type": "confirm_talk",
+      "region": "Khu B - Wudang 20"
+    },
+    {
+      "name": "ResyncAfterWudang20",
+      "type": "resync_if_drifted",
+      "region": "Khu B - Wudang 20",
+      "mapId": 78,
+      "tileX": 1624,
+      "tileY": 3258
+    },
+    {
+      "name": "TeleportCasinoArea",
+      "type": "gm_teleport",
+      "region": "Khu B - Entertainment",
+      "mapId": 78,
+      "tileX": 1602,
+      "tileY": 3298
+    },
+    {
+      "name": "InteractCasinoOwner",
+      "type": "interact_npc",
+      "region": "Khu B - Entertainment",
+      "mapId": 78,
+      "tileX": 1606,
+      "tileY": 3301,
+      "npcName": "Chủ sòng bạc",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "SelectCasinoBetPrompt",
+      "type": "select_dialog",
+      "region": "Khu B - Entertainment",
+      "optionIndex": 0
+    },
+    {
+      "name": "SubmitCasinoBetAmount",
+      "type": "input_number",
+      "region": "Khu B - Entertainment",
+      "value": 10,
+      "notes": "Exercises 0x82 input_number via dicegame.lua."
+    },
+    {
+      "name": "CloseCasinoDialog",
+      "type": "close_dialog",
+      "region": "Khu B - Entertainment"
+    },
+    {
+      "name": "TeleportFortuneTellerNorth",
+      "type": "gm_teleport",
+      "region": "Khu B - Fortune & Beggar",
+      "mapId": 78,
+      "tileX": 1546,
+      "tileY": 3102
+    },
+    {
+      "name": "InteractTruongThietChuy",
+      "type": "interact_npc",
+      "region": "Khu B - Fortune & Beggar",
+      "mapId": 78,
+      "tileX": 1545,
+      "tileY": 3095,
+      "npcName": "Trương Thiết Chủy",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "SelectTruongThietChuyRead",
+      "type": "select_dialog",
+      "region": "Khu B - Fortune & Beggar",
+      "optionIndex": 0
+    },
+    {
+      "name": "ConfirmTruongThietChuy",
+      "type": "confirm_talk",
+      "region": "Khu B - Fortune & Beggar"
+    },
+    {
+      "name": "TeleportBrothelDistrict",
+      "type": "gm_teleport",
+      "region": "Khu B - West Districts",
+      "mapId": 78,
+      "tileX": 1468,
+      "tileY": 3250
+    },
+    {
+      "name": "CrawlBrothelDistrict",
+      "type": "crawl_region_npcs",
+      "region": "Khu B - West Districts",
+      "maxRadiusTiles": 22,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu",
+        "Công Bình Tử",
+        "Vệ binh thành môn"
+      ]
+    },
+    {
+      "name": "TeleportPawnAndTeaDistrict",
+      "type": "gm_teleport",
+      "region": "Khu B - West Districts",
+      "mapId": 78,
+      "tileX": 1460,
+      "tileY": 3190
+    },
+    {
+      "name": "CrawlPawnAndTeaDistrict",
+      "type": "crawl_region_npcs",
+      "region": "Khu B - West Districts",
+      "maxRadiusTiles": 24,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu",
+        "Công Bình Tử",
+        "Vệ binh thành môn"
+      ]
+    },
+    {
+      "name": "SetLevel35ForFactionBranches",
+      "type": "gm_set_level",
+      "region": "Khu B - Justice/Evil Lv35",
+      "level": 35
+    },
+    {
+      "name": "SetJusticeTask1051",
+      "type": "gm_set_task",
+      "region": "Khu B - Justice/Evil Lv35",
+      "taskId": 1051,
+      "value": 100
+    },
+    {
+      "name": "InteractCungANguuLv35",
+      "type": "interact_npc",
+      "region": "Khu B - Justice/Evil Lv35",
+      "mapId": 78,
+      "tileX": 1549,
+      "tileY": 3194,
+      "npcName": "Cung A Ngưu",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "CloseCungANguuLv35",
+      "type": "close_dialog",
+      "region": "Khu B - Justice/Evil Lv35"
+    },
+    {
+      "name": "SetEvilTask1059",
+      "type": "gm_set_task",
+      "region": "Khu B - Justice/Evil Lv35",
+      "taskId": 1059,
+      "value": 40
+    },
+    {
+      "name": "InteractLuuUanCoLv35",
+      "type": "interact_npc",
+      "region": "Khu B - Justice/Evil Lv35",
+      "mapId": 78,
+      "tileX": 1615,
+      "tileY": 3185,
+      "npcName": "Lưu Uẩn Cổ",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "CloseLuuUanCoLv35",
+      "type": "close_dialog",
+      "region": "Khu B - Justice/Evil Lv35"
+    },
+    {
+      "name": "SetLevel50ForWudang50",
+      "type": "gm_set_level",
+      "region": "Khu B - Wudang 50",
+      "level": 50
+    },
+    {
+      "name": "SetWudang50Task5",
+      "type": "gm_set_task",
+      "region": "Khu B - Wudang 50",
+      "taskId": 5,
+      "value": 12850
+    },
+    {
+      "name": "TeleportDangGiaTauTu",
+      "type": "gm_teleport",
+      "region": "Khu B - Wudang 50",
+      "mapId": 78,
+      "tileX": 1648,
+      "tileY": 3273
+    },
+    {
+      "name": "InteractDangGiaTauTuWudang50",
+      "type": "interact_npc",
+      "region": "Khu B - Wudang 50",
+      "mapId": 78,
+      "tileX": 1647,
+      "tileY": 3273,
+      "npcName": "Đặng Gia tẩu tử",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmDangGiaTauTu",
+      "type": "confirm_talk",
+      "region": "Khu B - Wudang 50"
+    },
+    {
+      "name": "TeleportSouthCourierAndSkill400",
+      "type": "gm_teleport",
+      "region": "Khu C - Courier & Wharf",
+      "mapId": 78,
+      "tileX": 1586,
+      "tileY": 3367
+    },
+    {
+      "name": "InteractCourierOfficial",
+      "type": "interact_npc",
+      "region": "Khu C - Courier & Wharf",
+      "mapId": 78,
+      "tileX": 1587,
+      "tileY": 3369,
+      "npcName": "Dịch trạm dịch quan",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "CloseCourierOfficial",
+      "type": "close_dialog",
+      "region": "Khu C - Courier & Wharf"
+    },
+    {
+      "name": "InteractSkill400Beggar",
+      "type": "interact_npc",
+      "region": "Khu C - Courier & Wharf",
+      "mapId": 78,
+      "tileX": 1610,
+      "tileY": 3339,
+      "npcName": "Ăn mày",
+      "maxRadiusTiles": 14
+    },
+    {
+      "name": "CloseSkill400Beggar",
+      "type": "close_dialog",
+      "region": "Khu C - Courier & Wharf"
+    },
+    {
+      "name": "TeleportSouthwestWharf",
+      "type": "gm_teleport",
+      "region": "Khu C - Courier & Wharf",
+      "mapId": 78,
+      "tileX": 1304,
+      "tileY": 3476
+    },
+    {
+      "name": "InteractWharfBoatman1",
+      "type": "interact_npc",
+      "region": "Khu C - Courier & Wharf",
+      "mapId": 78,
+      "tileX": 1311,
+      "tileY": 3476,
+      "npcName": "Thuyền Phu",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "CloseWharfBoatman1",
+      "type": "close_dialog",
+      "region": "Khu C - Courier & Wharf"
+    },
+    {
+      "name": "SetLevel80ForSongJinMid",
+      "type": "gm_set_level",
+      "region": "Khu D - Portals",
+      "level": 80
+    },
+    {
+      "name": "TeleportNearSongJinPortalLv80",
+      "type": "gm_teleport",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "tileX": 1766,
+      "tileY": 3081
+    },
+    {
+      "name": "EnableCombatBeforeSongJinLv80",
+      "type": "gm_set_fight_mode",
+      "region": "Khu D - Portals",
+      "value": 1
+    },
+    {
+      "name": "StepSongJinPortalLv80To324",
+      "type": "step_trap",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "trapId": 948300338,
+      "expectedMapId": 324,
+      "notes": "Lv 80 enters Map 324 (SongJin Mid) on Legacy vs Reborn bug 323."
+    },
+    {
+      "name": "ResyncAfterSongJinPortal",
+      "type": "resync_if_drifted",
+      "region": "Khu D - Portals",
+      "mapId": 324,
+      "tileX": 1541,
+      "tileY": 3178
+    },
+    {
+      "name": "TeleportNearWudangPortal",
+      "type": "gm_teleport",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "tileX": 1546,
+      "tileY": 2905
+    },
+    {
+      "name": "StepWudangPortalTo81",
+      "type": "step_trap",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "trapId": 1938385781,
+      "expectedMapId": 81,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncAfterWudangPortal",
+      "type": "resync_if_drifted",
+      "region": "Khu D - Portals",
+      "mapId": 81,
+      "tileX": 1620,
+      "tileY": 3595
+    },
+    {
+      "name": "TeleportNearPhucNguuPortal",
+      "type": "gm_teleport",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "tileX": 1650,
+      "tileY": 2992
+    },
+    {
+      "name": "StepPhucNguuPortalTo90",
+      "type": "step_trap",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "trapId": 1397835010,
+      "expectedMapId": 90,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncAfterPhucNguuPortal",
+      "type": "resync_if_drifted",
+      "region": "Khu D - Portals",
+      "mapId": 90,
+      "tileX": 1649,
+      "tileY": 3567
+    },
+    {
+      "name": "TeleportNearDaoHuongPortal",
+      "type": "gm_teleport",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "tileX": 1800,
+      "tileY": 3412
+    },
+    {
+      "name": "StepDaoHuongPortalTo101",
+      "type": "step_trap",
+      "region": "Khu D - Portals",
+      "mapId": 78,
+      "trapId": 2366506913,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncAfterDaoHuongPortal",
+      "type": "resync_if_drifted",
+      "region": "Khu D - Portals",
+      "mapId": 101,
+      "tileX": 1339,
+      "tileY": 3398
+    },
+    {
+      "name": "TeleportWestMineNode",
+      "type": "gm_teleport",
+      "region": "Khu E - Wudang 60 Mines",
+      "mapId": 78,
+      "tileX": 1362,
+      "tileY": 3198
+    },
+    {
+      "name": "ClickLuangNganOreNode",
+      "type": "click_object",
+      "region": "Khu E - Wudang 60 Mines",
+      "mapId": 78,
+      "tileX": 1362,
+      "tileY": 3202,
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "SetWudang60TasksForSecretTunnel",
+      "type": "gm_set_task",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "taskId": 5,
+      "value": 15380
+    },
+    {
+      "name": "SetWudang60Byte3To2",
+      "type": "gm_set_task",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "taskId": 17,
+      "value": 131586
+    },
+    {
+      "name": "TeleportNhaMonGuard1",
+      "type": "gm_teleport",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 78,
+      "tileX": 1593,
+      "tileY": 3208
+    },
+    {
+      "name": "InteractNhaMonGuard1SecretHint",
+      "type": "interact_npc",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 78,
+      "tileX": 1593,
+      "tileY": 3206,
+      "npcName": "Nha Môn Vệ binh",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "CloseNhaMonGuard1Hint",
+      "type": "close_dialog",
+      "region": "Khu F - Map 79 Secret Tunnel"
+    },
+    {
+      "name": "WalkIsometricCorridorToSecretTunnel79",
+      "type": "step_trap",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 78,
+      "trapId": 3721490225,
+      "expectedMapId": 79,
+      "expectedFightMode": 1,
+      "notes": "Exercises 45-degree uShape diagonal pathfinder from Guard 1 (1593,3206) into Map 79."
+    },
+    {
+      "name": "ResyncInsideMap79",
+      "type": "resync_if_drifted",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 79,
+      "tileX": 1599,
+      "tileY": 3206
+    },
+    {
+      "name": "TeleportNearMap79Boss53",
+      "type": "gm_teleport",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 79,
+      "tileX": 1744,
+      "tileY": 3228
+    },
+    {
+      "name": "WalkNearMap79Boss53",
+      "type": "walk_to",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 79,
+      "tileX": 1749,
+      "tileY": 3230
+    },
+    {
+      "name": "TeleportNearMap79ExitPortal",
+      "type": "gm_teleport",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 79,
+      "tileX": 1597,
+      "tileY": 3212
+    },
+    {
+      "name": "StepExitMap79BackToMap78",
+      "type": "step_trap",
+      "region": "Khu F - Map 79 Secret Tunnel",
+      "mapId": 79,
+      "trapId": 2889451457,
+      "expectedMapId": 78,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncReturnMap78",
+      "type": "resync_if_drifted",
+      "region": "Khu F - Complete",
+      "mapId": 78,
+      "tileX": 1634,
+      "tileY": 3196
+    }
+  ]
+}

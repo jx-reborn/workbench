@@ -1,0 +1,713 @@
+{
+  "name": "BaLangHuyenFullGroundTruthSurvey",
+  "mapId": 53,
+  "description": "100% Legacy Ground-Truth end-to-end survey for Ba Lang Huyen (Map 53) and linked Map 199: Lv1 gate/station/wharf blocks, 4 fight-toggle gates, shops/storage/boards, 10 sect guides, 5 global NPCs, Tasks 46/48/47 quests, and Lv20 cross-map portal 199.",
+  "account": "gm_bl_01",
+  "password": "123456",
+  "roleName": "KhaoSat53",
+  "nativePlaceId": 53,
+  "autoExportFailingCaptures": true,
+  "steps": [
+    {
+      "name": "LoginMap53Lv1",
+      "type": "login",
+      "region": "Stage 1 - Square",
+      "notes": "T=0 initial character creation on Map 53 (Lv 1)."
+    },
+    {
+      "name": "ClickStorageBox1",
+      "type": "click_object",
+      "region": "Stage 1 - Square",
+      "mapId": 53,
+      "tileX": 1612,
+      "tileY": 3167,
+      "maxRadiusTiles": 6,
+      "notes": "Obj Ba Lang Storage Box 1 -> OpenBox() + SetRevPos(19)."
+    },
+    {
+      "name": "CloseStorageBoxDialog",
+      "type": "close_dialog",
+      "region": "Stage 1 - Square"
+    },
+    {
+      "name": "ClickNoticeBoard1",
+      "type": "click_object",
+      "region": "Stage 1 - Square",
+      "mapId": 53,
+      "tileX": 1627,
+      "tileY": 3164,
+      "maxRadiusTiles": 6,
+      "notes": "Obj Notice Board 1 -> Say('Nha mon thong cao', 0)."
+    },
+    {
+      "name": "CloseNoticeBoard1",
+      "type": "close_dialog",
+      "region": "Stage 1 - Square"
+    },
+    {
+      "name": "CheckDaTauLv1Block",
+      "type": "interact_npc",
+      "region": "Stage 1 - Square",
+      "mapId": 53,
+      "tileX": 1626,
+      "tileY": 3172,
+      "npcName": "Dã Tẩu",
+      "maxRadiusTiles": 10,
+      "notes": "Level_DaTau = 10 -> blocked at Lv 1."
+    },
+    {
+      "name": "CloseDaTauLv1Block",
+      "type": "close_dialog",
+      "region": "Stage 1 - Square"
+    },
+    {
+      "name": "CheckAFangLv1Lore",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Checks",
+      "mapId": 53,
+      "tileX": 1619,
+      "tileY": 3254,
+      "npcName": "A Phương",
+      "maxRadiusTiles": 10,
+      "notes": "Task 48 requires Lv >= 2 -> Lv 1 only gives Talk lore."
+    },
+    {
+      "name": "ConfirmAFangLv1Lore",
+      "type": "confirm_talk",
+      "region": "Stage 1 - Lv1 Checks"
+    },
+    {
+      "name": "CheckCoLaoThaiLv1Lore",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Checks",
+      "mapId": 53,
+      "tileX": 1631,
+      "tileY": 3242,
+      "npcName": "Cổ Lão Thái",
+      "maxRadiusTiles": 10,
+      "notes": "Task 47 requires Lv >= 6 -> Lv 1 only gives Talk lore."
+    },
+    {
+      "name": "ConfirmCoLaoThaiLv1Lore",
+      "type": "confirm_talk",
+      "region": "Stage 1 - Lv1 Checks"
+    },
+    {
+      "name": "CheckStation10Lv1Block",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Checks",
+      "mapId": 53,
+      "tileX": 1578,
+      "tileY": 3236,
+      "npcName": "Xa phu",
+      "maxRadiusTiles": 10,
+      "notes": "Village Station 10 blocks Lv < 5."
+    },
+    {
+      "name": "ConfirmStation10Lv1Block",
+      "type": "confirm_talk",
+      "region": "Stage 1 - Lv1 Checks"
+    },
+    {
+      "name": "WalkSouthGateFightToggle",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "trapId": 1968940038,
+      "expectedFightMode": 1,
+      "notes": "South gate toggles FightMode 0 -> 1 + AddStation(10) + SkillState(963)."
+    },
+    {
+      "name": "ResyncAfterSouthGate",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "tileX": 1564,
+      "tileY": 3248
+    },
+    {
+      "name": "TeleportEastGateForToggle",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "tileX": 1650,
+      "tileY": 3236
+    },
+    {
+      "name": "SetSafeModeBeforeEastGate",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 4 Gates",
+      "value": 0
+    },
+    {
+      "name": "WalkEastGateFightToggle",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "trapId": 1073123649,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "TeleportDongtingWharfLv1",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Checks",
+      "mapId": 53,
+      "tileX": 1775,
+      "tileY": 3180
+    },
+    {
+      "name": "CheckDongtingBoatmanLv1Block",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Checks",
+      "mapId": 53,
+      "tileX": 1778,
+      "tileY": 3177,
+      "npcName": "Ngư dân",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "SelectBoatmanToIslandOption",
+      "type": "select_dialog",
+      "region": "Stage 1 - Lv1 Checks",
+      "optionIndex": 0
+    },
+    {
+      "name": "ConfirmBoatmanLv1Block",
+      "type": "confirm_talk",
+      "region": "Stage 1 - Lv1 Checks"
+    },
+    {
+      "name": "TeleportNamNhacPortalLv1",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Lv1 Portal Blocks",
+      "mapId": 53,
+      "tileX": 1806,
+      "tileY": 3447
+    },
+    {
+      "name": "StepNamNhacPortalLv1Block",
+      "type": "step_trap",
+      "region": "Stage 2 - Lv1 Portal Blocks",
+      "mapId": 53,
+      "trapId": 2617733828,
+      "expectedMapId": 53,
+      "notes": "Lv < 5 pushes back to (1808,3456) on Map 53."
+    },
+    {
+      "name": "TeleportNorthGateArea",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "tileX": 1624,
+      "tileY": 3102
+    },
+    {
+      "name": "ClickNoticeBoard2",
+      "type": "click_object",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "tileX": 1619,
+      "tileY": 3097,
+      "maxRadiusTiles": 8,
+      "notes": "Notice Board 2 -> ShowLadder(4, 2, 3, 6, 17)."
+    },
+    {
+      "name": "CloseNoticeBoard2",
+      "type": "close_dialog",
+      "region": "Stage 2 - 4 Gates"
+    },
+    {
+      "name": "SetSafeModeBeforeNorthGate",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 4 Gates",
+      "value": 0
+    },
+    {
+      "name": "WalkNorthGateFightToggle",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "trapId": 2476324320,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "TeleportMartialMasterNorth",
+      "type": "gm_teleport",
+      "region": "Stage 5 - North Training",
+      "mapId": 53,
+      "tileX": 1668,
+      "tileY": 2982
+    },
+    {
+      "name": "CheckMartialMasterLv1",
+      "type": "interact_npc",
+      "region": "Stage 5 - North Training",
+      "mapId": 53,
+      "tileX": 1671,
+      "tileY": 2978,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "CloseMartialMasterLv1",
+      "type": "close_dialog",
+      "region": "Stage 5 - North Training"
+    },
+    {
+      "name": "TeleportYangtzeWharfLv1",
+      "type": "gm_teleport",
+      "region": "Stage 5 - North Wharf",
+      "mapId": 53,
+      "tileX": 1546,
+      "tileY": 2928
+    },
+    {
+      "name": "CheckYangtzeWharfLv1Block",
+      "type": "interact_npc",
+      "region": "Stage 5 - North Wharf",
+      "mapId": 53,
+      "tileX": 1543,
+      "tileY": 2923,
+      "npcName": "Thuyền Phu",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "ConfirmYangtzeWharfLv1Block",
+      "type": "confirm_talk",
+      "region": "Stage 5 - North Wharf"
+    },
+    {
+      "name": "TeleportWestGateForToggle",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "tileX": 1543,
+      "tileY": 3120
+    },
+    {
+      "name": "SetSafeModeBeforeWestGate",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 4 Gates",
+      "value": 0
+    },
+    {
+      "name": "WalkWestGateFightToggle",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Gates",
+      "mapId": 53,
+      "trapId": 1339313725,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "TeleportVuLangSonPortalLv1",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Lv1 Portal Blocks",
+      "mapId": 53,
+      "tileX": 1340,
+      "tileY": 3298
+    },
+    {
+      "name": "StepVuLangSonPortalLv1Block",
+      "type": "step_trap",
+      "region": "Stage 2 - Lv1 Portal Blocks",
+      "mapId": 53,
+      "trapId": 4274748173,
+      "expectedMapId": 53
+    },
+    {
+      "name": "TeleportMieuLinhPortalLv1",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Lv1 Portal Blocks",
+      "mapId": 53,
+      "tileX": 1340,
+      "tileY": 3345
+    },
+    {
+      "name": "StepMieuLinhPortalLv1Block",
+      "type": "step_trap",
+      "region": "Stage 2 - Lv1 Portal Blocks",
+      "mapId": 53,
+      "trapId": 3913465827,
+      "expectedMapId": 53
+    },
+    {
+      "name": "TeleportTownCenterLv20Sweep",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Town Sweep",
+      "mapId": 53,
+      "tileX": 1612,
+      "tileY": 3180
+    },
+    {
+      "name": "SetLevel20",
+      "type": "gm_set_level",
+      "region": "Stage 3 - Town Sweep",
+      "level": 20
+    },
+    {
+      "name": "SetMoney50000",
+      "type": "gm_set_money",
+      "region": "Stage 3 - Town Sweep",
+      "value": 50000
+    },
+    {
+      "name": "CrawlTownCenterEastNpcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Town Sweep",
+      "maxRadiusTiles": 28,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu",
+        "Thuyền Phu",
+        "Ngư dân"
+      ]
+    },
+    {
+      "name": "OpenNgoThanYShop",
+      "type": "interact_npc",
+      "region": "Stage 3 - Commerce",
+      "mapId": 53,
+      "tileX": 1598,
+      "tileY": 3209,
+      "npcName": "Ngô Thần Y",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "SelectNgoThanYShop",
+      "type": "select_dialog",
+      "region": "Stage 3 - Commerce",
+      "optionIndex": 0,
+      "notes": "Legacy opens Sale(99, 1) vs Reborn Sale(39)."
+    },
+    {
+      "name": "CloseNgoThanYShop",
+      "type": "close_dialog",
+      "region": "Stage 3 - Commerce"
+    },
+    {
+      "name": "OpenGrocerShop",
+      "type": "interact_npc",
+      "region": "Stage 3 - Commerce",
+      "mapId": 53,
+      "tileX": 1600,
+      "tileY": 3170,
+      "npcName": "Chủ tiệm tạp hóa",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "SelectGrocerShop",
+      "type": "select_dialog",
+      "region": "Stage 3 - Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseGrocerShop",
+      "type": "close_dialog",
+      "region": "Stage 3 - Commerce"
+    },
+    {
+      "name": "OpenBlacksmithShop",
+      "type": "interact_npc",
+      "region": "Stage 3 - Commerce",
+      "mapId": 53,
+      "tileX": 1586,
+      "tileY": 3154,
+      "npcName": "Thợ rèn",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "SelectBlacksmithShop",
+      "type": "select_dialog",
+      "region": "Stage 3 - Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseBlacksmithShop",
+      "type": "close_dialog",
+      "region": "Stage 3 - Commerce"
+    },
+    {
+      "name": "TeleportTownWestForSweep",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Town Sweep",
+      "mapId": 53,
+      "tileX": 1559,
+      "tileY": 3181
+    },
+    {
+      "name": "CrawlTownCenterWestAndVillagers",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Town Sweep",
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu",
+        "Thuyền Phu",
+        "Ngư dân"
+      ]
+    },
+    {
+      "name": "StartTask46TieuNgu",
+      "type": "gm_set_task",
+      "region": "Stage 4 - World Quests",
+      "taskId": 46,
+      "value": 0
+    },
+    {
+      "name": "TeleportNearTieuNgu",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1628,
+      "tileY": 3213
+    },
+    {
+      "name": "TalkTieuNguAcceptQuest",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1639,
+      "tileY": 3213,
+      "npcName": "Tiểu Ngư",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "AcceptTieuNguTask46",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests",
+      "optionIndex": 0
+    },
+    {
+      "name": "TalkNgoThanYDuringTask46",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1598,
+      "tileY": 3209,
+      "npcName": "Ngô Thần Y",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmNgoThanYTask46",
+      "type": "confirm_talk",
+      "region": "Stage 4 - World Quests"
+    },
+    {
+      "name": "TalkThienVuongForPill",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1610,
+      "tileY": 3196,
+      "npcName": "Thiên Vương Tướng Lĩnh",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmThienVuongPill",
+      "type": "confirm_talk",
+      "region": "Stage 4 - World Quests"
+    },
+    {
+      "name": "TurnInTieuNguTask46",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1639,
+      "tileY": 3213,
+      "npcName": "Tiểu Ngư",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmTieuNguReward",
+      "type": "confirm_talk",
+      "region": "Stage 4 - World Quests"
+    },
+    {
+      "name": "ResetTask48AFang",
+      "type": "gm_set_task",
+      "region": "Stage 4 - World Quests",
+      "taskId": 48,
+      "value": 0
+    },
+    {
+      "name": "TalkAFangAcceptTask48",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1619,
+      "tileY": 3254,
+      "npcName": "A Phương",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "SelectAFangHelp",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests",
+      "optionIndex": 0
+    },
+    {
+      "name": "GrantEarringItem181",
+      "type": "gm_grant_item",
+      "region": "Stage 4 - World Quests",
+      "genre": 4,
+      "detailType": 181,
+      "particularType": 0,
+      "level": 1
+    },
+    {
+      "name": "TurnInAFangTask48",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1619,
+      "tileY": 3254,
+      "npcName": "A Phương",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmAFangReward",
+      "type": "confirm_talk",
+      "region": "Stage 4 - World Quests"
+    },
+    {
+      "name": "ResetTask47CoLaoThai",
+      "type": "gm_set_task",
+      "region": "Stage 4 - World Quests",
+      "taskId": 47,
+      "value": 0
+    },
+    {
+      "name": "TalkCoLaoThaiAcceptTask47",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1631,
+      "tileY": 3242,
+      "npcName": "Cổ Lão Thái",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "SelectCoLaoThaiHelp",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests",
+      "optionIndex": 0
+    },
+    {
+      "name": "TeleportJadePendantNode",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1796,
+      "tileY": 3025
+    },
+    {
+      "name": "PickupJadePendantObject",
+      "type": "click_object",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1803,
+      "tileY": 3023,
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "EnsureJadePendantItem182",
+      "type": "gm_grant_item",
+      "region": "Stage 4 - World Quests",
+      "genre": 4,
+      "detailType": 182,
+      "particularType": 0,
+      "level": 1
+    },
+    {
+      "name": "TeleportBackToCoLaoThai",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1624,
+      "tileY": 3242
+    },
+    {
+      "name": "TurnInJadePendantToCoLaoThai",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1631,
+      "tileY": 3242,
+      "npcName": "Cổ Lão Thái",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmCoLaoThaiCalligraphy",
+      "type": "confirm_talk",
+      "region": "Stage 4 - World Quests"
+    },
+    {
+      "name": "TeleportToTouristDuKhach",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1790,
+      "tileY": 3090
+    },
+    {
+      "name": "SellCalligraphyToTourist",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests",
+      "mapId": 53,
+      "tileX": 1798,
+      "tileY": 3088,
+      "npcName": "Du Khách",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "ConfirmSellCalligraphy",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseTouristDialog",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests"
+    },
+    {
+      "name": "TeleportVuLangDongPortal",
+      "type": "gm_teleport",
+      "region": "Stage 5 - CrossMap 199",
+      "mapId": 53,
+      "tileX": 1780,
+      "tileY": 3385
+    },
+    {
+      "name": "EnableCombatBeforeMap199",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 5 - CrossMap 199",
+      "value": 1
+    },
+    {
+      "name": "StepIntoVuLangDong199",
+      "type": "step_trap",
+      "region": "Stage 5 - CrossMap 199",
+      "mapId": 53,
+      "trapId": 1425692155,
+      "expectedMapId": 199,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncAfterMap199",
+      "type": "resync_if_drifted",
+      "region": "Stage 5 - CrossMap 199",
+      "mapId": 199,
+      "tileX": 1644,
+      "tileY": 2906
+    },
+    {
+      "name": "TeleportReturnMap53Center",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Complete",
+      "mapId": 53,
+      "tileX": 1600,
+      "tileY": 3200
+    }
+  ]
+}
