@@ -4,7 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using JXReborn.Primitives.Characters;
+using JXReborn.Primitives.Combat;
 using JXReborn.Primitives.Items;
+using JXReborn.Primitives.WorldZones;
 using JXReborn.ZoneEngine.Factions;
 using JXReborn.ZoneEngine.Scripting;
 
@@ -26,6 +28,7 @@ public sealed class RecordingScriptContext :
     private readonly Dictionary<int, int> _learnedSkills = [];
     private DialogOption[]? _pendingOptions;
     private Func<IScriptDialogContext, ValueTask>? _pendingTalkContinuation;
+    private (int Min, int Max, Func<IScriptDialogContext, int, ValueTask> Callback)? _pendingNumberInput;
 
     public ScriptEffectTrace Trace { get; }
 
@@ -46,6 +49,17 @@ public sealed class RecordingScriptContext :
             foreach (string code in vector.OwnedItemCodes)
             {
                 _bagItems[code] = 1;
+            }
+        }
+
+        if (vector.OwnedItemCounts is not null)
+        {
+            foreach (KeyValuePair<string, int> kv in vector.OwnedItemCounts)
+            {
+                if (kv.Value > 0)
+                {
+                    _bagItems[kv.Key] = kv.Value;
+                }
             }
         }
 
@@ -89,6 +103,9 @@ public sealed class RecordingScriptContext :
     public int ObjectDataId => 1;
     public string ObjectNameUtf8 => "Object";
     public string? ObjectScriptPath { get; }
+    public byte ObjectState => Trace.ObjectPropState ?? 0;
+
+    public void SetPropState(byte state = 1) => Trace.ObjectPropState = (byte)(state != 0 ? 1 : 0);
 
     public uint RuntimeItemId => 40001u;
     public int ItemTemplateId => 1;
@@ -106,7 +123,9 @@ public sealed class RecordingScriptContext :
     public async ValueTask DrainInteractiveContinuationsAsync(CancellationToken cancellationToken = default)
     {
         IReadOnlyList<int> choices = _vector.DialogChoices ?? [];
+        IReadOnlyList<int> numInputs = _vector.NumberInputs ?? [];
         int choiceIdx = 0;
+        int numIdx = 0;
         int guard = 0;
 
         while (guard++ < 32)
@@ -117,6 +136,19 @@ public sealed class RecordingScriptContext :
             {
                 _pendingTalkContinuation = null;
                 await talkCb(this);
+                continue;
+            }
+
+            if (_pendingNumberInput is { } numReq)
+            {
+                _pendingNumberInput = null;
+                if (numIdx >= numInputs.Count)
+                {
+                    break;
+                }
+
+                int val = Math.Clamp(numInputs[numIdx++], numReq.Min, Math.Max(numReq.Min, numReq.Max));
+                await numReq.Callback(this, val);
                 continue;
             }
 
@@ -237,8 +269,11 @@ public sealed class RecordingScriptContext :
     public void BroadcastGlobalNews(string messageUtf8) =>
         Trace.Events.Add($"NEWS(\"{ScriptEffectTrace.EscapeEventText(messageUtf8)}\")");
 
-    public void AskClientForNumber(string titleUtf8, int minValue, int maxValue, Func<IScriptDialogContext, int, ValueTask> onSubmitted) =>
+    public void AskClientForNumber(string titleUtf8, int minValue, int maxValue, Func<IScriptDialogContext, int, ValueTask> onSubmitted)
+    {
         Trace.Events.Add($"ASK_NUM(\"{ScriptEffectTrace.EscapeEventText(titleUtf8)}\",{minValue},{maxValue})");
+        _pendingNumberInput = (minValue, maxValue, onSubmitted);
+    }
 
     public void AskClientForString(string titleUtf8, int minLength, int maxLength, Func<IScriptDialogContext, string, ValueTask> onSubmitted) =>
         Trace.Events.Add($"ASK_STR(\"{ScriptEffectTrace.EscapeEventText(titleUtf8)}\",{minLength},{maxLength})");
@@ -354,6 +389,13 @@ public sealed class RecordingScriptContext :
         return true;
     }
 
+    public bool TryRemoveSkill(int skillId)
+    {
+        bool removed = _learnedSkills.Remove(skillId);
+        Trace.Events.Add($"DEL_SKILL({skillId})");
+        return removed;
+    }
+
     public bool TryGrantBookSkill(int skillId, ushort baseLevel = 1) => TryLearnSkill(skillId, baseLevel);
 
     public void AddBonusSkillPoints(int points) => Trace.Events.Add($"ADD_SKILL_PTS({points})");
@@ -362,10 +404,42 @@ public sealed class RecordingScriptContext :
 
     public void AddRepute(int delta) => Trace.FinalRepute += delta;
 
+    public int FuYuan => Trace.FinalFuYuan;
+
+    public void AddFuYuan(int delta) => Trace.FinalFuYuan = Math.Max(0, Trace.FinalFuYuan + delta);
+
+    public EntityCamp BaseCamp => (EntityCamp)Trace.FinalBaseCamp;
+
+    public EntityCamp CurrentCamp => (EntityCamp)Trace.FinalCurrentCamp;
+
+    public void SetBaseCamp(EntityCamp camp) => Trace.FinalBaseCamp = (byte)camp;
+
+    public void SetCurrentCamp(EntityCamp camp) => Trace.FinalCurrentCamp = (byte)camp;
+
+    public void RestoreCurrentCamp() => Trace.FinalCurrentCamp = Trace.FinalBaseCamp;
+
+    public ushort RevivalMapId => Trace.CurrentRevivalMapId;
+
+    public int RevivalPointId => Trace.CurrentRevivalPointId;
+
+    public PlayerPkMode PkMode => (PlayerPkMode)Trace.FinalPkMode;
+
+    public void SetPkMode(PlayerPkMode mode) => Trace.FinalPkMode = (byte)mode;
+
+    public sbyte PkValue => Trace.FinalPkValue;
+
+    public void SetPkValue(sbyte pkValue) => Trace.FinalPkValue = (sbyte)Math.Clamp((int)pkValue, 0, 10);
+
+    public byte RankId => Trace.FinalRankId;
+
+    public void SetRank(byte rankId) => Trace.FinalRankId = rankId;
+
     public void SetRevivalPoint(ushort revivalMapId, int revivalPointId)
     {
         if (revivalPointId > 0)
         {
+            Trace.CurrentRevivalMapId = revivalMapId;
+            Trace.CurrentRevivalPointId = revivalPointId;
             Trace.RevivalPoint = (revivalMapId, revivalPointId);
         }
     }

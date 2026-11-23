@@ -13,6 +13,7 @@ using JXReborn.Packs.TieuDaoTu.Scripts.Dialogs;
 using JXReborn.Packs.TieuDaoTu.Scripts.Generated;
 using JXReborn.Scripts.Dialogs;
 using JXReborn.ScriptMigrator.Ast;
+using JXReborn.ScriptMigrator.Generators;
 using JXReborn.ScriptMigrator.Models;
 using JXReborn.ZoneEngine.Scripting;
 
@@ -29,6 +30,9 @@ public sealed class DifferentialScriptEquivalenceVerifier
         WriteIndented = true,
     };
 
+    private static readonly MethodInfo? ClockScopeMethod =
+        typeof(GeneratedLuaRuntime).GetMethod("UseDeterministicClock", BindingFlags.Public | BindingFlags.Static, [typeof(DateTime)]);
+
     public async Task<EquivalenceAuditReport> VerifyPackAsync(
         ScriptInventoryManifest manifest,
         string legacyBinRoot,
@@ -40,9 +44,10 @@ public sealed class DifferentialScriptEquivalenceVerifier
         ArgumentException.ThrowIfNullOrWhiteSpace(packRoot);
 
         ILegacyServerSource source = LegacyServerSourceFactory.Create(legacyBinRoot);
-        Dictionary<int, string> eventItemCodes = LoadEventItemCodeMap(packRoot);
-        var luaOracle = new LuaOracleHarness(source, eventItemCodes);
+        PackItemCatalogIndex itemIndex = PackItemCatalogIndex.Load(packRoot);
+        var luaOracle = new LuaOracleHarness(source, itemIndex.EventItemCodeByDetailId, itemIndex);
         var parser = new Lua4AstParser();
+        var linker = new LuaIncludeLinker(source, parser);
 
         var entryByUtf8Path = new Dictionary<string, ScriptInventoryEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (ScriptInventoryEntry entry in manifest.Entries.Where(static e => !e.IsExcludedSimBot))
@@ -104,7 +109,21 @@ public sealed class DifferentialScriptEquivalenceVerifier
 
                 byte[] rawBytes = await File.ReadAllBytesAsync(fullLuaPath, cancellationToken);
                 LuaParseResult parsed = parser.Parse(rawBytes);
-                IReadOnlyList<ScriptStateVector> vectors = AstBoundaryStateProber.BuildVectors(parsed.Program, eventItemCodes);
+                LuaProgram? programForProbing = parsed.Program;
+                if (programForProbing is not null)
+                {
+                    string expectedEntry = kind == GeneratedScriptKind.Monster ? "OnDeath" : "main";
+                    LuaLinkResult linked = linker.LinkAndTreeShake(entry.CanonicalScriptPath, programForProbing, expectedEntry);
+                    if (linked.IsSuccess && linked.LinkedProgram is not null)
+                    {
+                        programForProbing = linked.LinkedProgram;
+                    }
+                }
+
+                IReadOnlyList<ScriptStateVector> vectors = AstBoundaryStateProber.BuildVectors(
+                    programForProbing,
+                    itemIndex.EventItemCodeByDetailId,
+                    itemIndex);
 
                 verifiedGenerated++;
                 bool scriptClean = true;
@@ -248,12 +267,23 @@ public sealed class DifferentialScriptEquivalenceVerifier
         ILegacyServerSource source = LegacyServerSourceFactory.Create(server1Dir);
         var emptyEventItems = new Dictionary<int, string>();
         var luaOracle = new LuaOracleHarness(source, emptyEventItems);
+        var parser = new Lua4AstParser();
+        var linker = new LuaIncludeLinker(source, parser);
 
         byte[] rawBytes = await File.ReadAllBytesAsync(legacyLuaFilePath, cancellationToken);
-        LuaParseResult parsed = new Lua4AstParser().Parse(rawBytes);
-        IReadOnlyList<ScriptStateVector> vectors = AstBoundaryStateProber.BuildVectors(parsed.Program, emptyEventItems);
-
+        LuaParseResult parsed = parser.Parse(rawBytes);
         string relKey = Path.GetRelativePath(server1Dir, legacyLuaFilePath);
+        LuaProgram? programForProbing = parsed.Program;
+        if (programForProbing is not null)
+        {
+            LuaLinkResult linked = linker.LinkAndTreeShake(relKey, programForProbing, "main");
+            if (linked.IsSuccess && linked.LinkedProgram is not null)
+            {
+                programForProbing = linked.LinkedProgram;
+            }
+        }
+
+        IReadOnlyList<ScriptStateVector> vectors = AstBoundaryStateProber.BuildVectors(programForProbing, emptyEventItems);
         foreach (ScriptStateVector vec in vectors)
         {
             ScriptEffectTrace luaTrace = luaOracle.Execute(relKey, GeneratedScriptKind.Npc, vec);
@@ -321,8 +351,10 @@ public sealed class DifferentialScriptEquivalenceVerifier
         CancellationToken cancellationToken)
     {
         var rng = new Random(vector.RandomSeed);
+        DateTime simTime = vector.SimulatedLocalTime ?? new DateTime(2026, 11, 23, 12, 0, 0, DateTimeKind.Utc);
         using IDisposable scope = GeneratedLuaRuntime.UseDeterministicRandom((min, max) =>
             max <= min ? min : rng.Next(min, max + 1));
+        using IDisposable? clockScope = ClockScopeMethod?.Invoke(null, [simTime]) as IDisposable;
 
         var ctx = new RecordingScriptContext(utf8ScriptPath, vector);
         switch (kind)
@@ -366,41 +398,6 @@ public sealed class DifferentialScriptEquivalenceVerifier
             INpcDialogScript => GeneratedScriptKind.Npc,
             _ => GeneratedScriptKind.Other,
         };
-
-    private static Dictionary<int, string> LoadEventItemCodeMap(string packRoot)
-    {
-        var map = new Dictionary<int, string>();
-        string itemsPath = Path.Combine(packRoot, "data", "items", "consumables-and-scripts.items.json");
-        if (!File.Exists(itemsPath))
-        {
-            return map;
-        }
-
-        using JsonDocument doc = JsonDocument.Parse(File.ReadAllBytes(itemsPath));
-        if (!doc.RootElement.TryGetProperty("items", out JsonElement items) || items.ValueKind != JsonValueKind.Array)
-        {
-            return map;
-        }
-
-        foreach (JsonElement item in items.EnumerateArray())
-        {
-            int genre = item.TryGetProperty("genre", out JsonElement g) && g.ValueKind == JsonValueKind.Number ? g.GetInt32() : -1;
-            if (genre != 4)
-            {
-                continue;
-            }
-
-            int detail = item.TryGetProperty("detailType", out JsonElement d) && d.ValueKind == JsonValueKind.Number ? d.GetInt32() : -1;
-            int part = item.TryGetProperty("particularType", out JsonElement p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
-            string? code = item.TryGetProperty("code", out JsonElement c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
-            if (detail >= 0 && part == 0 && !string.IsNullOrWhiteSpace(code))
-            {
-                map.TryAdd(detail, code);
-            }
-        }
-
-        return map;
-    }
 
     private static string FindServer1RootFromFile(string fullLuaPath)
     {

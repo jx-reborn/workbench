@@ -102,4 +102,82 @@ public sealed class Lua4AstParserTests
         Assert.Contains(result.Program.Functions, static f => f.Name == "yes");
         Assert.Contains(result.Program.Functions, static f => f.Name == "no");
     }
+
+    [Fact]
+    public void Parse_RealNewTaskHeadIncludeString_ShouldPreserveBackslashTAndNotDoubleUnescapeTab()
+    {
+        var parser = new Lua4AstParser();
+        byte[] bytes = ReadLegacyLuaByUtf8Suffix("task/newtask/newtask_head.lua");
+        LuaParseResult result = parser.Parse(bytes);
+
+        Assert.True(result.IsSuccess, $"Expected parse success, got: {result.FailureReason}");
+        Assert.NotNull(result.Program);
+        Assert.NotEmpty(result.Program.TopLevelStatements);
+
+        var includeCall = Assert.IsType<LuaCallStmt>(result.Program.TopLevelStatements[0]);
+        Assert.Equal("Include", includeCall.Call.CalleeName);
+        var pathArg = Assert.IsType<LuaStringExpr>(Assert.Single(includeCall.Call.Arguments));
+        Assert.Equal(@"\script\task\task_award_extend.lua", pathArg.DecodedUtf8);
+    }
+
+    [Fact]
+    public void Parse_RealCheckMapIdBuyItemAndPilidanScripts_ShouldParseForLoopsMultiAssignUpvaluesAndUnmaskOopReason()
+    {
+        var parser = new Lua4AstParser();
+
+        byte[] checkMapBytes = ReadLegacyLuaByUtf8Suffix("item/checkmapid.lua");
+        LuaParseResult checkMapResult = parser.Parse(checkMapBytes);
+        Assert.True(checkMapResult.IsSuccess, $"checkmapid.lua parse failed: {checkMapResult.FailureReason}");
+        LuaFunctionDecl checkMain = Assert.Single(checkMapResult.Program!.Functions);
+        Assert.Contains(checkMain.Body, static s => s is LuaMultiAssignStmt { TargetNames: ["W", "X", "Y"] });
+        Assert.Contains(checkMain.Body, static s => s is LuaNumericForStmt { IteratorName: "i" });
+
+        byte[] buyItemBytes = ReadLegacyLuaByUtf8Suffix("item/dynamic_shop/buy_item.lua");
+        LuaParseResult buyItemResult = parser.Parse(buyItemBytes);
+        Assert.True(buyItemResult.IsSuccess, $"buy_item.lua parse failed: {buyItemResult.FailureReason}");
+        LuaFunctionDecl buyFn = Assert.Single(buyItemResult.Program!.Functions, static f => f.Name == "BuyItem");
+        var localStmt = Assert.IsType<LuaLocalDeclStmt>(buyFn.Body[0]);
+        var indexExpr = Assert.IsType<LuaIndexExpr>(localStmt.Initializer);
+        var upval = Assert.IsType<LuaUpvalueExpr>(indexExpr.Target);
+        Assert.Equal("tbProcessRequest", upval.Name);
+
+        byte[] pilidanBytes = ReadLegacyLuaByUtf8Suffix("activitysys/config/39/pilidan.lua");
+        LuaParseResult pilidanResult = parser.Parse(pilidanBytes);
+        Assert.False(pilidanResult.IsSuccess);
+        Assert.StartsWith("unsupported-syntax:member-access(PlayerFunLib)", pilidanResult.FailureReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseLibrary_RealIncludeGuardedHeadersAndOopLibraries_ShouldExtractFunctionsAndPoisonOopTables()
+    {
+        var parser = new Lua4AstParser();
+
+        string[] guardedHeaders =
+        [
+            "lib/string.lua",
+            "lib/common.lua",
+            "lib/basic.lua",
+            "tong/tong_award_head.lua",
+        ];
+        Assert.NotEmpty(guardedHeaders);
+
+        foreach (string suffix in guardedHeaders)
+        {
+            LuaParseResult res = parser.ParseLibrary(ReadLegacyLuaByUtf8Suffix(suffix));
+            Assert.True(res.IsSuccess, $"ParseLibrary failed on {suffix}: {res.FailureReason}");
+            Assert.NotNull(res.Program);
+            Assert.NotEmpty(res.Program.Functions);
+        }
+
+        LuaParseResult huangRes = parser.ParseLibrary(ReadLegacyLuaByUtf8Suffix("event/great_night/huangzhizhang/event.lua"));
+        Assert.False(huangRes.IsSuccess);
+        Assert.Equal("unsupported-syntax:keyed-table@line92", huangRes.FailureReason);
+
+        LuaParseResult awardTpl = parser.ParseLibrary(ReadLegacyLuaByUtf8Suffix("lib/awardtemplet.lua"));
+        Assert.True(awardTpl.IsSuccess, $"ParseLibrary failed on awardtemplet.lua: {awardTpl.FailureReason}");
+        Assert.NotNull(awardTpl.Program);
+        Assert.Contains(
+            awardTpl.Program.TopLevelStatements,
+            static s => s is LuaAssignStmt { TargetName: "tbAwardTemplet", Value: LuaUnsupportedExpr });
+    }
 }

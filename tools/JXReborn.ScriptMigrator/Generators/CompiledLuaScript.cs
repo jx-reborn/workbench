@@ -15,4 +15,5 @@ public sealed record CompiledLuaScript(
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, LuaValueType>> FunctionLocalTypes,
     IReadOnlyDictionary<string, bool> FunctionIsAsync,
     IReadOnlyDictionary<string, IReadOnlyList<LuaValueType>> FunctionParamTypes,
-    IReadOnlyDictionary<string, LuaValueType> FunctionReturnTypes);
+    IReadOnlyDictionary<string, LuaValueType> FunctionReturnTypes,
+    IReadOnlyDictionary<string, IReadOnlyList<LuaValueType>>? FunctionReturnTuples = null);

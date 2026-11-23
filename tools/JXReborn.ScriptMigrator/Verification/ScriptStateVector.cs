@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace JXReborn.ScriptMigrator.Verification;
@@ -19,11 +20,22 @@ public sealed record ScriptStateVector(
     int InventoryMoney = 100_000,
     int FreeBagCells = 20,
     int Repute = 100,
+    int FuYuan = 0,
+    byte BaseCamp = 0,
+    byte CurrentCamp = 0,
+    ushort InitialRevivalMapId = 53,
+    int InitialRevivalPointId = 19,
+    byte PkMode = 0,
+    sbyte PkValue = 0,
+    byte RankId = 0,
     string RoleName = "JxHero",
     int RandomSeed = 20261123,
+    DateTime? SimulatedLocalTime = null,
     IReadOnlyDictionary<ushort, int>? Tasks = null,
     IReadOnlyDictionary<ushort, int>? TempTasks = null,
     IReadOnlyDictionary<int, int>? GlobalValues = null,
+    IReadOnlyDictionary<string, int>? OwnedItemCounts = null,
     IReadOnlySet<string>? OwnedItemCodes = null,
     IReadOnlyDictionary<int, int>? LearnedSkills = null,
-    IReadOnlyList<int>? DialogChoices = null);
+    IReadOnlyList<int>? DialogChoices = null,
+    IReadOnlyList<int>? NumberInputs = null);

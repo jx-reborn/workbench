@@ -42,6 +42,24 @@ public sealed class ScriptEffectTrace
 
     public int FinalRepute { get; set; }
 
+    public int FinalFuYuan { get; set; }
+
+    public byte FinalBaseCamp { get; set; }
+
+    public byte FinalCurrentCamp { get; set; }
+
+    public ushort CurrentRevivalMapId { get; set; }
+
+    public int CurrentRevivalPointId { get; set; }
+
+    public byte FinalPkMode { get; set; }
+
+    public sbyte FinalPkValue { get; set; }
+
+    public byte FinalRankId { get; set; }
+
+    public byte? ObjectPropState { get; set; }
+
     public SortedDictionary<ushort, int> Tasks { get; } = [];
 
     public SortedDictionary<ushort, int> TempTasks { get; } = [];
@@ -61,6 +79,14 @@ public sealed class ScriptEffectTrace
             FinalFightMode = vector.FightMode,
             FinalMoney = vector.InventoryMoney,
             FinalRepute = vector.Repute,
+            FinalFuYuan = vector.FuYuan,
+            FinalBaseCamp = vector.BaseCamp,
+            FinalCurrentCamp = vector.CurrentCamp,
+            CurrentRevivalMapId = vector.InitialRevivalMapId,
+            CurrentRevivalPointId = vector.InitialRevivalPointId,
+            FinalPkMode = vector.PkMode,
+            FinalPkValue = vector.PkValue,
+            FinalRankId = vector.RankId,
         };
 
         if (vector.Tasks is not null)
@@ -155,6 +181,31 @@ public sealed class ScriptEffectTrace
         if (OpenedStoreBox)
         {
             sb.Append(",StoreBox=true");
+        }
+
+        if (ObjectPropState is { } propState)
+        {
+            sb.Append(",PropState=").Append(propState);
+        }
+
+        if (FinalFuYuan != 0)
+        {
+            sb.Append(",FuYuan=").Append(FinalFuYuan);
+        }
+
+        if (FinalBaseCamp != 0 || FinalCurrentCamp != 0)
+        {
+            sb.Append(",Camp=").Append(FinalBaseCamp).Append(':').Append(FinalCurrentCamp);
+        }
+
+        if (FinalPkMode != 0 || FinalPkValue != 0)
+        {
+            sb.Append(",PK=").Append(FinalPkMode).Append(':').Append(FinalPkValue);
+        }
+
+        if (FinalRankId != 0)
+        {
+            sb.Append(",Rank=").Append(FinalRankId);
         }
 
         if (RevivalPoint is { } rev)

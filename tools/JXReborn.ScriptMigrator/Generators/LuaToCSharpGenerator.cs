@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using JXReborn.LegacyImporter.Sources;
 using JXReborn.Packs.TieuDaoTu.Hosting;
 using JXReborn.ScriptMigrator.Ast;
 using JXReborn.ScriptMigrator.Models;
@@ -43,14 +44,17 @@ public sealed partial class LuaToCSharpGenerator
         string normalizedFilter = string.IsNullOrWhiteSpace(kindFilter) ? "all" : kindFilter.Trim().ToLowerInvariant();
         HashSet<GeneratedScriptKind> targetKinds = ResolveTargetKinds(normalizedFilter);
 
-        // 1. Load pack references & EventItem DetailType -> itemCode table
-        Dictionary<int, string> eventItemCodes = LoadEventItemCodeMap(packRoot);
+        // 1. Load pack references & full 24,573-item catalog index
+        PackItemCatalogIndex itemCatalogIndex = PackItemCatalogIndex.Load(packRoot);
+        IReadOnlyDictionary<int, string> eventItemCodes = itemCatalogIndex.EventItemCodeByDetailId;
         (HashSet<string> mapTraps, HashSet<string> mapObjs, HashSet<string> mapNpcs, HashSet<string> activeItems) = LoadPackReferencedPaths(packRoot);
         HashSet<string> handcraftedOwnedPaths = LoadHandcraftedOwnedPaths(packRoot);
         HashSet<string> ambientNpcPaths = LoadAmbientNpcPaths(packRoot);
 
+        ILegacyServerSource server1Source = LegacyServerSourceFactory.Create(Path.Combine(legacyBinRoot, "server1"));
         var parser = new Lua4AstParser();
-        var validator = new LuaScriptSemanticValidator(eventItemCodes);
+        var linker = new LuaIncludeLinker(server1Source, parser);
+        var validator = new LuaScriptSemanticValidator(eventItemCodes, itemCatalogIndex);
         var compiled = new List<CompiledLuaScript>();
         var manualQueue = new List<ManualMigrationQueueItem>();
 
@@ -162,7 +166,22 @@ public sealed partial class LuaToCSharpGenerator
                 continue;
             }
 
-            (CompiledLuaScript? validatedScript, IReadOnlyList<string> reasons) = validator.Validate(entry, utf8ScriptPath, kind, parseResult.Program);
+            string expectedEntry = kind == GeneratedScriptKind.Monster ? "OnDeath" : "main";
+            LuaLinkResult linkResult = linker.LinkAndTreeShake(entry.CanonicalScriptPath, parseResult.Program, expectedEntry);
+            if (!linkResult.IsSuccess || linkResult.LinkedProgram is null)
+            {
+                manualQueue.Add(new ManualMigrationQueueItem(
+                    entry.RelativePath,
+                    utf8ScriptPath,
+                    entry.Sha256,
+                    entry.Bucket,
+                    entry.BucketName,
+                    kind,
+                    linkResult.BlockingReasons.Count > 0 ? linkResult.BlockingReasons : ["link-failed"]));
+                continue;
+            }
+
+            (CompiledLuaScript? validatedScript, IReadOnlyList<string> reasons) = validator.Validate(entry, utf8ScriptPath, kind, linkResult.LinkedProgram);
             if (validatedScript is null || reasons.Count > 0)
             {
                 manualQueue.Add(new ManualMigrationQueueItem(
@@ -191,7 +210,7 @@ public sealed partial class LuaToCSharpGenerator
         }
 
         string generatedDir = Path.Combine(packRoot, "src", "JXReborn.Packs.TieuDaoTu", "Scripts", "Generated");
-        var emitter = new LuaCSharpCodeEmitter(eventItemCodes);
+        var emitter = new LuaCSharpCodeEmitter(eventItemCodes, itemCatalogIndex);
         IReadOnlyList<string> writtenFiles = emitter.EmitAll(generatedDir, dedupedCompiled);
 
         var result = new ScriptGenerationResult

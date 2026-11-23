@@ -15,7 +15,8 @@ public static class AstBoundaryStateProber
 {
     public static IReadOnlyList<ScriptStateVector> BuildVectors(
         LuaProgram? program,
-        IReadOnlyDictionary<int, string> eventItemCodeByDetailId)
+        IReadOnlyDictionary<int, string> eventItemCodeByDetailId,
+        PackItemCatalogIndex? itemCatalogIndex = null)
     {
         var vectors = new List<ScriptStateVector>
         {
@@ -27,7 +28,7 @@ public static class AstBoundaryStateProber
             return vectors;
         }
 
-        var ctx = new ProbeCollector(eventItemCodeByDetailId);
+        var ctx = new ProbeCollector(eventItemCodeByDetailId, itemCatalogIndex);
         foreach (LuaStatement stmt in program.TopLevelStatements)
         {
             ctx.VisitStmt(stmt);
@@ -51,6 +52,18 @@ public static class AstBoundaryStateProber
             vectors.Add(new ScriptStateVector("gender-female", Level: 50, Gender: 1));
         }
 
+        if (ctx.SawClock)
+        {
+            vectors.Add(new ScriptStateVector(
+                "clock-weekday-mon",
+                SimulatedLocalTime: new DateTime(2026, 11, 23, 12, 0, 0, DateTimeKind.Unspecified),
+                DialogChoices: [0, 0]));
+            vectors.Add(new ScriptStateVector(
+                "clock-weekend-sat",
+                SimulatedLocalTime: new DateTime(2026, 11, 21, 20, 0, 0, DateTimeKind.Unspecified),
+                DialogChoices: [0, 0]));
+        }
+
         foreach (byte lv in ctx.LevelProbes.Take(4))
         {
             vectors.Add(new ScriptStateVector($"level-{lv}", Level: lv));
@@ -59,6 +72,11 @@ public static class AstBoundaryStateProber
         foreach (byte facId in ctx.FactionProbes.Take(4))
         {
             vectors.Add(new ScriptStateVector($"faction-{facId}", CurrentFactionId: facId, EffectiveFactionId: facId));
+        }
+
+        foreach (byte camp in ctx.CampProbes.Take(3))
+        {
+            vectors.Add(new ScriptStateVector($"camp-{camp}", BaseCamp: camp, CurrentCamp: camp));
         }
 
         foreach (int money in ctx.MoneyProbes.Take(3))
@@ -78,17 +96,52 @@ public static class AstBoundaryStateProber
                 Tasks: new Dictionary<ushort, int> { [taskId] = val }));
         }
 
-        if (ctx.ItemCodeProbes.Count > 0)
+        foreach ((ushort tempId, int val) in ctx.TempTaskProbes.Take(4))
         {
             vectors.Add(new ScriptStateVector(
-                "owned-event-items",
-                OwnedItemCodes: new HashSet<string>(ctx.ItemCodeProbes, StringComparer.OrdinalIgnoreCase)));
+                $"temptask-{tempId}-eq-{val}",
+                TempTasks: new Dictionary<ushort, int> { [tempId] = val }));
+        }
+
+        foreach ((int gvId, int val) in ctx.GlobalValueProbes.Take(4))
+        {
+            vectors.Add(new ScriptStateVector(
+                $"globalval-{gvId}-eq-{val}",
+                GlobalValues: new Dictionary<int, int> { [gvId] = val }));
+        }
+
+        if (ctx.ItemCodeProbes.Count > 0 || ctx.ItemCountProbes.Count > 0)
+        {
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (string c in ctx.ItemCodeProbes)
+            {
+                counts[c] = 5;
+            }
+
+            foreach ((string c, int n) in ctx.ItemCountProbes)
+            {
+                counts[c] = Math.Max(counts.GetValueOrDefault(c, 0), n);
+            }
+
+            vectors.Add(new ScriptStateVector(
+                "owned-items",
+                OwnedItemCodes: new HashSet<string>(counts.Keys, StringComparer.OrdinalIgnoreCase),
+                OwnedItemCounts: counts,
+                DialogChoices: [0, 0]));
         }
 
         if (ctx.SkillProbes.Count > 0)
         {
             var skills = ctx.SkillProbes.ToDictionary(static id => id, static _ => 1);
             vectors.Add(new ScriptStateVector("learned-skills", LearnedSkills: skills));
+        }
+
+        foreach (int numInput in ctx.NumberInputProbes.Take(3))
+        {
+            vectors.Add(new ScriptStateVector(
+                $"num-input-{numInput}",
+                DialogChoices: [0, 0],
+                NumberInputs: [numInput]));
         }
 
         int maxOpt = Math.Min(ctx.MaxSayOptions, 6);
@@ -100,18 +153,26 @@ public static class AstBoundaryStateProber
         return vectors;
     }
 
-    private sealed class ProbeCollector(IReadOnlyDictionary<int, string> eventItemCodes)
+    private sealed class ProbeCollector(
+        IReadOnlyDictionary<int, string> eventItemCodes,
+        PackItemCatalogIndex? itemCatalogIndex)
     {
         public bool SawFightState { get; private set; }
         public bool SawGender { get; private set; }
         public bool SawBagCheck { get; private set; }
+        public bool SawClock { get; private set; }
         public int MaxSayOptions { get; private set; }
         public SortedSet<byte> LevelProbes { get; } = [];
         public SortedSet<byte> FactionProbes { get; } = [];
+        public SortedSet<byte> CampProbes { get; } = [];
         public SortedSet<int> MoneyProbes { get; } = [];
         public HashSet<(ushort TaskId, int Value)> TaskProbes { get; } = [];
+        public HashSet<(ushort TaskId, int Value)> TempTaskProbes { get; } = [];
+        public HashSet<(int Key, int Value)> GlobalValueProbes { get; } = [];
         public SortedSet<string> ItemCodeProbes { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> ItemCountProbes { get; } = new(StringComparer.OrdinalIgnoreCase);
         public SortedSet<int> SkillProbes { get; } = [];
+        public SortedSet<int> NumberInputProbes { get; } = [];
 
         public void VisitStmt(LuaStatement stmt)
         {
@@ -120,14 +181,42 @@ public static class AstBoundaryStateProber
                 case LuaLocalDeclStmt ld when ld.Initializer is not null:
                     VisitExpr(ld.Initializer);
                     break;
+                case LuaMultiLocalDeclStmt mld:
+                    foreach (LuaExpression init in mld.Initializers) VisitExpr(init);
+                    break;
                 case LuaAssignStmt asg:
                     VisitExpr(asg.Value);
+                    break;
+                case LuaMultiAssignStmt masg:
+                    foreach (LuaExpression v in masg.Values) VisitExpr(v);
+                    break;
+                case LuaIndexAssignStmt iasg:
+                    VisitExpr(iasg.Index);
+                    VisitExpr(iasg.Value);
                     break;
                 case LuaCallStmt cs:
                     VisitExpr(cs.Call);
                     break;
-                case LuaReturnStmt ret when ret.Value is not null:
-                    VisitExpr(ret.Value);
+                case LuaReturnStmt ret:
+                    if (ret.Value is not null) VisitExpr(ret.Value);
+                    if (ret.ExtraValues is not null)
+                    {
+                        foreach (LuaExpression extra in ret.ExtraValues) VisitExpr(extra);
+                    }
+
+                    break;
+                case LuaDoBlockStmt dob:
+                    foreach (LuaStatement s in dob.Body) VisitStmt(s);
+                    break;
+                case LuaWhileStmt wh:
+                    VisitExpr(wh.Condition);
+                    foreach (LuaStatement s in wh.Body) VisitStmt(s);
+                    break;
+                case LuaNumericForStmt nf:
+                    VisitExpr(nf.Start);
+                    VisitExpr(nf.Limit);
+                    if (nf.Step is not null) VisitExpr(nf.Step);
+                    foreach (LuaStatement s in nf.Body) VisitStmt(s);
                     break;
                 case LuaIfStmt ifs:
                     VisitExpr(ifs.Condition);
@@ -184,24 +273,74 @@ public static class AstBoundaryStateProber
                 case "GetSex":
                     SawGender = true;
                     break;
-                case "CalcFreeItemCellCount":
+                case "CalcFreeItemCellCount" or "CountFreeRoomByWH":
                     SawBagCheck = true;
+                    break;
+                case "GetLocalDate" or "date" or "GetCurServerTime":
+                    SawClock = true;
                     break;
                 case "Pay" when call.Arguments.Count == 1 && LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int cost) && cost > 0:
                     MoneyProbes.Add(Math.Max(0, cost - 1));
                     MoneyProbes.Add(cost);
                     break;
-                case "HaveItem" or "DelItem" when call.Arguments.Count >= 1 &&
-                                                  LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int eid) &&
-                                                  eventItemCodes.TryGetValue(eid, out string? itemCode):
+                case "HaveItem" or "DelItem" or "GetItemCountEx" when call.Arguments.Count >= 1 &&
+                                                                      LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int eid) &&
+                                                                      eventItemCodes.TryGetValue(eid, out string? itemCode):
                     ItemCodeProbes.Add(itemCode);
                     break;
-                case "HaveMagic" when call.Arguments.Count == 1 &&
-                                      LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int sid) && sid > 0:
+                case "DelCommonItem" when itemCatalogIndex is not null &&
+                                          call.Arguments.Count >= 3 &&
+                                          LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int dg) &&
+                                          LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], out int dd) &&
+                                          LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], out int dp) &&
+                                          itemCatalogIndex.TryResolveByGdp(dg, dd, dp, out PackItemEntry dEntry):
+                    ItemCountProbes[dEntry.Code] = Math.Max(ItemCountProbes.GetValueOrDefault(dEntry.Code, 0), 5);
+                    break;
+                case "CalcEquiproomItemCount" when itemCatalogIndex is not null &&
+                                                   call.Arguments.Count == 4 &&
+                                                   LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int cg) &&
+                                                   LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], out int cd) &&
+                                                   LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], out int cp) &&
+                                                   LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], out int cl) &&
+                                                   itemCatalogIndex.TryResolveByGdpl(cg, cd, cp, cl, out PackItemEntry cEntry):
+                    ItemCountProbes[cEntry.Code] = Math.Max(ItemCountProbes.GetValueOrDefault(cEntry.Code, 0), 5);
+                    break;
+                case "ConsumeEquiproomItem" when itemCatalogIndex is not null &&
+                                                 call.Arguments.Count == 5 &&
+                                                 LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int reqCnt) &&
+                                                 LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], out int xg) &&
+                                                 LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], out int xd) &&
+                                                 LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], out int xp) &&
+                                                 LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[4], out int xl) &&
+                                                 itemCatalogIndex.TryResolveByGdpl(xg, xd, xp, xl, out PackItemEntry xEntry):
+                    ItemCountProbes[xEntry.Code] = Math.Max(ItemCountProbes.GetValueOrDefault(xEntry.Code, 0), Math.Max(1, reqCnt));
+                    break;
+                case "HaveMagic" or "DelMagic" when call.Arguments.Count == 1 &&
+                                                    LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int sid) && sid > 0:
                     SkillProbes.Add(sid);
+                    break;
+                case "AskClientForNumber" when call.Arguments.Count >= 4:
+                    if (LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], out int minN) &&
+                        LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], out int maxN) &&
+                        maxN >= minN)
+                    {
+                        NumberInputProbes.Add(minN);
+                        NumberInputProbes.Add(minN + ((maxN - minN) / 2));
+                    }
+                    else
+                    {
+                        NumberInputProbes.Add(1);
+                    }
+
                     break;
                 case "Say" when call.Arguments.Count >= 3:
                     MaxSayOptions = Math.Max(MaxSayOptions, call.Arguments.Count - 2);
+                    break;
+                case "Say" when call.Arguments.Count == 2:
+                case "Describe" when call.Arguments.Count >= 2:
+                case "CreateTaskSay" when call.Arguments.Count == 1:
+                case "tinsert":
+                    MaxSayOptions = Math.Max(MaxSayOptions, 4);
                     break;
             }
         }
@@ -234,6 +373,10 @@ public static class AstBoundaryStateProber
                     LevelProbes.Add((byte)Math.Clamp(val + 1, 1, 200));
                     break;
 
+                case "GetCamp" or "GetCurCamp":
+                    CampProbes.Add((byte)Math.Clamp(val, 0, 255));
+                    break;
+
                 case "GetCash":
                     MoneyProbes.Add(Math.Max(0, val - 1));
                     MoneyProbes.Add(Math.Max(0, val));
@@ -244,6 +387,17 @@ public static class AstBoundaryStateProber
                                     tid is >= 0 and <= ushort.MaxValue:
                     TaskProbes.Add(((ushort)tid, val));
                     TaskProbes.Add(((ushort)tid, val + 1));
+                    break;
+
+                case "GetTaskTemp" when call.Arguments.Count == 1 &&
+                                        LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int ttid) &&
+                                        ttid is >= 0 and <= ushort.MaxValue:
+                    TempTaskProbes.Add(((ushort)ttid, val));
+                    break;
+
+                case "GetGlobalValue" when call.Arguments.Count == 1 &&
+                                           LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int gvid):
+                    GlobalValueProbes.Add((gvid, val));
                     break;
 
                 case "GetByte" when call.Arguments.Count == 2 &&
