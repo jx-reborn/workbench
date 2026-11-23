@@ -470,6 +470,10 @@ public sealed class ItemAndAffixDataExporter
                     if (rawScriptOrAction.Contains(".lua", StringComparison.OrdinalIgnoreCase))
                     {
                         su["scriptPath"] = rawScriptOrAction;
+                        if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, rawScriptOrAction) is { } scriptStatus)
+                        {
+                            su["legacyScriptStatus"] = scriptStatus;
+                        }
                     }
                     else if (!string.IsNullOrWhiteSpace(rawScriptOrAction) && rawScriptOrAction != "\\0")
                     {

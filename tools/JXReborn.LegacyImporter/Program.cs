@@ -107,9 +107,12 @@ public static class Program
         var (skillCount, missileCount) = skillExporter.ExportSkillsAndMissiles(source, dataDir, registry);
         Console.WriteLine($"  Skills: {skillCount}, Missiles: {missileCount}");
 
+        var npcLevelScriptExporter = new NpcLevelScriptDataExporter();
+        int npcLevelScriptCount = npcLevelScriptExporter.ExportNpcLevelScripts(source, dataDir, registry);
+
         var npcExporter = new NpcAndLootDataExporter();
         var (npcCount, lootCount, globalSpawns, eventSpawns) = npcExporter.ExportNpcsAndLoot(source, dataDir, registry);
-        Console.WriteLine($"  Npcs: {npcCount}, LootTables: {lootCount}, GlobalSpawns: {globalSpawns}, EventSpawns: {eventSpawns}");
+        Console.WriteLine($"  Npcs: {npcCount}, LevelScripts: {npcLevelScriptCount}, LootTables: {lootCount}, GlobalSpawns: {globalSpawns}, EventSpawns: {eventSpawns}");
 
         var playerExporter = new PlayerDataExporter();
         int playerCount = playerExporter.ExportPlayers(source, dataDir, registry);

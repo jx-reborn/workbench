@@ -27,4 +27,27 @@ internal static class LegacyServerTestPaths
 
         throw new DirectoryNotFoundException("Could not locate 'legacy-server/bin/server1/script' from test base directory.");
     }
+
+    public static string FindPackTieuDaoTuRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            string candidate = Path.Combine(dir.FullName, "pack-tieudaotu");
+            if (File.Exists(Path.Combine(candidate, "pack.json")))
+            {
+                return candidate;
+            }
+
+            string sibling = Path.Combine(dir.FullName, "..", "pack-tieudaotu");
+            if (File.Exists(Path.Combine(sibling, "pack.json")))
+            {
+                return Path.GetFullPath(sibling);
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate 'pack-tieudaotu/pack.json' from test base directory.");
+    }
 }

@@ -271,7 +271,8 @@ public static class LegacyPathResolver
             return string.Empty;
         }
 
-        string decoded = HybridLegacyTextDecoder.DecodeSmart(rawPathBytes, preferVietnamese: false).Trim();
+        // Engine file paths on jx-linux are strictly GBK/ASCII (never TCVN3).
+        string decoded = GbkEncoding.DecodeNullTerminated(rawPathBytes).Trim();
         if (decoded.Length == 0)
         {
             return string.Empty;

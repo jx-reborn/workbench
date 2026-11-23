@@ -432,7 +432,11 @@ public sealed class NpcAndLootDataExporter
                 };
                 if (!string.IsNullOrWhiteSpace(levelScript))
                 {
-                    combatScaling["levelScriptCode"] = Path.GetFileNameWithoutExtension(levelScript).ToLowerInvariant();
+                    combatScaling["levelScriptCode"] = NormalizeLevelScriptCode(levelScript);
+                    if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, levelScript) is { } lvlStatus)
+                    {
+                        combatScaling["levelScriptStatus"] = lvlStatus;
+                    }
                 }
 
                 var props = new Dictionary<string, object?>
@@ -475,6 +479,10 @@ public sealed class NpcAndLootDataExporter
                 if (!string.IsNullOrWhiteSpace(actionScript))
                 {
                     props["actionScriptPath"] = actionScript;
+                    if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, actionScript) is { } actStatus)
+                    {
+                        props["legacyScriptStatus"] = actStatus;
+                    }
                 }
 
                 if (lootCode is not null)
@@ -785,12 +793,14 @@ public sealed class NpcAndLootDataExporter
 
         // Build global-spawns.npcs.json
         List<Dictionary<string, object?>> globalGroups = BuildWorldSpawnGroups(
+            source,
             globalRawSpawns.Select(s => ((string?)null, s.TplId, s.Level, s.Series, s.MapId, s.MpsX, s.MpsY, s.Name, s.ScriptPath)).ToList(),
             spawnCategory: "globalPermanent",
             enabledByDefault: true,
             registry);
 
         List<Dictionary<string, object?>> globalPortals = BuildWorldPortals(
+            source,
             globalRawTraps.Select(t => ((string?)null, t.MapId, t.MpsX, t.MpsY, t.ScriptPath)).ToList(),
             spawnCategory: "globalPermanent",
             enabledByDefault: true,
@@ -811,12 +821,14 @@ public sealed class NpcAndLootDataExporter
 
         // Build event-spawns.npcs.json
         List<Dictionary<string, object?>> eventGroups = BuildWorldSpawnGroups(
+            source,
             eventRawSpawns.Select(s => ((string?)s.FeatureFlag, s.TplId, s.Level, s.Series, s.MapId, s.MpsX, s.MpsY, s.Name, s.ScriptPath)).ToList(),
             spawnCategory: "eventOrFeature",
             enabledByDefault: false,
             registry);
 
         List<Dictionary<string, object?>> eventPortals = BuildWorldPortals(
+            source,
             eventRawTraps.Select(t => ((string?)t.FeatureFlag, t.MapId, t.MpsX, t.MpsY, t.ScriptPath)).ToList(),
             spawnCategory: "eventOrFeature",
             enabledByDefault: false,
@@ -841,7 +853,30 @@ public sealed class NpcAndLootDataExporter
         return (globalRawSpawns.Count, eventRawSpawns.Count);
     }
 
+    public static string NormalizeLevelScriptCode(string rawLevelScriptPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawLevelScriptPath))
+        {
+            return string.Empty;
+        }
+
+        string norm = rawLevelScriptPath.Trim().Replace('\\', '/').TrimStart('/');
+        const string prefix = "script/npclevelscript/";
+        if (norm.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            norm = norm[prefix.Length..];
+        }
+
+        if (norm.EndsWith(".lua", StringComparison.OrdinalIgnoreCase))
+        {
+            norm = norm[..^4];
+        }
+
+        return norm.ToLowerInvariant();
+    }
+
     private static List<Dictionary<string, object?>> BuildWorldSpawnGroups(
+        ILegacyServerSource source,
         List<(string? FeatureFlag, int TplId, int Level, int Series, int MapId, int MpsX, int MpsY, string Name, string ScriptPath)> spawns,
         string spawnCategory,
         bool enabledByDefault,
@@ -907,6 +942,10 @@ public sealed class NpcAndLootDataExporter
             if (!string.IsNullOrWhiteSpace(g.Key.ScriptPath))
             {
                 props["scriptPath"] = g.Key.ScriptPath;
+                if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, g.Key.ScriptPath) is { } spStatus)
+                {
+                    props["legacyScriptStatus"] = spStatus;
+                }
             }
 
             string slugSeed = !string.IsNullOrEmpty(g.Key.Item1)
@@ -927,6 +966,7 @@ public sealed class NpcAndLootDataExporter
     }
 
     private static List<Dictionary<string, object?>> BuildWorldPortals(
+        ILegacyServerSource source,
         List<(string? FeatureFlag, int MapId, int MpsX, int MpsY, string ScriptPath)> traps,
         string spawnCategory,
         bool enabledByDefault,
@@ -960,6 +1000,11 @@ public sealed class NpcAndLootDataExporter
                 ["action"] = "customScript",
                 ["points"] = points,
             };
+
+            if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, g.Key.ScriptPath) is { } portalStatus)
+            {
+                props["legacyScriptStatus"] = portalStatus;
+            }
 
             if (!string.IsNullOrEmpty(g.Key.Item1))
             {

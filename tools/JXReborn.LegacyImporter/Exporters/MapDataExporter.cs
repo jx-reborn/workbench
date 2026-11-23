@@ -220,9 +220,9 @@ public sealed class MapDataExporter
                 }
             }
 
-            List<Dictionary<string, object?>> portals = BuildPortals(trapSpansByTrapId, trapBindings, registry, ref exportedTrapSpans);
-            List<Dictionary<string, object?>> spawnGroups = BuildSpawnGroups(regionNpcs, registry, ref exportedRegionNpcs);
-            List<Dictionary<string, object?>> mapObjects = BuildMapObjects(regionObjs, registry, ref exportedRegionObjs);
+            List<Dictionary<string, object?>> portals = BuildPortals(source, trapSpansByTrapId, trapBindings, registry, ref exportedTrapSpans);
+            List<Dictionary<string, object?>> spawnGroups = BuildSpawnGroups(source, regionNpcs, registry, ref exportedRegionNpcs);
+            List<Dictionary<string, object?>> mapObjects = BuildMapObjects(source, regionObjs, registry, ref exportedRegionObjs);
 
             var rootDoc = new Dictionary<string, object?>
             {
@@ -273,6 +273,7 @@ public sealed class MapDataExporter
     public static string Slugify(string text) => HybridLegacyTextDecoder.Slugify(text, "unknown");
 
     private static List<Dictionary<string, object?>> BuildPortals(
+        ILegacyServerSource source,
         Dictionary<uint, List<ParsedTrapCellSpan>> trapSpansByTrapId,
         FrozenDictionary<uint, PortalTrapBindingTemplate> trapBindings,
         ExportCatalogRegistry registry,
@@ -312,6 +313,10 @@ public sealed class MapDataExporter
                 if (!string.IsNullOrWhiteSpace(b.ScriptPath))
                 {
                     pObj["scriptPath"] = b.ScriptPath;
+                    if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, b.ScriptPath) is { } status)
+                    {
+                        pObj["legacyScriptStatus"] = status;
+                    }
                 }
 
                 if (b.ActionKind == PortalTrapActionKind.ChangeMapPortal)
@@ -341,7 +346,7 @@ public sealed class MapDataExporter
                         ? $"portal-to-{targetMapCode}"
                         : $"portal-to-map-{b.TargetMapId}";
                 }
-                else
+                else if (b.ActionKind == PortalTrapActionKind.ToggleFightStateAndSetPos)
                 {
                     pObj["action"] = "toggleFightMode";
                     pObj["targetMpsX"] = Math.Max(0, b.TargetMpsX);
@@ -351,6 +356,12 @@ public sealed class MapDataExporter
                     pObj["alternateMpsY"] = Math.Max(0, b.AlternateMpsY);
                     pObj["alternateFightMode"] = b.AlternateFightMode == 0 ? 0 : 1;
                     baseSlug = "gate-fight-toggle";
+                }
+                else
+                {
+                    pObj["action"] = "customScript";
+                    string nameHint = Path.GetFileNameWithoutExtension(b.ScriptPath);
+                    baseSlug = HybridLegacyTextDecoder.Slugify(nameHint, "custom-trap");
                 }
             }
             else
@@ -375,6 +386,7 @@ public sealed class MapDataExporter
     }
 
     private static List<Dictionary<string, object?>> BuildSpawnGroups(
+        ILegacyServerSource source,
         List<ParsedRegionNpc> regionNpcs,
         ExportCatalogRegistry registry,
         ref int exportedRegionNpcs)
@@ -501,6 +513,10 @@ public sealed class MapDataExporter
             if (first.ScriptPath.Length > 0)
             {
                 grpObj["scriptPath"] = first.ScriptPath;
+                if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, first.ScriptPath) is { } npcStatus)
+                {
+                    grpObj["legacyScriptStatus"] = npcStatus;
+                }
             }
 
             if (!string.IsNullOrEmpty(first.LootTableCode))
@@ -516,6 +532,7 @@ public sealed class MapDataExporter
     }
 
     private static List<Dictionary<string, object?>> BuildMapObjects(
+        ILegacyServerSource source,
         List<ParsedRegionObj> regionObjs,
         ExportCatalogRegistry registry,
         ref int exportedRegionObjs)
@@ -551,6 +568,10 @@ public sealed class MapDataExporter
             if (!string.IsNullOrWhiteSpace(o.ScriptPath))
             {
                 entry["scriptPath"] = o.ScriptPath;
+                if (LegacyScriptCorpusChecker.ClassifyScriptStatus(source, o.ScriptPath) is { } objStatus)
+                {
+                    entry["legacyScriptStatus"] = objStatus;
+                }
             }
 
             result.Add(entry);
