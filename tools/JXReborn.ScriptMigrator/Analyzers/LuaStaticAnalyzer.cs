@@ -64,7 +64,6 @@ public sealed class LuaStaticAnalyzer
     {
         "Talk",
         "Say",
-        "Msg2Player",
         "random",
         "getn",
     }.ToFrozenSet(StringComparer.Ordinal);

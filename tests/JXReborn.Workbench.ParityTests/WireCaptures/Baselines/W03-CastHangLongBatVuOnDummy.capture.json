@@ -6,7 +6,7 @@
     "oracleProfile": "kit",
     "oraclePackageArchiveSha256": "010ef5b21d5f18f2c527c2df46c84b1aaec4039e2a7e19a97080be6e97503274",
     "recordedAtUtc": "2026-11-19T15:44:59.8912748+00:00",
-    "contentSha256": "608ab77afd47e3797eac73bdc5ae53ebe1347cf0595e0709326a446d322e32c3"
+    "contentSha256": "3e34996ffd9c95b2c899c1b63674011c52678c9eae7a5498c572445175d9f9bb"
   },
   "actors": [
     {
@@ -59,7 +59,7 @@
           "label": "Spawn Dummy 413",
           "optionPath": [
             6,
-            0
+            4
           ],
           "waitTicksAfterSelection": 20,
           "expectMapIdAfterSelection": null

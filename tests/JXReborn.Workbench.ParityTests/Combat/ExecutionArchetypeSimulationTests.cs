@@ -888,8 +888,8 @@ public sealed class ExecutionArchetypeSimulationTests
         await harness.StepFramesAsync(5);
         Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 710u);
         Assert.True(state.CurrentMpsX > 52100, "Skill 710 meleeMovePos should blink player toward target.");
-        Assert.NotEmpty(handle.Recorder.SelfPositionSyncs);
-        Assert.Contains(observerHandle.Recorder.NpcPosSyncBroadcasts, e => e.NpcId == state.RuntimeNpcId && e.MpsX == state.CurrentMpsX);
+        Assert.Empty(handle.Recorder.SelfPositionSyncs);
+        Assert.DoesNotContain(observerHandle.Recorder.NpcPosSyncBroadcasts, e => e.NpcId == state.RuntimeNpcId);
 
         // 2) Style 1 meleeJump (210): jump to coordinate -> JumpBroadcasts + SelfPositionSyncs
         handle.Recorder.Clear();
@@ -922,8 +922,13 @@ public sealed class ExecutionArchetypeSimulationTests
         state.CurrentMpsX = 52000; state.CurrentMpsY = 101696;
         handle.Recorder.Clear();
         handle.CastSkill(40, -1, (int)m1.NpcId);
-        await harness.StepFramesAsync(15);
-        Assert.NotEmpty(handle.Recorder.RunBroadcasts);
+        await harness.StepFramesAsync(1);
+        Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 40u);
+        Assert.Empty(handle.Recorder.RunBroadcasts);
+        Assert.Empty(handle.Recorder.SelfPositionSyncs);
+        Assert.True(state.CurrentMpsX > 52000, "Skill 40 meleeRunAttack should advance caster toward target.");
+        await harness.StepFramesAsync(14);
+        Assert.Empty(handle.Recorder.RunBroadcasts);
         Assert.True(m1.CurLife < 10_000u, "Skill 40 meleeRunAttack should dash and hit via ChildSkill 224.");
 
         // 4) Style 1 meleeMany (318 -> ChildSkill 317 x2): hits twice!
@@ -956,7 +961,13 @@ public sealed class ExecutionArchetypeSimulationTests
         await harness.StepFramesAsync(190);
         Assert.Equal(baseNpcCount, worker.StaticNpcs.Count);
 
-        // 6) Style 13 Steal (400 on hostile player -> ChildSkill 197 hits!) & Style 14 InstantMissile (721 + 9904)
+        // 6) Style 13 Steal (400 KThiefSkill / thiefskill.txt: Cast_Redress, AttackRadius=100, Cost=50% MaxMana, TimePerCast=100, Camp Begin/Gm gate, dual SystemMessages, 0 HP damage) & Style 14 InstantMissile (721 + 9904)
+        state.CurrentMana = state.EffectiveMaxMana;
+        state.CurrentStamina = (ushort)Math.Min(ushort.MaxValue, state.EffectiveMaxStamina);
+        handle.CastSkill(210, 52064, 101696);
+        await harness.StepFramesAsync(1);
+        state.CurrentMana = state.EffectiveMaxMana;
+        state.CurrentStamina = (ushort)Math.Min(ushort.MaxValue, state.EffectiveMaxStamina);
         SimulatedPlayerHandle stealVictimHandle = await harness.AttachSimulatedPlayerAsync(
             CreateTestPlayerDto(
                 "StealVictim",
@@ -965,21 +976,37 @@ public sealed class ExecutionArchetypeSimulationTests
                 state.CurrentMpsY,
                 skills: []));
         PlayerZoneState stealVictim = stealVictimHandle.GetZoneState()!;
+        handle.Recorder.Clear();
+        stealVictimHandle.Recorder.Clear();
+        int manaBefore400 = state.CurrentMana;
+        handle.CastSkill(400, -1, (int)stealVictim.RuntimeNpcId);
+        await harness.StepFramesAsync(1);
+        Assert.Empty(handle.Recorder.SkillCastBroadcasts);
+        Assert.Equal(manaBefore400, state.CurrentMana);
+
         stealVictim.BaseCamp = EntityCamp.Evil;
         stealVictim.CurrentCamp = EntityCamp.Evil;
         stealVictim.FightMode = 1;
         stealVictim.PkState = PlayerPkMode.Fight;
         stealVictim.SpawnProtectUntilTick = 0;
+        stealVictim.InventoryMoney = 10_000;
         state.BaseCamp = EntityCamp.Justice;
         state.CurrentCamp = EntityCamp.Justice;
         state.PkState = PlayerPkMode.Fight;
         int victimLifeBefore400 = stealVictim.CurrentLife;
         handle.Recorder.Clear();
+        stealVictimHandle.Recorder.Clear();
         handle.CastSkill(400, -1, (int)stealVictim.RuntimeNpcId);
-        await harness.StepFramesAsync(8);
+        await harness.StepFramesAsync(2);
         Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 400u);
-        Assert.True(stealVictim.CurrentLife < victimLifeBefore400, "Skill 400 Steal on hostile player should fire ChildSkill 197 and deal damage.");
+        Assert.Equal(manaBefore400 - ((state.EffectiveMaxMana * 50) / 100), state.CurrentMana);
+        Assert.Equal(victimLifeBefore400, stealVictim.CurrentLife);
+        Assert.Equal(0, worker.ActiveMissileCount);
+        Assert.NotEmpty(handle.Recorder.SystemMessages);
+        Assert.NotEmpty(stealVictimHandle.Recorder.SystemMessages);
+        Assert.False(state.IsSkillOffCooldown(400, harness.TotalSteppedFrames));
 
+        state.CurrentMana = state.EffectiveMaxMana;
         handle.CastSkill(721, state.CurrentMpsX, state.CurrentMpsY);
         await harness.StepFramesAsync(1);
         Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 721u);
@@ -1514,7 +1541,7 @@ public sealed class ExecutionArchetypeSimulationTests
             }
         }
 
-        // 3) CastZone 4x4 with Param1==1 circle clip spawns 12 missiles (not 16) and hits 3 monsters around caster
+        // 3) CastZone 4x4 with Param1==1 circle clip spawns 11 missiles (not 16) and hits 3 monsters around caster
         await harness.StepFramesAsync(30);
         ConfigurePassiveMonsters(worker);
         m1.MpsX = 52400; m1.MpsY = 101696;
@@ -1523,7 +1550,7 @@ public sealed class ExecutionArchetypeSimulationTests
         int beforeClip = worker.ActiveMissileCount;
         handle.CastSkill(9937, 52000, 101696);
         await harness.StepFramesAsync(1);
-        Assert.Equal(12, worker.ActiveMissileCount - beforeClip);
+        Assert.Equal(11, worker.ActiveMissileCount - beforeClip);
 
         await harness.StepFramesAsync(30);
         m1.MpsX = 52000; m1.MpsY = 101696;

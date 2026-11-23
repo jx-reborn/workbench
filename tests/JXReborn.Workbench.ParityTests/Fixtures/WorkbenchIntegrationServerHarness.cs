@@ -25,7 +25,7 @@ namespace JXReborn.Workbench.ParityTests.Fixtures;
 
 public sealed class WorkbenchIntegrationServerHarness : IAsyncDisposable
 {
-    private readonly SqliteConnection _keepAliveSqliteConnection;
+    private readonly string _sqliteDbPath;
     private readonly IHost _host;
     private readonly FakeTimeProvider? _fakeTimeProvider;
     private readonly ZoneClusterRouter _clusterRouter;
@@ -40,13 +40,13 @@ public sealed class WorkbenchIntegrationServerHarness : IAsyncDisposable
     public bool IsManualZoneTickMode => _manualZoneTicks;
 
     private WorkbenchIntegrationServerHarness(
-        SqliteConnection keepAliveSqliteConnection,
+        string sqliteDbPath,
         IHost host,
         FakeTimeProvider? fakeTimeProvider,
         ZoneClusterRouter clusterRouter,
         bool manualZoneTicks)
     {
-        _keepAliveSqliteConnection = keepAliveSqliteConnection;
+        _sqliteDbPath = sqliteDbPath;
         _host = host;
         _fakeTimeProvider = fakeTimeProvider;
         _clusterRouter = clusterRouter;
@@ -60,14 +60,12 @@ public sealed class WorkbenchIntegrationServerHarness : IAsyncDisposable
         bool manualZoneTicks = false,
         bool enableTestGmToken = false)
     {
-        string dbName = $"file:jxreborn_workbench_{Guid.NewGuid():N}?mode=memory&cache=shared";
-        var keepAliveConn = new SqliteConnection($"Data Source={dbName};Default Timeout=30;");
-        await keepAliveConn.OpenAsync();
+        string dbPath = Path.Combine(Path.GetTempPath(), $"jxreborn_workbench_{Guid.NewGuid():N}.db");
 
         var configDict = new Dictionary<string, string?>
         {
             ["Persistence:Provider"] = "Sqlite",
-            ["Persistence:ConnectionString"] = $"Data Source={dbName};Default Timeout=30;",
+            ["Persistence:ConnectionString"] = $"Data Source={dbPath};Default Timeout=30;Pooling=False;",
             ["Persistence:AutoInitializeDatabase"] = "true",
             ["GameAssets:DataDirectory"] = WorkbenchPaths.PackDataDirectory,
             ["GameAssets:ArtifactsDirectory"] = WorkbenchPaths.PackServerDistDirectory,
@@ -150,7 +148,7 @@ public sealed class WorkbenchIntegrationServerHarness : IAsyncDisposable
         ApplicationOptions appOptions = host.Services.GetRequiredService<IOptions<ApplicationOptions>>().Value;
         appOptions.AdvertisedGameServerPort = (ushort)gsListener.BoundPort;
 
-        return new WorkbenchIntegrationServerHarness(keepAliveConn, host, fakeTime, clusterRouter, manualZoneTicks)
+        return new WorkbenchIntegrationServerHarness(dbPath, host, fakeTime, clusterRouter, manualZoneTicks)
         {
             BishopPort = bishopListener.BoundPort,
             GameServerPort = gsListener.BoundPort
@@ -198,6 +196,19 @@ public sealed class WorkbenchIntegrationServerHarness : IAsyncDisposable
         }
 
         _host.Dispose();
-        await _keepAliveSqliteConnection.DisposeAsync();
+        SqliteConnection.ClearAllPools();
+        foreach (string candidate in new[] { _sqliteDbPath, _sqliteDbPath + "-wal", _sqliteDbPath + "-shm" })
+        {
+            try
+            {
+                if (File.Exists(candidate))
+                {
+                    File.Delete(candidate);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 }

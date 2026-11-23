@@ -1260,12 +1260,21 @@ end
 
 -- ==================== [6] WORLD & ENTITIES ====================
 function GMT_MenuWorldEntities()
-    Say({L("Thế giới & Thực thể NPC (Atomic):")}, 5,
+    Say({L("Thế giới & Thực thể NPC (Atomic):")}, 6,
         {L("Triệu hồi Mộc Nhân 1 tỷ HP (Template 586, X+64)")} .. "/GMT_SpawnDummy",
         {L("Triệu hồi NPC luyện công 100k HP (Template 576, X+96)")} .. "/GMT_SpawnTrainer576",
         {L("Mở Tiệm Dược Điếm (Shop 39)")} .. "/GMT_OpenShop39",
         {L("Triệu hồi NPC - Boss theo Template ID")} .. "/GMT_AskNpcTemplate",
+        {L("Triệu hồi Cọc gỗ Lv10 (Template 413, X+64)")} .. "/GMT_SpawnPost413",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
+end
+
+function GMT_SpawnPost413()
+    local nW, nCellX, nCellY = GetWorldPos()
+    local nMapIdx = SubWorldID2Idx(nW)
+    if nMapIdx and nMapIdx >= 0 then
+        AddNpc(413, 10, nMapIdx, nCellX * 32 + 64, nCellY * 32, 1)
+    end
 end
 
 function GMT_SpawnDummy()

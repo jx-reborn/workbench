@@ -6,7 +6,7 @@
     "oracleProfile": "kit",
     "oraclePackageArchiveSha256": "9e93cb4470b049edcd9c901f2616d2016dae3027390ee53dc0f1962846ef5d74",
     "recordedAtUtc": "2026-11-19T12:39:09.7844253+00:00",
-    "contentSha256": "4ac7de67e36b872e9a7cd429baac2f1b2cf83640d9accc96032c21c78f4ec557"
+    "contentSha256": "db70799a7ef87b3516e221f3602fc162b4134cefa2f46070ef834b6f14bc6773"
   },
   "actors": [
     {
@@ -124,6 +124,44 @@
   },
   "steps": [
     {
+      "stepId": "00_P2OpensTradeState",
+      "actorId": "P2",
+      "userActionDescription": "P2 toggles trade willingness state open (c2s_tradeapplystateopen 0x69)",
+      "c2sFrames": [
+        {
+          "tickOffsetFrames": 0,
+          "opcode": 105,
+          "rawHex": "690200",
+          "patches": []
+        }
+      ],
+      "observationTicks": 10,
+      "expectedS2cContract": [
+        {
+          "opcode": 117,
+          "name": "s2c_tradechangestate",
+          "exactByteLength": 6,
+          "expectedTickOffsetFrames": 2,
+          "tickToleranceFrames": 8,
+          "fieldAssertions": [
+            {
+              "byteOffset": 1,
+              "byteWidth": 1,
+              "isSigned": false,
+              "matcher": "ExactInt64",
+              "expectedValue": 1,
+              "minValue": null,
+              "maxValue": null,
+              "symbol": null,
+              "fieldName": "State"
+            }
+          ],
+          "observerActorId": "P2"
+        }
+      ],
+      "expectedActorStateAfter": {}
+    },
+    {
       "stepId": "01_P1InvitesP2ToTrade",
       "actorId": "P1",
       "userActionDescription": "P1 opens trade state and sends trade invite to P2; P2 receives 0x8B",
@@ -149,7 +187,29 @@
         }
       ],
       "observationTicks": 24,
-      "expectedS2cContract": [],
+      "expectedS2cContract": [
+        {
+          "opcode": 139,
+          "name": "s2c_tradeapplystart",
+          "exactByteLength": 9,
+          "expectedTickOffsetFrames": 2,
+          "tickToleranceFrames": 22,
+          "fieldAssertions": [
+            {
+              "byteOffset": 5,
+              "byteWidth": 4,
+              "isSigned": false,
+              "matcher": "SymbolDwId",
+              "expectedValue": null,
+              "minValue": null,
+              "maxValue": null,
+              "symbol": "$actor:P1",
+              "fieldName": "ApplicantNpcId"
+            }
+          ],
+          "observerActorId": "P2"
+        }
+      ],
       "expectedActorStateAfter": {
         "P1": {
           "mapId": 53,

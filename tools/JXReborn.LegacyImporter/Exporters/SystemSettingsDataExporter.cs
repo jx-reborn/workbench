@@ -403,7 +403,7 @@ public sealed class SystemSettingsDataExporter
         foreach (string rawLine in SplitLines(bytes))
         {
             string line = rawLine.Trim();
-            if (string.IsNullOrEmpty(line) || line.StartsWith(';') || line.StartsWith('#') || line.StartsWith("//", StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(line) || line.StartsWith(';') || line.StartsWith('#') || line.StartsWith("//", StringComparison.Ordinal) || line.StartsWith("--", StringComparison.Ordinal))
             {
                 continue;
             }

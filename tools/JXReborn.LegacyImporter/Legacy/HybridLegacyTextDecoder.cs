@@ -306,8 +306,8 @@ public static class HybridLegacyTextDecoder
             return true;
         }
 
-        // No Vietnamese word has >= 4 consecutive non-ASCII letters without an ASCII letter or space
-        if (maxConsecutiveHighRun >= 4)
+        // No Vietnamese word has >= 5 consecutive non-ASCII bytes; allow a 4-byte doubled-vowel typo only inside clear Vietnamese sentences
+        if (maxConsecutiveHighRun >= 5 || (maxConsecutiveHighRun == 4 && adjacentAsciiHighPairs < 4))
         {
             return false;
         }

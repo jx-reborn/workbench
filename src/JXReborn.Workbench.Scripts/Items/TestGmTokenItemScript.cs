@@ -1667,6 +1667,14 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 });
                 return ValueTask.CompletedTask;
             }),
+            new DialogOption("Triệu hồi Cọc gỗ Lv10 (Template 413, X+64)", static c =>
+            {
+                var bc = (ZoneScriptDialogContextBase)c;
+                PlayerZoneState p = bc.Player;
+                _ = bc.ExecutionContext.SpawnDynamicNpc(templateId: 413, level: 10, mpsX: p.CurrentMpsX + 64, mpsY: p.CurrentMpsY);
+                bc.SendSystemMessage("Đã triệu hồi Cọc gỗ (Template 413, Lv 10).");
+                return ValueTask.CompletedTask;
+            }),
             new DialogOption("Quay lại", static c =>
             {
                 OpenRootMenu((ZoneScriptDialogContextBase)c);

@@ -333,7 +333,8 @@ public sealed class QaParityRemediationSimulationTests
 
         Assert.True(player.TryGetFeatureSlot(PlayerShopSessionSlot.SlotKey, out PlayerShopSessionSlot? shopSlot) && shopSlot is not null);
         Assert.True(shopSlot!.IsOpen);
-        Assert.Equal(39, shopSlot.ActiveShopId);
+        // Ground truth: server1/script/两湖区/巴陵县/npc/巴陵县_药店老板对话.lua calls Sale(99, 1)
+        Assert.Equal(99, shopSlot.ActiveShopId);
         Assert.Equal(ShopCurrencyType.Gold, shopSlot.CurrencyType);
 
         // Portrait command
@@ -501,33 +502,34 @@ public sealed class QaParityRemediationSimulationTests
         player.TargetMpsY = player.CurrentMpsY;
         player.PkState = PlayerPkMode.Peace;
 
-        // 18 ticks (1s) in Peace mode drains 1 stamina
-        await harness.StepFramesAsync(18);
+        // Ground truth: KNpc::ProcessState drains/regens stamina on 10-frame intervals (m_LoopFrames % 10 == 0).
+        // Stepping 10 frames hits exactly 1 cadence tick in Peace mode -> drains 1 stamina
+        await harness.StepFramesAsync(10);
         Assert.Equal((ushort)29, player.CurrentStamina);
 
-        // 18 ticks (1s) in Slaughter mode drains 18 stamina
+        // 10 frames in Slaughter mode hits 1 cadence tick -> drains 18 stamina
         player.PkState = PlayerPkMode.Slaughter;
         player.Doing = EntityDoingPosture.Run;
         player.CurrentMpsX = 52032;
         player.CurrentMpsY = 101696;
         player.TargetMpsX = 52500;
         player.TargetMpsY = 101696;
-        await harness.StepFramesAsync(18);
+        await harness.StepFramesAsync(10);
         Assert.Equal((ushort)11, player.CurrentStamina);
 
-        // Next 18 ticks in Slaughter drains <= 18 -> clamps to 0 and forces Walk
+        // Next 10 frames in Slaughter drains <= 18 -> clamps to 0 and forces Walk
         player.Doing = EntityDoingPosture.Run;
         player.CurrentMpsX = 52032;
         player.CurrentMpsY = 101696;
         player.TargetMpsX = 52500;
         player.TargetMpsY = 101696;
-        await harness.StepFramesAsync(18);
+        await harness.StepFramesAsync(10);
         Assert.Equal((ushort)0, player.CurrentStamina);
         Assert.Equal(EntityDoingPosture.Walk, player.Doing);
 
-        // Sitting regenerates Max(1, 100 * 10 / 1000) + 1 = 2 stamina per second
+        // Sitting regenerates Max(1, 100 * 10 / 1000) + 1 = 2 stamina per 10-frame cadence tick
         player.Doing = EntityDoingPosture.Sit;
-        await harness.StepFramesAsync(18);
+        await harness.StepFramesAsync(10);
         Assert.Equal((ushort)2, player.CurrentStamina);
     }
 

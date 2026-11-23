@@ -6,7 +6,7 @@
     "oracleProfile": "kit",
     "oraclePackageArchiveSha256": "9e93cb4470b049edcd9c901f2616d2016dae3027390ee53dc0f1962846ef5d74",
     "recordedAtUtc": "2026-11-19T12:39:29.2758432+00:00",
-    "contentSha256": "d9d9ff5ea8a1f729bac6ec273979f680dc61e5b9a5e0702dfd7512f694cf6b67"
+    "contentSha256": "e2f556f853deb81d7f1dd1a0c3636a5a8e29051bcf161664236a1b915d856122"
   },
   "actors": [
     {
@@ -116,7 +116,29 @@
         }
       ],
       "observationTicks": 20,
-      "expectedS2cContract": [],
+      "expectedS2cContract": [
+        {
+          "opcode": 106,
+          "name": "s2c_chatapplyaddfriend",
+          "exactByteLength": 293,
+          "expectedTickOffsetFrames": 2,
+          "tickToleranceFrames": 18,
+          "fieldAssertions": [
+            {
+              "byteOffset": 1,
+              "byteWidth": 4,
+              "isSigned": false,
+              "matcher": "SymbolDwId",
+              "expectedValue": null,
+              "minValue": null,
+              "maxValue": null,
+              "symbol": "$actor:P1",
+              "fieldName": "SrcPlayerIdx"
+            }
+          ],
+          "observerActorId": "P2"
+        }
+      ],
       "expectedActorStateAfter": {
         "P1": {
           "mapId": 53,

@@ -459,7 +459,7 @@ public sealed class TestGmTokenItemScriptTests
             ([3, 6], "GMT_MenuMounts", 7),
             ([4], "GMT_MenuCombat", 6),
             ([5], "GMT_MenuTeleport", 10),
-            ([6], "GMT_MenuWorldEntities", 5),
+            ([6], "GMT_MenuWorldEntities", 6),
             ([7], "GMT_MenuTasksAndDiag", 6),
         ];
 
@@ -578,15 +578,17 @@ public sealed class TestGmTokenItemScriptTests
         Assert.Equal((ushort)53, player.RevivalMapId);
         Assert.Equal(19, player.RevivalPointId);
 
-        // [6, 0] spawns Template 586; [6, 1] spawns Template 576; [6, 3] spawns custom Template ID
+        // [6, 0] spawns Template 586; [6, 1] spawns Template 576; [6, 3] spawns custom Template ID; [6, 4] spawns Template 413 Lv10
         MapZoneWorker zone = harness.GetZone(53);
         int npcsBeforeSpawn = zone.StaticNpcs.Count;
         await ExecutePathAsync(script, itemCtx, dialogCtx, player, 6, 0);
         await ExecutePathAsync(script, itemCtx, dialogCtx, player, 6, 1);
         await ExecuteNumberInputPathAsync(script, itemCtx, dialogCtx, player, 576, 6, 3);
-        Assert.Equal(npcsBeforeSpawn + 3, zone.StaticNpcs.Count);
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 6, 4);
+        Assert.Equal(npcsBeforeSpawn + 4, zone.StaticNpcs.Count);
         Assert.Contains(zone.StaticNpcs.Values, static n => n.TemplateId == 586);
         Assert.Equal(2, zone.StaticNpcs.Values.Count(static n => n.TemplateId == 576));
+        Assert.Contains(zone.StaticNpcs.Values, static n => n.TemplateId == 413 && n.Level == 10);
     }
 
     [Fact]
