@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -22,7 +23,8 @@ public static class LegacyPathResolver
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    private static readonly Dictionary<string, Dictionary<string, string>> DirectoryCaseMaps = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, Dictionary<string, string>> DirectoryCaseMaps =
+        new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Resolves a raw byte path (such as <c>\script\skill\wudu\¶¾¶Ü.lua</c> or <c>settings\faction\门派设定.ini</c>)
@@ -354,28 +356,23 @@ public static class LegacyPathResolver
         return null;
     }
 
-    private static Dictionary<string, string> GetDirectoryEntries(string dir)
-    {
-        if (DirectoryCaseMaps.TryGetValue(dir, out Dictionary<string, string>? cached))
+    private static Dictionary<string, string> GetDirectoryEntries(string dir) =>
+        DirectoryCaseMaps.GetOrAdd(dir, static d =>
         {
-            return cached;
-        }
-
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            foreach (string entry in Directory.EnumerateFileSystemEntries(dir))
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
             {
-                string name = Path.GetFileName(entry);
-                map.TryAdd(name, entry);
+                foreach (string entry in Directory.EnumerateFileSystemEntries(d))
+                {
+                    string name = Path.GetFileName(entry);
+                    map.TryAdd(name, entry);
+                }
             }
-        }
-        catch
-        {
-            // Ignore inaccessible directories
-        }
+            catch
+            {
+                // Ignore inaccessible directories
+            }
 
-        DirectoryCaseMaps[dir] = map;
-        return map;
-    }
+            return map;
+        });
 }
