@@ -3,6 +3,7 @@ using System.IO;
 using JXReborn.ScriptMigrator.Analyzers;
 using JXReborn.ScriptMigrator.Generators;
 using JXReborn.ScriptMigrator.Models;
+using JXReborn.ScriptMigrator.Verification;
 
 namespace JXReborn.ScriptMigrator;
 
@@ -24,6 +25,8 @@ public static class Program
         string legacyRoot = Path.GetFullPath(Path.Combine("..", "legacy-server", "bin"));
         string packRoot = Path.GetFullPath(Path.Combine("..", "pack-tieudaotu"));
         string outRoot = Path.GetFullPath("artifacts");
+        string? scope = null;
+        string kind = "all";
         bool strict = false;
 
         for (int i = 1; i < args.Length; i++)
@@ -38,6 +41,12 @@ public static class Program
                     break;
                 case "--out" when i + 1 < args.Length:
                     outRoot = Path.GetFullPath(args[++i]);
+                    break;
+                case "--scope" when i + 1 < args.Length:
+                    scope = args[++i];
+                    break;
+                case "--kind" when i + 1 < args.Length:
+                    kind = args[++i];
                     break;
                 case "--strict":
                     strict = true;
@@ -54,12 +63,16 @@ public static class Program
                 return RunUtf8Mirror(legacyRoot, mirrorDir);
             case "export-static-dialogs":
                 return RunExportStaticDialogs(legacyRoot, packRoot);
+            case "generate-scripts":
+                return RunGenerateScripts(legacyRoot, packRoot, migrationDir, kind);
             case "build-manifest":
                 return RunBuildManifest(legacyRoot, migrationDir);
             case "audit-settings":
                 return RunAuditSettings(legacyRoot, packRoot, migrationDir);
             case "audit-coverage":
-                return RunAuditCoverage(legacyRoot, packRoot, migrationDir, strict);
+                return RunAuditCoverage(legacyRoot, packRoot, migrationDir, scope, strict);
+            case "verify-equivalence":
+                return RunVerifyEquivalence(legacyRoot, packRoot, migrationDir, strict);
             case "run-all":
                 if (RunUtf8Mirror(legacyRoot, mirrorDir) != 0)
                 {
@@ -68,7 +81,7 @@ public static class Program
 
                 ScriptInventoryManifest manifest = BuildAndWriteManifest(legacyRoot, migrationDir);
                 RunAuditSettings(legacyRoot, packRoot, migrationDir);
-                return EvaluateAndWriteCoverage(manifest, packRoot, migrationDir, strict);
+                return EvaluateAndWriteCoverage(manifest, packRoot, migrationDir, scope, strict);
             default:
                 Console.Error.WriteLine($"Unknown command '{command}'.");
                 PrintUsage();
@@ -94,6 +107,21 @@ public static class Program
             $"[JXReborn.ScriptMigrator] Exported {result.ExportedEntries:N0}/{result.TotalPureStaticCandidates:N0} " +
             $"pure static dialogs -> '{Path.Combine(packRoot, "data", "dialogs", "ambient-npcs.dialogs.json")}' " +
             $"(skipped={result.SkippedCandidates:N0}).");
+        return 0;
+    }
+
+    private static int RunGenerateScripts(string legacyRoot, string packRoot, string migrationDir, string kind)
+    {
+        var builder = new ScriptInventoryBuilder();
+        ScriptInventoryManifest manifest = builder.Build(legacyRoot);
+        var generator = new LuaToCSharpGenerator();
+        ScriptGenerationResult result = generator.Generate(manifest, legacyRoot, packRoot, migrationDir, kind);
+        Console.WriteLine(
+            $"[JXReborn.ScriptMigrator] Generated {result.GeneratedScriptCount:N0} fail-closed C# scripts " +
+            $"(Traps={result.GeneratedTrapCount:N0}, Objects={result.GeneratedObjectCount:N0}, " +
+            $"Items={result.GeneratedItemCount:N0}, Monsters={result.GeneratedMonsterCount:N0}, NPCs={result.GeneratedNpcCount:N0}; " +
+            $"SkippedOwned={result.SkippedAlreadyOwnedCount:N0}, ManualQueue={result.FailedClosedCount:N0}) -> " +
+            $"'{result.WrittenCSharpFiles.Count}' C# files + '{Path.Combine(migrationDir, "manual-migration-queue.md")}'.");
         return 0;
     }
 
@@ -132,32 +160,63 @@ public static class Program
         return 0;
     }
 
-    private static int RunAuditCoverage(string legacyRoot, string packRoot, string migrationDir, bool strict)
+    private static int RunAuditCoverage(string legacyRoot, string packRoot, string migrationDir, string? scope, bool strict)
     {
         var builder = new ScriptInventoryBuilder();
         ScriptInventoryManifest manifest = builder.Build(legacyRoot);
-        return EvaluateAndWriteCoverage(manifest, packRoot, migrationDir, strict);
+        return EvaluateAndWriteCoverage(manifest, packRoot, migrationDir, scope, strict);
     }
 
     private static int EvaluateAndWriteCoverage(
         ScriptInventoryManifest manifest,
         string packRoot,
         string migrationDir,
+        string? scope,
         bool strict)
     {
         var auditor = new PackCoverageAuditor();
-        CoverageAuditReport report = auditor.Audit(manifest, packRoot);
+        CoverageAuditReport report = auditor.Audit(manifest, packRoot, scope);
         auditor.WriteOutputs(report, migrationDir);
 
         Console.WriteLine(
-            $"[JXReborn.ScriptMigrator] Coverage Audit: NPC={report.ResolvedMapNpcScriptPaths}/{report.UniqueMapNpcScriptPaths}, " +
+            $"[JXReborn.ScriptMigrator] Coverage Audit (scope={report.ScopeFilter}): " +
+            $"NPC={report.ResolvedMapNpcScriptPaths}/{report.UniqueMapNpcScriptPaths}, " +
             $"Obj={report.ResolvedMapObjectScriptPaths}/{report.UniqueMapObjectScriptPaths}, " +
+            $"Portal={report.ResolvedMapPortalScriptPaths}/{report.UniqueMapPortalScriptPaths}, " +
             $"Item={report.ResolvedActiveItemScriptPaths}/{report.UniqueActiveItemScriptPaths}, " +
-            $"Broken={report.BrokenScriptPaths}, Unaccounted={report.UnaccountedLuaFiles}.");
+            $"Attributed={report.LegacySourceAttributedScripts}, " +
+            $"Broken={report.BrokenScriptPaths}, Accounted={report.AccountedLuaFiles}, Unaccounted={report.UnaccountedLuaFiles}.");
 
-        if (strict && (report.BrokenScriptPaths > 0 || report.UnaccountedLuaFiles > 0))
+        bool strictFailed = report.ScopeFilter == "all"
+            ? (report.BrokenScriptPaths > 0 || report.UnaccountedLuaFiles > 0)
+            : report.ScopedUnaccountedLuaFiles > 0;
+
+        if (strict && strictFailed)
         {
-            Console.Error.WriteLine("[JXReborn.ScriptMigrator] STRICT COVERAGE GATE FAILED.");
+            Console.Error.WriteLine($"[JXReborn.ScriptMigrator] STRICT COVERAGE GATE FAILED (scope={report.ScopeFilter}, unaccounted={report.ScopedUnaccountedLuaFiles}).");
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static int RunVerifyEquivalence(string legacyRoot, string packRoot, string migrationDir, bool strict)
+    {
+        var builder = new ScriptInventoryBuilder();
+        ScriptInventoryManifest manifest = builder.Build(legacyRoot);
+
+        var verifier = new DifferentialScriptEquivalenceVerifier();
+        EquivalenceAuditReport report = verifier.VerifyPackAsync(manifest, legacyRoot, packRoot).GetAwaiter().GetResult();
+        verifier.WriteOutputs(report, migrationDir);
+
+        Console.WriteLine(
+            $"[JXReborn.ScriptMigrator] Differential Equivalence: " +
+            $"Generated={report.VerifiedGeneratedScripts:N0}, Ambient={report.VerifiedAmbientDialogs:N0}, " +
+            $"Vectors={report.MatchedVectors:N0}/{report.TotalStateVectorsExecuted:N0}, Mismatches={report.MismatchedScripts:N0}.");
+
+        if (strict && report.MismatchedScripts > 0)
+        {
+            Console.Error.WriteLine($"[JXReborn.ScriptMigrator] STRICT EQUIVALENCE GATE FAILED with {report.MismatchedScripts} mismatch(es).");
             return 1;
         }
 
@@ -166,7 +225,7 @@ public static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Usage: JXReborn.ScriptMigrator <command> [--legacy <dir>] [--pack <dir>] [--out <dir>] [--strict]");
-        Console.WriteLine("Commands: export-utf8-mirror | build-manifest | audit-settings | audit-coverage | run-all");
+        Console.WriteLine("Usage: JXReborn.ScriptMigrator <command> [--legacy <dir>] [--pack <dir>] [--out <dir>] [--kind <all|traps|objects|items|monsters|npcs>] [--scope <all|traps|objects|items|npcs|monsters|bucket1..6>] [--strict]");
+        Console.WriteLine("Commands: export-utf8-mirror | export-static-dialogs | generate-scripts | build-manifest | audit-settings | audit-coverage | verify-equivalence | run-all");
     }
 }

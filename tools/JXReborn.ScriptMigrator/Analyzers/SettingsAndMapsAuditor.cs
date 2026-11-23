@@ -51,8 +51,77 @@ public sealed class SettingsAndMapsAuditor
         "gamesetting.ini",
         "progressconfig.txt",
         "ÎäÆ÷ÎïÀí¹¥»÷¶ÔÕÕ±í.txt",
+        "武器物理攻击对照表.txt",
         "tongname.flt",
+        "goldboss.txt",
+        "killer.ini",
+        "adventure.txt",
+        "citywar.ini",
+        "cavelist.ini",
+        "maptraffic.ini",
+        "thiefskill.txt",
+        "lottery.txt",
+        "lotterys.txt",
+        "player_limittime.ini",
+        "tiredwarning.ini",
+        "auction.ini",
+        "stallscript_permit.ini",
+        "permitdialognpc_info.txt",
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Explicitly audited root <c>server1/settings/</c> files that are verified non-gameplay, client-visual/UI-only,
+    /// legacy duplicates/templates, runtime 2-byte toggle flags, or Lua trigger scripts.
+    /// </summary>
+    private static readonly FrozenDictionary<string, string> KnownClassifiedNonPackRootSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        // Client UI, sprite, color, audio, auto-pathfinding & localization tables
+        ["adjustcolor.txt"] = "clientVisualAudioUiOnly",
+        ["autopathfindroutes.txt"] = "clientVisualAudioUiOnly",
+        ["portrait.ini"] = "clientVisualAudioUiOnly",
+        ["soundlist.txt"] = "clientVisualAudioUiOnly",
+        ["stringresource.txt"] = "clientVisualAudioUiOnly",
+        ["×´Ì¬Óë¹âÐ§Í¼ÐÎ¶ÔÕÕ±í.txt"] = "clientVisualAudioUiOnly",
+        ["状态与光效图形对照表.txt"] = "clientVisualAudioUiOnly",
+
+        // Legacy backup copies, editor templates, and Excel sheets
+        ["lotterys_.txt"] = "legacyBackupOrTemplate",
+        ["missles1.txt"] = "legacyBackupOrTemplate",
+        ["missletemplate.txt"] = "legacyBackupOrTemplate",
+        ["skilltemplate.txt"] = "legacyBackupOrTemplate",
+        ["½»Ò×±àºÅ.xls"] = "legacyBackupOrTemplate",
+        ["交易编号.xls"] = "legacyBackupOrTemplate",
+
+        // Legacy server topology, ops, updater & empty header-only tables
+        ["autoupdate.ini"] = "legacyOpsOrEmptyTable",
+        ["goc_serverlist.ini"] = "legacyOpsOrEmptyTable",
+        ["Serverlist.ini"] = "legacyOpsOrEmptyTable",
+        ["lastupdate.ini"] = "legacyOpsOrEmptyTable",
+        ["logset.ini"] = "legacyOpsOrEmptyTable",
+        ["product_config.ini"] = "legacyOpsOrEmptyTable",
+        ["systemtimetask.txt"] = "legacyOpsOrEmptyTable",
+        ["trip_config.ini"] = "legacyOpsOrEmptyTable",
+        ["utilities.ini"] = "legacyOpsOrEmptyTable",
+        ["event_1000_thanglong.txt"] = "legacyOpsOrEmptyTable",
+
+        // Runtime 2-byte toggle state flags written by legacy GM scripts
+        ["boss_runtime_DOC_CO_1945.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_DAI_0800.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_DAI_1930.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_DAI_2200.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_DAI_MANUAL.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_TIEU_0400.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_TIEU_1230.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_TIEU_2000.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_TIEU_2300.cfg"] = "runtimeToggleFlag",
+        ["boss_runtime_HK_TIEU_MANUAL.cfg"] = "runtimeToggleFlag",
+
+        // Root relay/trigger Lua scripts
+        ["trigger.lua"] = "rootTriggerLuaScript",
+        ["trigger_challengeoftime.lua"] = "rootTriggerLuaScript",
+        ["trigger_dragonboat.lua"] = "rootTriggerLuaScript",
+        ["trigger_include.lua"] = "rootTriggerLuaScript",
+    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -78,7 +147,9 @@ public sealed class SettingsAndMapsAuditor
                 string topBucket = slashIdx < 0 ? "(root)" : rel[..slashIdx];
                 topFolderCounts[topBucket] = topFolderCounts.GetValueOrDefault(topBucket) + 1;
 
-                if (slashIdx < 0 && !KnownExportedRootSettings.Contains(rel))
+                if (slashIdx < 0 &&
+                    !KnownExportedRootSettings.Contains(rel) &&
+                    !KnownClassifiedNonPackRootSettings.ContainsKey(rel))
                 {
                     uncoveredRootFiles.Add(rel);
                 }

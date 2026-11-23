@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using JXReborn.ScriptMigrator.Analyzers;
 using JXReborn.ScriptMigrator.Models;
+using JXReborn.ScriptMigrator.Tests.Fixtures;
 using Xunit;
 
 namespace JXReborn.ScriptMigrator.Tests.Analyzers;
@@ -56,5 +57,32 @@ public sealed class PackCoverageAuditorTests
                 Directory.Delete(tempRoot, recursive: true);
             }
         }
+    }
+
+    [Fact]
+    public void Audit_AgainstRealPackTieuDaoTu_ShouldCountVerbatimLegacySourceAttributesAndResolveAttributedItems()
+    {
+        string legacyBin = LegacyServerTestPaths.FindLegacyBinRoot();
+        string packRoot = LegacyServerTestPaths.FindPackTieuDaoTuRoot();
+
+        var builder = new ScriptInventoryBuilder();
+        ScriptInventoryManifest manifest = builder.Build(legacyBin);
+
+        var auditor = new PackCoverageAuditor();
+        CoverageAuditReport report = auditor.Audit(manifest, packRoot);
+
+        // Real pack-tieudaotu has >= 45 [LegacySource(@"\script\...", "...")] attributions across C# scripts,
+        // including 4 handcrafted item scripts (\script\item\skillbook.lua, xisui-jing.lua, wulin-miji.lua, lv120skillbook.lua).
+        Assert.True(
+            report.LegacySourceAttributedScripts >= 45,
+            $"Expected >= 45 [LegacySource] attributed scripts (including verbatim @\"...\" strings), got {report.LegacySourceAttributedScripts}.");
+        Assert.True(
+            report.ResolvedActiveItemScriptPaths >= 4,
+            $"Expected >= 4 resolved active item script paths from handcrafted item scripts, got {report.ResolvedActiveItemScriptPaths}.");
+        Assert.Equal(58, report.AccountedNpcLevelScripts);
+        Assert.Equal(0, report.BrokenScriptPaths);
+        Assert.True(report.DeadLegacyCorpusScriptPaths >= 600);
+        Assert.True(report.AccountedLuaFiles > 0);
+        Assert.Equal(report.TotalLegacyActiveScripts - report.AccountedLuaFiles, report.UnaccountedLuaFiles);
     }
 }

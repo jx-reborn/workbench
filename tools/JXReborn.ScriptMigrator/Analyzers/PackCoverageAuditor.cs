@@ -13,7 +13,7 @@ namespace JXReborn.ScriptMigrator.Analyzers;
 
 /// <summary>
 /// Audits <c>pack-tieudaotu</c> JSON catalogs and C# scripts against the 100% legacy script manifest
-/// to measure exact coverage and enforce zero dangling/unaccounted paths.
+/// to measure exact, deduplicated file-level coverage and enforce strict scope parity gates.
 /// </summary>
 public sealed partial class PackCoverageAuditor
 {
@@ -22,27 +22,37 @@ public sealed partial class PackCoverageAuditor
         WriteIndented = true,
     };
 
-    [GeneratedRegex(@"ScriptCode\s*=>\s*""([^""]+)""", RegexOptions.Compiled)]
+    [GeneratedRegex(@"ScriptCode\s*=>\s*(@?)""([^""]+)""", RegexOptions.Compiled)]
     private static partial Regex ScriptCodePropertyRegex();
 
-    [GeneratedRegex(@"\[LegacySource\(\s*""([^""]+)""\s*,\s*""([^""]+)""\s*\)\]", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\[LegacySource\(\s*(@?)""([^""]+)""\s*,\s*(@?)""([^""]+)""\s*\)\]", RegexOptions.Compiled)]
     private static partial Regex LegacySourceAttributeRegex();
 
-    public CoverageAuditReport Audit(ScriptInventoryManifest manifest, string packRoot)
+    public CoverageAuditReport Audit(ScriptInventoryManifest manifest, string packRoot, string? scope = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentException.ThrowIfNullOrWhiteSpace(packRoot);
 
-        var knownLegacyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (ScriptInventoryEntry entry in manifest.Entries)
+        string normalizedScope = string.IsNullOrWhiteSpace(scope) ? "all" : scope.Trim().ToLowerInvariant();
+
+        // Map both raw canonical and UTF-8 display script paths -> active ScriptInventoryEntry
+        var activeEntries = manifest.Entries.Where(static e => !e.IsExcludedSimBot).ToList();
+        var entryByNormalizedPath = new Dictionary<string, ScriptInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (ScriptInventoryEntry entry in activeEntries)
         {
-            knownLegacyPaths.Add(NormalizeSlashPath(entry.CanonicalScriptPath));
-            knownLegacyPaths.Add(NormalizeSlashPath("\\" + entry.Utf8DisplayPath.Replace("server1/", string.Empty, StringComparison.OrdinalIgnoreCase)));
+            string rawCanonical = NormalizeSlashPath(entry.CanonicalScriptPath);
+            entryByNormalizedPath.TryAdd(rawCanonical, entry);
+
+            string utf8Script = ToScriptPathFromUtf8Display(entry.Utf8DisplayPath);
+            if (!string.IsNullOrWhiteSpace(utf8Script))
+            {
+                entryByNormalizedPath.TryAdd(utf8Script, entry);
+            }
         }
 
         var resolver = new TieuDaoTuScriptCodeResolver();
 
-        // 1. Collect C# registered ScriptCodes & [LegacySource] attributes
+        // 1. Collect C# registered ScriptCodes & [LegacySource] attributes (handling both regular and @"..." verbatim strings)
         var registeredCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var legacySourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string packSrcDir = Path.Combine(packRoot, "src");
@@ -53,12 +63,26 @@ public sealed partial class PackCoverageAuditor
                 string src = File.ReadAllText(csFile);
                 foreach (Match match in ScriptCodePropertyRegex().Matches(src))
                 {
-                    registeredCodes.Add(match.Groups[1].Value);
+                    bool isVerbatim = match.Groups[1].Value.Length > 0;
+                    string code = UnescapeCSharpString(match.Groups[2].Value, isVerbatim);
+                    registeredCodes.Add(code);
+                    if (code.StartsWith('\\') || code.StartsWith('/'))
+                    {
+                        registeredCodes.Add(NormalizeSlashPath(code));
+                    }
                 }
 
                 foreach (Match match in LegacySourceAttributeRegex().Matches(src))
                 {
-                    legacySourcePaths.Add(NormalizeSlashPath(match.Groups[1].Value));
+                    bool isVerbatim = match.Groups[1].Value.Length > 0;
+                    string rawPath = UnescapeCSharpString(match.Groups[2].Value, isVerbatim);
+                    string norm = NormalizeSlashPath(rawPath);
+                    legacySourcePaths.Add(norm);
+                    string utf8Norm = LegacyScriptPathNormalizer.NormalizeToUtf8(norm);
+                    if (!string.IsNullOrWhiteSpace(utf8Norm))
+                    {
+                        legacySourcePaths.Add(utf8Norm);
+                    }
                 }
             }
         }
@@ -89,7 +113,9 @@ public sealed partial class PackCoverageAuditor
                         {
                             if (p.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(p.GetString()))
                             {
-                                ambientDialogPaths.Add(NormalizeSlashPath(p.GetString()!));
+                                string norm = NormalizeSlashPath(p.GetString()!);
+                                ambientDialogPaths.Add(norm);
+                                ambientDialogPaths.Add(LegacyScriptPathNormalizer.NormalizeToUtf8(norm));
                             }
                         }
                     }
@@ -102,6 +128,7 @@ public sealed partial class PackCoverageAuditor
         var objPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var portalPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var brokenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deadLegacyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         string mapsDir = Path.Combine(packRoot, "data", "maps");
         if (Directory.Exists(mapsDir))
@@ -115,13 +142,13 @@ public sealed partial class PackCoverageAuditor
                 {
                     foreach (JsonElement sg in spawnGroups.EnumerateArray())
                     {
-                        CollectScriptPath(sg, "scriptPath", npcPaths);
+                        CollectScriptPath(sg, "scriptPath", npcPaths, deadLegacyPaths);
                         if (sg.TryGetProperty("spawns", out JsonElement spawns) && spawns.ValueKind == JsonValueKind.Array)
                         {
                             foreach (JsonElement sp in spawns.EnumerateArray())
                             {
-                                CollectScriptPath(sp, "scriptPathOverride", npcPaths);
-                                CollectScriptPath(sp, "scriptPath", npcPaths);
+                                CollectScriptPath(sp, "scriptPathOverride", npcPaths, deadLegacyPaths);
+                                CollectScriptPath(sp, "scriptPath", npcPaths, deadLegacyPaths);
                             }
                         }
                     }
@@ -131,7 +158,7 @@ public sealed partial class PackCoverageAuditor
                 {
                     foreach (JsonElement obj in mapObjects.EnumerateArray())
                     {
-                        CollectScriptPath(obj, "scriptPath", objPaths);
+                        CollectScriptPath(obj, "scriptPath", objPaths, deadLegacyPaths);
                     }
                 }
 
@@ -139,7 +166,7 @@ public sealed partial class PackCoverageAuditor
                 {
                     foreach (JsonElement portal in portals.EnumerateArray())
                     {
-                        CollectScriptPath(portal, "scriptPath", portalPaths);
+                        CollectScriptPath(portal, "scriptPath", portalPaths, deadLegacyPaths);
                     }
                 }
             }
@@ -162,9 +189,10 @@ public sealed partial class PackCoverageAuditor
                     continue;
                 }
 
+                bool isPortalProp = string.Equals(prop.Name, "worldPortals", StringComparison.OrdinalIgnoreCase);
                 foreach (JsonElement g in prop.Value.EnumerateArray())
                 {
-                    CollectScriptPath(g, "scriptPath", npcPaths);
+                    CollectScriptPath(g, "scriptPath", isPortalProp ? portalPaths : npcPaths, deadLegacyPaths);
                 }
             }
         }
@@ -188,28 +216,86 @@ public sealed partial class PackCoverageAuditor
                         if (!string.IsNullOrWhiteSpace(sp) &&
                             !sp.Contains("noscript.lua", StringComparison.OrdinalIgnoreCase))
                         {
-                            activeItemPaths.Add(NormalizeSlashPath(sp));
+                            CollectScriptPath(usage, "scriptPath", activeItemPaths, deadLegacyPaths);
                         }
                     }
                 }
             }
         }
 
-        // 5. Evaluate resolution via current TieuDaoTuScriptCodeResolver
+        // 5. Evaluate resolution via current TieuDaoTuScriptCodeResolver & exact deduplicated file accounting
+        var accountedRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void TryAccountPath(string scriptPath)
+        {
+            if (entryByNormalizedPath.TryGetValue(scriptPath, out ScriptInventoryEntry? hit))
+            {
+                accountedRelativePaths.Add(hit.RelativePath);
+                return;
+            }
+
+            string utf8 = LegacyScriptPathNormalizer.NormalizeToUtf8(scriptPath);
+            if (entryByNormalizedPath.TryGetValue(utf8, out hit))
+            {
+                accountedRelativePaths.Add(hit.RelativePath);
+            }
+        }
+
+        bool ExistsInLegacy(string scriptPath)
+        {
+            if (entryByNormalizedPath.ContainsKey(scriptPath))
+            {
+                return true;
+            }
+
+            string utf8 = LegacyScriptPathNormalizer.NormalizeToUtf8(scriptPath);
+            return entryByNormalizedPath.ContainsKey(utf8);
+        }
+
+        // Account all [LegacySource] attributed C# scripts directly against real manifest entries
+        int attributedExistingCount = 0;
+        var seenAttributedRelative = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string srcPath in legacySourcePaths)
+        {
+            if (entryByNormalizedPath.TryGetValue(srcPath, out ScriptInventoryEntry? hit) &&
+                seenAttributedRelative.Add(hit.RelativePath))
+            {
+                attributedExistingCount++;
+                accountedRelativePaths.Add(hit.RelativePath);
+            }
+        }
+
+        // Account all NPC ambient-dialog JSON entries (excluding non-NPC trap/obj/item paths that require their own handlers)
+        foreach (string ambPath in ambientDialogPaths)
+        {
+            if (entryByNormalizedPath.TryGetValue(ambPath, out ScriptInventoryEntry? hit) &&
+                !IsTrapOrObjectOrItemEntry(hit))
+            {
+                accountedRelativePaths.Add(hit.RelativePath);
+            }
+        }
+
         var unresolvedNpc = new List<string>();
         int resolvedNpc = 0;
         foreach (string sp in npcPaths.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
-            if (!knownLegacyPaths.Contains(sp))
+            if (!ExistsInLegacy(sp))
             {
                 brokenPaths.Add(sp);
             }
 
+            string utf8Sp = LegacyScriptPathNormalizer.NormalizeToUtf8(sp);
             string? code = resolver.ResolveNpcScriptCode(EntityKind.DialogNpc, sp, null)
                 ?? resolver.ResolveNpcScriptCode(EntityKind.Monster, sp, null);
-            if (ambientDialogPaths.Contains(sp) || (!string.IsNullOrWhiteSpace(code) && registeredCodes.Contains(code)))
+            bool isResolved = ambientDialogPaths.Contains(sp) ||
+                              ambientDialogPaths.Contains(utf8Sp) ||
+                              legacySourcePaths.Contains(sp) ||
+                              legacySourcePaths.Contains(utf8Sp) ||
+                              (!string.IsNullOrWhiteSpace(code) && registeredCodes.Contains(code));
+            if (isResolved)
             {
                 resolvedNpc++;
+                TryAccountPath(sp);
             }
             else
             {
@@ -221,15 +307,20 @@ public sealed partial class PackCoverageAuditor
         int resolvedObj = 0;
         foreach (string sp in objPaths.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
-            if (!knownLegacyPaths.Contains(sp))
+            if (!ExistsInLegacy(sp))
             {
                 brokenPaths.Add(sp);
             }
 
+            string utf8Sp = LegacyScriptPathNormalizer.NormalizeToUtf8(sp);
             string? code = resolver.ResolveMapObjectScriptCode(0, sp);
-            if (!string.IsNullOrWhiteSpace(code) && registeredCodes.Contains(code))
+            bool isResolved = legacySourcePaths.Contains(sp) ||
+                              legacySourcePaths.Contains(utf8Sp) ||
+                              (!string.IsNullOrWhiteSpace(code) && registeredCodes.Contains(code));
+            if (isResolved)
             {
                 resolvedObj++;
+                TryAccountPath(sp);
             }
             else
             {
@@ -237,18 +328,48 @@ public sealed partial class PackCoverageAuditor
             }
         }
 
-        var unresolvedItems = new List<string>();
-        int resolvedItems = 0;
-        foreach (string sp in activeItemPaths.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+        var unresolvedPortals = new List<string>();
+        int resolvedPortals = 0;
+        foreach (string sp in portalPaths.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
-            if (!knownLegacyPaths.Contains(sp))
+            if (!ExistsInLegacy(sp))
             {
                 brokenPaths.Add(sp);
             }
 
-            if (registeredCodes.Contains(sp) || legacySourcePaths.Contains(sp))
+            string utf8Sp = LegacyScriptPathNormalizer.NormalizeToUtf8(sp);
+            string? code = resolver.ResolveTrapScriptCode(0, 0, sp);
+            bool isResolved = legacySourcePaths.Contains(sp) ||
+                              legacySourcePaths.Contains(utf8Sp) ||
+                              (!string.IsNullOrWhiteSpace(code) && registeredCodes.Contains(code));
+            if (isResolved)
+            {
+                resolvedPortals++;
+                TryAccountPath(sp);
+            }
+            else
+            {
+                unresolvedPortals.Add(sp);
+            }
+        }
+
+        var unresolvedItems = new List<string>();
+        int resolvedItems = 0;
+        foreach (string sp in activeItemPaths.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!ExistsInLegacy(sp))
+            {
+                brokenPaths.Add(sp);
+            }
+
+            string utf8Sp = LegacyScriptPathNormalizer.NormalizeToUtf8(sp);
+            if (registeredCodes.Contains(sp) ||
+                registeredCodes.Contains(utf8Sp) ||
+                legacySourcePaths.Contains(sp) ||
+                legacySourcePaths.Contains(utf8Sp))
             {
                 resolvedItems++;
+                TryAccountPath(sp);
             }
             else
             {
@@ -262,40 +383,93 @@ public sealed partial class PackCoverageAuditor
         if (Directory.Exists(skillsDir) &&
             Directory.EnumerateFiles(skillsDir, "*.skills.json", SearchOption.TopDirectoryOnly).Any())
         {
-            foreach (ScriptInventoryEntry entry in manifest.Entries)
+            foreach (ScriptInventoryEntry entry in activeEntries)
             {
-                if (!entry.IsExcludedSimBot &&
-                    entry.RelativePath.Replace('\\', '/').StartsWith("server1/script/skill/", StringComparison.OrdinalIgnoreCase))
+                if (entry.RelativePath.Replace('\\', '/').StartsWith("server1/script/skill/", StringComparison.OrdinalIgnoreCase))
                 {
                     accountedSkillFormulas++;
+                    accountedRelativePaths.Add(entry.RelativePath);
                 }
             }
         }
 
-        int totalActiveLegacy = manifest.Server1ActiveFiles + manifest.S3RelayActiveFiles;
-        int extraAmbientOnly = Math.Max(0, ambientDialogCount - resolvedNpc);
-        int accountedEstimate = resolvedNpc + extraAmbientOnly + resolvedObj + resolvedItems + portalPaths.Count + accountedSkillFormulas;
-        int unaccounted = Math.Max(0, totalActiveLegacy - accountedEstimate);
+        // 7. Account for NPC level scripts verified by sourceSha256 in data/npcs/level-scripts.npcs.json
+        int accountedNpcLevelScripts = 0;
+        string npcLevelScriptsFile = Path.Combine(packRoot, "data", "npcs", "level-scripts.npcs.json");
+        if (File.Exists(npcLevelScriptsFile))
+        {
+            var entryByRelPath = activeEntries.ToDictionary(
+                static e => e.RelativePath.Replace('\\', '/'),
+                StringComparer.OrdinalIgnoreCase);
+
+            using JsonDocument lvlDoc = JsonDocument.Parse(File.ReadAllText(npcLevelScriptsFile));
+            if (lvlDoc.RootElement.TryGetProperty("npcLevelScripts", out JsonElement lvlArr) &&
+                lvlArr.ValueKind == JsonValueKind.Array)
+            {
+                var seenLvlRel = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (JsonElement item in lvlArr.EnumerateArray())
+                {
+                    string? legacyRel = item.TryGetProperty("legacyRelativePath", out JsonElement rp) && rp.ValueKind == JsonValueKind.String
+                        ? rp.GetString()
+                        : null;
+                    string? sha = item.TryGetProperty("sourceSha256", out JsonElement sh) && sh.ValueKind == JsonValueKind.String
+                        ? sh.GetString()
+                        : null;
+                    if (string.IsNullOrWhiteSpace(legacyRel) || string.IsNullOrWhiteSpace(sha))
+                    {
+                        continue;
+                    }
+
+                    string fullRel = "server1/" + legacyRel.Replace('\\', '/').TrimStart('/');
+                    if (entryByRelPath.TryGetValue(fullRel, out ScriptInventoryEntry? hit) &&
+                        string.Equals(hit.Sha256, sha, StringComparison.OrdinalIgnoreCase) &&
+                        seenLvlRel.Add(hit.RelativePath))
+                    {
+                        accountedNpcLevelScripts++;
+                        accountedRelativePaths.Add(hit.RelativePath);
+                    }
+                }
+            }
+        }
+
+        int totalActiveLegacy = activeEntries.Count;
+        int accountedTotal = accountedRelativePaths.Count;
+        int unaccounted = Math.Max(0, totalActiveLegacy - accountedTotal);
+
+        List<ScriptInventoryEntry> scopedEntries = activeEntries
+            .Where(e => MatchesScope(e, normalizedScope))
+            .ToList();
+        int scopedAccounted = scopedEntries.Count(e => accountedRelativePaths.Contains(e.RelativePath));
+        int scopedUnaccounted = Math.Max(0, scopedEntries.Count - scopedAccounted);
 
         return new CoverageAuditReport
         {
             GeneratedAtUtc = DateTime.UtcNow.ToString("O"),
+            ScopeFilter = normalizedScope,
             TotalLegacyActiveScripts = totalActiveLegacy,
+            AccountedLuaFiles = accountedTotal,
             RegisteredCSharpScriptCodes = registeredCodes.Count,
-            LegacySourceAttributedScripts = legacySourcePaths.Count,
+            LegacySourceAttributedScripts = attributedExistingCount,
             AccountedSkillFormulaScripts = accountedSkillFormulas,
+            AccountedNpcLevelScripts = accountedNpcLevelScripts,
             AmbientDialogEntries = ambientDialogCount,
             UniqueMapNpcScriptPaths = npcPaths.Count,
             ResolvedMapNpcScriptPaths = resolvedNpc,
             UniqueMapObjectScriptPaths = objPaths.Count,
             ResolvedMapObjectScriptPaths = resolvedObj,
             UniqueMapPortalScriptPaths = portalPaths.Count,
+            ResolvedMapPortalScriptPaths = resolvedPortals,
             UniqueActiveItemScriptPaths = activeItemPaths.Count,
             ResolvedActiveItemScriptPaths = resolvedItems,
             BrokenScriptPaths = brokenPaths.Count,
+            DeadLegacyCorpusScriptPaths = deadLegacyPaths.Count,
             UnaccountedLuaFiles = unaccounted,
+            ScopedTotalLegacyActiveScripts = scopedEntries.Count,
+            ScopedAccountedLuaFiles = scopedAccounted,
+            ScopedUnaccountedLuaFiles = scopedUnaccounted,
             UnresolvedNpcPathsSample = unresolvedNpc.Take(50).ToArray(),
             UnresolvedObjectPathsSample = unresolvedObj.Take(50).ToArray(),
+            UnresolvedPortalPathsSample = unresolvedPortals.Take(50).ToArray(),
             UnresolvedItemPathsSample = unresolvedItems.Take(50).ToArray(),
             BrokenPathsSample = brokenPaths.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Take(50).ToArray(),
         };
@@ -313,20 +487,29 @@ public sealed partial class PackCoverageAuditor
         sb.AppendLine("# `pack-tieudaotu` Script Coverage & Parity Gate Report");
         sb.AppendLine();
         sb.AppendLine($"- **Generated (UTC)**: `{report.GeneratedAtUtc}`");
+        sb.AppendLine($"- **Scope Filter**: `{report.ScopeFilter}` (scoped accounted: `{report.ScopedAccountedLuaFiles:N0}` / `{report.ScopedTotalLegacyActiveScripts:N0}`, scoped unaccounted: `{report.ScopedUnaccountedLuaFiles:N0}`)");
         sb.AppendLine($"- **Total Active Legacy Scripts (`server1` + `s3relay`)**: **{report.TotalLegacyActiveScripts:N0}**");
-        sb.AppendLine($"- **Registered C# `ScriptCode`s**: **{report.RegisteredCSharpScriptCodes:N0}** (`[LegacySource]` attributed: `{report.LegacySourceAttributedScripts:N0}`)");
+        sb.AppendLine($"- **Exact Deduplicated Accounted Active Lua Files**: **{report.AccountedLuaFiles:N0}**");
+        sb.AppendLine($"- **Registered C# `ScriptCode`s**: **{report.RegisteredCSharpScriptCodes:N0}** (`[LegacySource]` attributed files: `{report.LegacySourceAttributedScripts:N0}`)");
         sb.AppendLine($"- **Ambient Dialog JSON Entries**: **{report.AmbientDialogEntries:N0}**");
         sb.AppendLine($"- **Skill Formula Scripts Accounted by `data/skills/*.skills.json`**: **{report.AccountedSkillFormulaScripts:N0}**");
+        sb.AppendLine($"- **NPC Level Scripts Accounted by `data/npcs/level-scripts.npcs.json`**: **{report.AccountedNpcLevelScripts:N0}**");
         sb.AppendLine($"- **Map/Global NPC Unique Script Paths**: `{report.ResolvedMapNpcScriptPaths:N0}` / `{report.UniqueMapNpcScriptPaths:N0}` resolved");
         sb.AppendLine($"- **Map Object (`0x72`) Unique Script Paths**: `{report.ResolvedMapObjectScriptPaths:N0}` / `{report.UniqueMapObjectScriptPaths:N0}` resolved");
-        sb.AppendLine($"- **Map Portal Unique Script Paths**: `{report.UniqueMapPortalScriptPaths:N0}`");
-        sb.AppendLine($"- **Active Item Unique Script Paths (excl. `noscript.lua`)**: `{report.ResolvedActiveItemScriptPaths:N0}` / `{report.UniqueActiveItemScriptPaths:N0}` resolved");
-        sb.AppendLine($"- **Broken `scriptPath` Links (missing in legacy corpus)**: **{report.BrokenScriptPaths:N0}**");
-        sb.AppendLine($"- **Estimated Remaining Unaccounted Active Lua Files**: **{report.UnaccountedLuaFiles:N0}**");
+        sb.AppendLine($"- **Map Portal/Trap Unique Script Paths**: `{report.ResolvedMapPortalScriptPaths:N0}` / `{report.UniqueMapPortalScriptPaths:N0}` resolved");
+        sb.AppendLine($"- **Active Item Unique Script Paths (excl. `noscript.lua` & dead legacy refs)**: `{report.ResolvedActiveItemScriptPaths:N0}` / `{report.UniqueActiveItemScriptPaths:N0}` resolved");
+        sb.AppendLine($"- **Broken `scriptPath` Links (exporter/encoding errors)**: **{report.BrokenScriptPaths:N0}**");
+        sb.AppendLine($"- **Dead Legacy Corpus `scriptPath` References (`missingInLegacyCorpus` / `excludedSimBot`)**: **{report.DeadLegacyCorpusScriptPaths:N0}**");
+        sb.AppendLine($"- **Exact Remaining Unaccounted Active Lua Files**: **{report.UnaccountedLuaFiles:N0}**");
         sb.AppendLine();
 
         AppendSample(sb, "Sample Unresolved NPC Script Paths (first 50)", report.UnresolvedNpcPathsSample);
         AppendSample(sb, "Sample Unresolved Map Object Script Paths (first 50)", report.UnresolvedObjectPathsSample);
+        if (report.UnresolvedPortalPathsSample.Count > 0)
+        {
+            AppendSample(sb, "Sample Unresolved Map Portal/Trap Script Paths (first 50)", report.UnresolvedPortalPathsSample);
+        }
+
         AppendSample(sb, "Sample Unresolved Active Item Script Paths (first 50)", report.UnresolvedItemPathsSample);
         if (report.BrokenPathsSample.Count > 0)
         {
@@ -339,14 +522,97 @@ public sealed partial class PackCoverageAuditor
             new UTF8Encoding(false));
     }
 
-    private static void CollectScriptPath(JsonElement obj, string propName, HashSet<string> target)
+    private static bool MatchesScope(ScriptInventoryEntry entry, string scope)
+    {
+        if (scope == "all")
+        {
+            return true;
+        }
+
+        string up = entry.Utf8DisplayPath.Replace('\\', '/').ToLowerInvariant();
+        string rp = entry.RelativePath.Replace('\\', '/').ToLowerInvariant();
+
+        return scope switch
+        {
+            "traps" => up.Contains("/trap/", StringComparison.Ordinal) || up.Contains("/连接trap/", StringComparison.Ordinal),
+            "objects" => up.Contains("/obj/", StringComparison.Ordinal) || up.Contains("/地图obj/", StringComparison.Ordinal),
+            "items" => rp.StartsWith("server1/script/item/", StringComparison.Ordinal),
+            "monsters" => entry.DefinedFunctions.Contains("OnDeath") && !entry.DefinedFunctions.Contains("main"),
+            "npcs" => up.Contains("/npc/", StringComparison.Ordinal) || up.Contains("/职能npc/", StringComparison.Ordinal) || up.Contains("/路人npc/", StringComparison.Ordinal),
+            "bucket1" => entry.Bucket == 1,
+            "bucket2" => entry.Bucket == 2,
+            "bucket3" => entry.Bucket == 3,
+            "bucket4" => entry.Bucket == 4,
+            "bucket5" => entry.Bucket == 5,
+            "bucket6" => entry.Bucket == 6,
+            _ => true,
+        };
+    }
+
+    private static bool IsTrapOrObjectOrItemEntry(ScriptInventoryEntry entry)
+    {
+        string up = entry.Utf8DisplayPath.Replace('\\', '/').ToLowerInvariant();
+        string rp = entry.RelativePath.Replace('\\', '/').ToLowerInvariant();
+        return up.Contains("/trap/", StringComparison.Ordinal)
+            || up.Contains("/连接trap/", StringComparison.Ordinal)
+            || up.Contains("/obj/", StringComparison.Ordinal)
+            || up.Contains("/地图obj/", StringComparison.Ordinal)
+            || rp.StartsWith("server1/script/item/", StringComparison.Ordinal);
+    }
+
+    private static string UnescapeCSharpString(string rawValue, bool isVerbatim)
+    {
+        if (isVerbatim)
+        {
+            return rawValue.Replace("\"\"", "\"", StringComparison.Ordinal);
+        }
+
+        return rawValue
+            .Replace("\\\\", "\\", StringComparison.Ordinal)
+            .Replace("\\\"", "\"", StringComparison.Ordinal);
+    }
+
+    private static string ToScriptPathFromUtf8Display(string utf8DisplayPath)
+    {
+        if (string.IsNullOrWhiteSpace(utf8DisplayPath))
+        {
+            return string.Empty;
+        }
+
+        string p = utf8DisplayPath.Trim().Replace('/', '\\');
+        if (p.StartsWith("server1\\", StringComparison.OrdinalIgnoreCase))
+        {
+            p = p["server1\\".Length..];
+        }
+        else if (p.StartsWith("gateway\\s3relay\\", StringComparison.OrdinalIgnoreCase))
+        {
+            p = p["gateway\\s3relay\\".Length..];
+        }
+
+        return NormalizeSlashPath(p);
+    }
+
+    private static void CollectScriptPath(
+        JsonElement obj,
+        string propName,
+        HashSet<string> target,
+        HashSet<string> deadLegacyPaths)
     {
         if (obj.TryGetProperty(propName, out JsonElement prop) && prop.ValueKind == JsonValueKind.String)
         {
             string? val = prop.GetString();
             if (!string.IsNullOrWhiteSpace(val))
             {
-                target.Add(NormalizeSlashPath(val));
+                string norm = NormalizeSlashPath(val);
+                if (obj.TryGetProperty("legacyScriptStatus", out JsonElement statusProp) &&
+                    statusProp.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(statusProp.GetString()))
+                {
+                    deadLegacyPaths.Add(norm);
+                    return;
+                }
+
+                target.Add(norm);
             }
         }
     }
