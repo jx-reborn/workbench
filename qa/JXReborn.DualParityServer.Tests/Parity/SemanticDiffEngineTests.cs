@@ -83,4 +83,47 @@ public sealed class SemanticDiffEngineTests
         Assert.Contains(result.Findings, f => f.Category == FindingCategory.Position && f.Severity == FindingSeverity.Critical);
         Assert.Contains(result.Findings, f => f.Category == FindingCategory.Inventory);
     }
+
+    [Fact]
+    public void Compare_OnNpcsprRichDescribeWithDifferentDisplayNameEncoding_ShouldNormalizeNpcNameAndStillVerifyNpcSidAndBody()
+    {
+        // Ground truth: Map 53 Step550_C2S_0x6E (Chủ tiệm tạp hóa, NPCSID=219) observed in findings.jsonl
+        // Legacy emits raw GBK NPC name bytes inside <<...>>; Reborn emits localized UTF-8->TCVN3 name.
+        var engine = new SemanticDiffEngine();
+
+        const string legacyPrompt = "<#><link=image[0,8]:#npcspr:?NPCSID=219?ACTION=0><<ễểằừặèÀẽ°ồ>><link>: Trước đây ta là người bán hàng rong, tích cóp được ít vốn, mở tiệm tạp hóa nhỏ này";
+        const string rebornMatchingPrompt = "<#><link=image[0,8]:#npcspr:?NPCSID=219?ACTION=0><<Chủ tiệm tạp hóa>><link>: Trước đây ta là người bán hàng rong, tích cóp được ít vốn, mở tiệm tạp hóa nhỏ này";
+        const string rebornWrongNpcSidPrompt = "<#><link=image[0,8]:#npcspr:?NPCSID=198?ACTION=0><<Chủ tiệm tạp hóa>><link>: Trước đây ta là người bán hàng rong, tích cóp được ít vốn, mở tiệm tạp hóa nhỏ này";
+        const string rebornWrongBodyPrompt = "<#><link=image[0,8]:#npcspr:?NPCSID=219?ACTION=0><<Chủ tiệm tạp hóa>><link>: Nội dung sai";
+
+        StepComparisonResult matchResult = engine.Compare(
+            550,
+            "OpenGrocerShop",
+            "InteractNpc('Chủ tiệm tạp hóa')",
+            TestSnapshotFactory.Create(dialog: TestSnapshotFactory.CreateDialog(legacyPrompt, "Giao dịch")),
+            TestSnapshotFactory.Create(dialog: TestSnapshotFactory.CreateDialog(rebornMatchingPrompt, "Giao dịch")));
+
+        Assert.True(matchResult.Passed);
+        Assert.Empty(matchResult.Findings);
+
+        StepComparisonResult wrongSidResult = engine.Compare(
+            550,
+            "OpenGrocerShop",
+            "InteractNpc('Chủ tiệm tạp hóa')",
+            TestSnapshotFactory.Create(dialog: TestSnapshotFactory.CreateDialog(legacyPrompt, "Giao dịch")),
+            TestSnapshotFactory.Create(dialog: TestSnapshotFactory.CreateDialog(rebornWrongNpcSidPrompt, "Giao dịch")));
+
+        Assert.False(wrongSidResult.Passed);
+        Assert.Contains(wrongSidResult.Findings, f => f.FieldPath == "Dialog.Prompt");
+
+        StepComparisonResult wrongBodyResult = engine.Compare(
+            550,
+            "OpenGrocerShop",
+            "InteractNpc('Chủ tiệm tạp hóa')",
+            TestSnapshotFactory.Create(dialog: TestSnapshotFactory.CreateDialog(legacyPrompt, "Giao dịch")),
+            TestSnapshotFactory.Create(dialog: TestSnapshotFactory.CreateDialog(rebornWrongBodyPrompt, "Giao dịch")));
+
+        Assert.False(wrongBodyResult.Passed);
+        Assert.Contains(wrongBodyResult.Findings, f => f.FieldPath == "Dialog.Prompt");
+    }
 }

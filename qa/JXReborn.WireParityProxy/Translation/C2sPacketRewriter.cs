@@ -44,6 +44,36 @@ public sealed class C2sPacketRewriter
                     clientToken2,
                     label: "c2s_requestnpc");
 
+            case ProtocolOpcodes.c2s_npcstaterequest when copy.Length >= NpcStateRequestC2SPacket.PayloadSize:
+                return RewriteTargetNpc(
+                    copy,
+                    npcIdOffset: 1,
+                    checkValueOffset: -1,
+                    checkKey: 0,
+                    clientToken1,
+                    clientToken2,
+                    label: "c2s_npcstaterequest");
+
+            case ProtocolOpcodes.c2s_requestnpcfeature when copy.Length >= 5:
+                return RewriteTargetNpc(
+                    copy,
+                    npcIdOffset: 1,
+                    checkValueOffset: -1,
+                    checkKey: 0,
+                    clientToken1,
+                    clientToken2,
+                    label: "c2s_requestnpcfeature");
+
+            case ProtocolOpcodes.c2s_viewequip when copy.Length >= ViewEquipC2SPacket.PayloadSize:
+                return RewriteTargetNpc(
+                    copy,
+                    npcIdOffset: 1,
+                    checkValueOffset: -1,
+                    checkKey: 0,
+                    clientToken1,
+                    clientToken2,
+                    label: "c2s_viewequip");
+
             case ProtocolOpcodes.c2s_requestobj when copy.Length >= RequestObjC2SPacket.PayloadSize:
                 return RewriteTargetObj(copy, objIdOffset: 1, label: "c2s_requestobj");
 

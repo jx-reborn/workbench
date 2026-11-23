@@ -77,4 +77,34 @@ public sealed class StandaloneStackTests
             }
         }
     }
+
+    [Fact]
+    public void RebornHostLauncher_CreateHostProcessStartInfo_ShouldEnableDevelopmentEnvironmentAndFreshWorkbenchScripts()
+    {
+        var options = new DualParityOptions { Standalone = true };
+        var launcher = new RebornHostLauncher(options, "test-session");
+
+        System.Diagnostics.ProcessStartInfo psi = launcher.CreateHostProcessStartInfo("reborn-t0.db");
+
+        Assert.Equal("Development", psi.Environment["DOTNET_ENVIRONMENT"]);
+        Assert.Equal("Development", psi.Environment["ASPNETCORE_ENVIRONMENT"]);
+        Assert.Equal("true", psi.Environment["ZoneEngine__EnableTestGmToken"]);
+        Assert.Equal("true", psi.Environment["ZoneEngine__AutoGrantGmTokenOnLogin"]);
+
+        string? scriptsDir = psi.Environment["ScriptHost__ScriptDirectories__1"];
+        Assert.False(string.IsNullOrWhiteSpace(scriptsDir));
+        string resolvedDll = Path.Combine(scriptsDir!, "JXReborn.Workbench.Scripts.dll");
+        Assert.True(File.Exists(resolvedDll));
+
+        // Ground truth: GmTokenEnvironmentGuard requires Debug build when available, and Workbench.Scripts must be at least as fresh as Debug bin output.
+        string workbenchScriptsDebugDll = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..", "src", "JXReborn.Workbench.Scripts", "bin", "Debug", "net10.0", "JXReborn.Workbench.Scripts.dll"));
+        if (File.Exists(workbenchScriptsDebugDll))
+        {
+            Assert.True(
+                File.GetLastWriteTimeUtc(resolvedDll) >= File.GetLastWriteTimeUtc(workbenchScriptsDebugDll),
+                $"Expected '{resolvedDll}' to be at least as fresh as '{workbenchScriptsDebugDll}'.");
+        }
+    }
 }

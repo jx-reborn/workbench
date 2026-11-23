@@ -192,6 +192,32 @@ public sealed class EntityIdTranslatorAndRewriterTests
         Assert.Equal(4007, BinaryPrimitives.ReadInt32LittleEndian(result.ShadowPayload.AsSpan(5, 4)));
     }
 
+    [Theory]
+    [InlineData(ProtocolOpcodes.c2s_npcstaterequest)]
+    [InlineData(ProtocolOpcodes.c2s_requestnpcfeature)]
+    [InlineData(ProtocolOpcodes.c2s_viewequip)]
+    public void RewriteForShadow_OnNpcStateRequestFeatureAndViewEquip_ShouldTranslateTargetNpcIdAtOffset1(byte opcode)
+    {
+        // Ground truth: Map 53 Step038_C2S_0xA6 (NpcStateRequestC2SPacket 5B), 0x91 (5B), 0x78 (ViewEquipC2SPacket 5B)
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncNpcPayload(npcId: 17353, templateId: 219, mpsX: 51208, mpsY: 101458, name: "TapHoa"), now);
+        shadow.ApplyS2c(BuildSyncNpcPayload(npcId: 42, templateId: 219, mpsX: 51208, mpsY: 101458, name: "TapHoa"), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] payload = new byte[5];
+        payload[0] = opcode;
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(1, 4), 17353u);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(payload, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(42u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+    }
+
     private static byte[] BuildSyncNpcPayload(uint npcId, ushort templateId, int mpsX, int mpsY, string name)
     {
         var pkt = new SyncNpcFullS2CPacket(

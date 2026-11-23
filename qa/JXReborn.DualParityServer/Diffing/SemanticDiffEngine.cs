@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using JXReborn.ClientDriver;
 
 namespace JXReborn.DualParityServer.Diffing;
@@ -7,7 +8,7 @@ namespace JXReborn.DualParityServer.Diffing;
 /// Semantic normalizer and diff engine comparing <see cref="WorldDomSnapshot"/> from <c>legacy-linux</c>
 /// against <c>reborn-server</c> while filtering ephemeral IDs, tick counters, and regeneration noise.
 /// </summary>
-public sealed class SemanticDiffEngine
+public sealed partial class SemanticDiffEngine
 {
     private readonly DiffOptions _options;
     private int _nextFindingSequence;
@@ -205,8 +206,8 @@ public sealed class SemanticDiffEngine
 
         CompareExact("Dialog.IsTalk", legacy.IsTalk, reborn.IsTalk, FindingSeverity.Warning, FindingCategory.NpcDialog, addFinding);
 
-        string legacyPrompt = NormalizeText(legacy.Prompt);
-        string rebornPrompt = NormalizeText(reborn.Prompt);
+        string legacyPrompt = NormalizeDialogPrompt(legacy.Prompt);
+        string rebornPrompt = NormalizeDialogPrompt(reborn.Prompt);
         if (!string.Equals(legacyPrompt, rebornPrompt, StringComparison.Ordinal))
         {
             addFinding(
@@ -396,6 +397,17 @@ public sealed class SemanticDiffEngine
                 rebornValue.ToString() ?? string.Empty);
         }
     }
+
+    private static string NormalizeDialogPrompt(string? value)
+    {
+        string normalized = NormalizeText(value);
+        return string.IsNullOrEmpty(normalized)
+            ? normalized
+            : NpcSprDisplayNameRegex().Replace(normalized, "<<NPC>>");
+    }
+
+    [GeneratedRegex(@"(?<=#npcspr:\?NPCSID=\d+\?ACTION=\d+>)<<.*?>>(?=<link>:)", RegexOptions.CultureInvariant | RegexOptions.Singleline)]
+    private static partial Regex NpcSprDisplayNameRegex();
 
     private static string NormalizeText(string? value)
     {

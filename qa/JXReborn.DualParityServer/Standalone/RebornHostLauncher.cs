@@ -44,6 +44,35 @@ public sealed class RebornHostLauncher : IAsyncDisposable
         Directory.CreateDirectory(_tempWorkDir);
         string ephemeralDbPath = Path.Combine(_tempWorkDir, "reborn-t0.db");
 
+        ProcessStartInfo psi = CreateHostProcessStartInfo(hostProjectPath, serverRootDir, ephemeralDbPath);
+
+        _logs.Append($"Launching JXReborn.Host on 127.0.0.1:{_options.RebornPort} (GS {_options.RebornGameServerPort}), DB={ephemeralDbPath}");
+
+        _jobObject = new Win32JobObject();
+        _process = Process.Start(psi)
+            ?? throw new InvalidOperationException($"Failed to start JXReborn.Host from '{hostProjectPath}'.");
+        _jobObject.AssignProcess(_process);
+
+        _process.OutputDataReceived += (_, e) => { if (e.Data is not null) _logs.Append(e.Data); };
+        _process.ErrorDataReceived += (_, e) => { if (e.Data is not null) _logs.Append($"[ERR] {e.Data}"); };
+        _process.BeginOutputReadLine();
+        _process.BeginErrorReadLine();
+
+        await WaitForTcpPortAsync("127.0.0.1", _options.RebornPort, TimeSpan.FromSeconds(60), cancellationToken);
+        _isReady = true;
+        _state = "Running";
+    }
+
+    public ProcessStartInfo CreateHostProcessStartInfo(string ephemeralDbPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ephemeralDbPath);
+        string hostProjectPath = ResolveHostProjectPath(_options.RebornHostProjectPath);
+        string serverRootDir = ResolveServerRootDirectory(hostProjectPath);
+        return CreateHostProcessStartInfo(hostProjectPath, serverRootDir, ephemeralDbPath);
+    }
+
+    private ProcessStartInfo CreateHostProcessStartInfo(string hostProjectPath, string serverRootDir, string ephemeralDbPath)
+    {
         string? resolvedPackDir = ResolvePackDirectory(_options.RebornPackDirectory, serverRootDir);
         ProcessStartInfo psi = BuildStartInfo(hostProjectPath, serverRootDir, resolvedPackDir);
         if (TryResolveKeyTablePath(serverRootDir) is { } keyTablePath)
@@ -51,6 +80,8 @@ public sealed class RebornHostLauncher : IAsyncDisposable
             psi.Environment["LEGACY_KEYTABLE_PATH"] = keyTablePath;
             psi.Environment["LegacyGateway__KeyTablePath"] = keyTablePath;
         }
+        psi.Environment["DOTNET_ENVIRONMENT"] = "Development";
+        psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         psi.Environment["Persistence__Provider"] = "Sqlite";
         psi.Environment["Persistence__ConnectionString"] = $"Data Source={ephemeralDbPath}";
         psi.Environment["Persistence__AutoInitializeDatabase"] = "true";
@@ -77,21 +108,7 @@ public sealed class RebornHostLauncher : IAsyncDisposable
             psi.Environment["Pack__PackDirectory"] = resolvedPackDir;
         }
 
-        _logs.Append($"Launching JXReborn.Host on 127.0.0.1:{_options.RebornPort} (GS {_options.RebornGameServerPort}), DB={ephemeralDbPath}");
-
-        _jobObject = new Win32JobObject();
-        _process = Process.Start(psi)
-            ?? throw new InvalidOperationException($"Failed to start JXReborn.Host from '{hostProjectPath}'.");
-        _jobObject.AssignProcess(_process);
-
-        _process.OutputDataReceived += (_, e) => { if (e.Data is not null) _logs.Append(e.Data); };
-        _process.ErrorDataReceived += (_, e) => { if (e.Data is not null) _logs.Append($"[ERR] {e.Data}"); };
-        _process.BeginOutputReadLine();
-        _process.BeginErrorReadLine();
-
-        await WaitForTcpPortAsync("127.0.0.1", _options.RebornPort, TimeSpan.FromSeconds(60), cancellationToken);
-        _isReady = true;
-        _state = "Running";
+        return psi;
     }
 
     public string GetAllLogs() => _logs.GetAllText();
@@ -278,11 +295,15 @@ public sealed class RebornHostLauncher : IAsyncDisposable
         string workspaceRoot = Directory.GetParent(serverRootDir)?.FullName ?? serverRootDir;
         string[] candidates =
         [
+            Path.Combine(workspaceRoot, "workbench", "src", "JXReborn.Workbench.Scripts", "bin", "Debug", "net10.0"),
             Path.Combine(workspaceRoot, "workbench", "scripts"),
             Path.Combine(AppContext.BaseDirectory, "scripts")
         ];
 
-        return candidates.FirstOrDefault(dir => File.Exists(Path.Combine(dir, "JXReborn.Workbench.Scripts.dll")));
+        return candidates
+            .Where(static dir => File.Exists(Path.Combine(dir, "JXReborn.Workbench.Scripts.dll")))
+            .OrderByDescending(static dir => File.GetLastWriteTimeUtc(Path.Combine(dir, "JXReborn.Workbench.Scripts.dll")))
+            .FirstOrDefault();
     }
 
     public async ValueTask DisposeAsync()
