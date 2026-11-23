@@ -900,18 +900,18 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
 
     private static void PromptItemByIds(ZoneScriptDialogContextBase ctx)
     {
-        ctx.AskClientForNumber("Nhập Genre (0=Trang bị, 1=Thuốc, 4=Khoáng/NV, 6=Script):", 0, 10, static (nc1, genreRaw) =>
+        ctx.AskClientForNumber("Nhập Genre (0..10):", 0, 10, static (nc1, genreRaw) =>
         {
             var genre = (ItemGenreKind)Math.Clamp(genreRaw, 0, 10);
-            nc1.AskClientForNumber("Nhập DetailType (0..255):", 0, 255, (nc2, detailRaw) =>
+            nc1.AskClientForNumber("Nhập Detail (0..1000):", 0, 1000, (nc2, detailRaw) =>
             {
-                short detail = (short)Math.Clamp(detailRaw, 0, 255);
-                nc2.AskClientForNumber("Nhập ParticularType (0..10000):", 0, 10_000, (nc3, particularRaw) =>
+                short detail = (short)Math.Clamp(detailRaw, 0, 1000);
+                nc2.AskClientForNumber("Nhập Particular (0..10000):", 0, 10_000, (nc3, particularRaw) =>
                 {
                     short particular = (short)Math.Clamp(particularRaw, 0, 10_000);
-                    nc3.AskClientForNumber("Nhập Level (1..10):", 1, 10, (nc4, levelRaw) =>
+                    nc3.AskClientForNumber("Nhập Level (1..100):", 1, 100, (nc4, levelRaw) =>
                     {
-                        byte level = (byte)Math.Clamp(levelRaw, 1, 10);
+                        byte level = (byte)Math.Clamp(levelRaw, 1, 100);
                         var bc = (ZoneScriptDialogContextBase)nc4;
                         ItemTemplate tpl = ResolveOrCreateTemplate(
                             bc,
@@ -931,8 +931,10 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                         }
                         else
                         {
-                            _ = TryPlaceAndSyncBagSlot(bc.Player, CreateSimpleSlot(bc.Player, tpl, genre, detail, particular, level));
-                            bc.SendSystemMessage($"Đã cấp vật phẩm {tpl.Name} ({(byte)genre},{detail},{particular},{level}).");
+                            short resolvedParticular = genre == ItemGenreKind.QuestKey ? (short)tpl.ParticularType : particular;
+                            byte resolvedLevel = genre == ItemGenreKind.QuestKey ? (byte)tpl.Level : level;
+                            _ = TryPlaceAndSyncBagSlot(bc.Player, CreateSimpleSlot(bc.Player, tpl, genre, detail, resolvedParticular, resolvedLevel));
+                            bc.SendSystemMessage($"Đã cấp vật phẩm {tpl.Name} ({(byte)genre},{detail},{resolvedParticular},{resolvedLevel}).");
                         }
                         return ValueTask.CompletedTask;
                     });
@@ -1585,6 +1587,25 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 bc.SendSystemMessage($"Đã đặt điểm hồi sinh tại Map {bc.Player.MapId} (Rev={revId}).");
                 return ValueTask.CompletedTask;
             }),
+            new DialogOption("Dịch chuyển tọa độ (Map,X,Y)", static c =>
+            {
+                c.AskClientForNumber("Nhập Map ID (1..1000):", 1, 1000, static (nc1, mapId) =>
+                {
+                    ushort targetMap = (ushort)Math.Clamp(mapId, 1, 1000);
+                    nc1.AskClientForNumber("Nhập Tile X (1..4096):", 1, 4096, (nc2, tileX) =>
+                    {
+                        int clampedX = Math.Clamp(tileX, 1, 4096);
+                        nc2.AskClientForNumber("Nhập Tile Y (1..8192):", 1, 8192, async (nc3, tileY) =>
+                        {
+                            int clampedY = Math.Clamp(tileY, 1, 8192);
+                            _ = await nc3.TeleportPlayerAsync(targetMap, clampedX * 32, clampedY * 32, targetFightMode: 0);
+                        });
+                        return ValueTask.CompletedTask;
+                    });
+                    return ValueTask.CompletedTask;
+                });
+                return ValueTask.CompletedTask;
+            }),
             new DialogOption("Quay lại", static c =>
             {
                 OpenRootMenu((ZoneScriptDialogContextBase)c);
@@ -1701,6 +1722,22 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
                 });
                 return ValueTask.CompletedTask;
             }),
+            new DialogOption("Đặt Task(ID) = Giá trị bất kỳ", static c =>
+            {
+                c.AskClientForNumber("Nhập Task ID (0..65535):", 0, 65535, static (nc1, taskId) =>
+                {
+                    ushort id = (ushort)Math.Clamp(taskId, 0, 65535);
+                    nc1.AskClientForNumber("Nhập giá trị Task:", 0, 2_000_000_000, (nc2, value) =>
+                    {
+                        int clampedVal = Math.Clamp(value, 0, 2_000_000_000);
+                        nc2.SetTask(id, clampedVal);
+                        nc2.SendSystemMessage($"[GM] Task({id}) = {clampedVal}");
+                        return ValueTask.CompletedTask;
+                    });
+                    return ValueTask.CompletedTask;
+                });
+                return ValueTask.CompletedTask;
+            }),
             new DialogOption("Quay lại", static c =>
             {
                 OpenRootMenu((ZoneScriptDialogContextBase)c);
@@ -1739,6 +1776,16 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
             if (match is not null)
             {
                 return match;
+            }
+
+            if (genre == ItemGenreKind.QuestKey)
+            {
+                ItemTemplate? questMatch = catalog.AllItems.FirstOrDefault(
+                    t => t.Genre == ItemGenreKind.QuestKey && t.DetailType == detailType);
+                if (questMatch is not null)
+                {
+                    return questMatch;
+                }
             }
         }
 

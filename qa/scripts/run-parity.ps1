@@ -189,6 +189,9 @@ $existingLine = Get-ContainerLine $psOut $ContainerName
 $isAlreadyUp = ($null -ne $existingLine) -and ($existingLine -match "\bUp\b" -or $existingLine -match "running")
 
 if (-not ($ReuseRunning -and $isAlreadyUp -and $ForceExtract -eq "0")) {
+    # Always extract the mounted profile archive when recreating a fresh T=0 container,
+    # because the base container image may already ship a pre-populated /home/jxser directory.
+    $ForceExtract = "1"
     if ($null -ne $existingLine) {
         Write-Host "[PARITY] Removing previous container '$ContainerName' for clean T=0 tmpfs database..." -ForegroundColor DarkGray
         if ($Cli -eq "wslc") {

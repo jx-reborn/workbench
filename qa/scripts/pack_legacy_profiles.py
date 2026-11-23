@@ -131,9 +131,67 @@ EXECUTABLE_REL_PATHS: set[str] = {
 }
 
 SIM_INCLUDE_RE = re.compile(
-    rb"^(\s*Include\s*\(.*(?:simcity|\\sims\\|/sims/|autoingame|\\vsd\\|/vsd/|bosswar\.lua|sim_guilds\.lua|sim_siege_names\.lua|simsevencity\.lua|simtk\.lua|tuicankhon_tudong\.lua).*)$",
+    rb"^(\s*Include\s*\((?![^)\r\n]*leaguematch[\\/]+sims[\\/]+(?:startup|config)\.lua)[^)\r\n]*(?:simcity|\\sims\\|/sims/|autoingame|\\vsd\\|/vsd/|bosswar\.lua|sim_guilds\.lua|sim_siege_names\.lua|simsevencity\.lua|simtk\.lua|tuicankhon_tudong\.lua).*)$",
     re.IGNORECASE | re.MULTILINE,
 )
+
+LSIM_CONFIG_STUB = b"""-- [ZERO-SIM] Safe no-op config for LeagueMatch Sims (no virtual bots spawned)
+LSIM_Config = {
+    enabled = 0,
+    hallMap = -1,
+    waitMap = -1,
+    fightMap = -1,
+    fallbackTown = { 78, 1577, 3238 },
+}
+
+function LSIM_IsMap(nMapId)
+    return nil
+end
+"""
+
+LSIM_STARTUP_STUB = b"""Include("\\\\script\\\\missions\\\\leaguematch\\\\sims\\\\config.lua")
+
+function LSIM_Startup()
+end
+"""
+
+SEVENCITY_SG_FALLBACK_STUB = b"""-- [ZERO-SIM] Safe Lua 4.0 fallbacks when sim_guilds.lua is omitted
+SG_OPPONENT_NAMES = SG_OPPONENT_NAMES or { "", "" }
+if not SG_Split then
+    function SG_Split(s, sep)
+        local out = {}
+        if not s then return out end
+        local first = 1
+        while 1 do
+            local a, b = strfind(s, sep, first, 1)
+            if not a then
+                tinsert(out, strsub(s, first))
+                return out
+            end
+            tinsert(out, strsub(s, first, a - 1))
+            first = b + 1
+        end
+    end
+end
+if not SG_Checksum then
+    function SG_Checksum(s)
+        if not s then return 0 end
+        local n = 0
+        for i = 1, strlen(s) do
+            n = mod(n * 31 + strbyte(s, i), 2147483647)
+        end
+        return n
+    end
+end
+if not SG_EnsureOpponentGuilds then function SG_EnsureOpponentGuilds() end end
+if not SG_EnsureVirtualOnline then function SG_EnsureVirtualOnline() end end
+if not SG_Load then
+    function SG_Load()
+        return { name = "", master = "", added = 0, ranks = {}, ids = {} }
+    end
+end
+if not SG_FinalizeDissolve then function SG_FinalizeDissolve(x) return 0 end end
+"""
 
 CFG_ZERO_FLAGS: dict[bytes, bytes] = {
     b"CFG_HoTroTanThu": b"0",
@@ -816,37 +874,39 @@ function GMT_MenuItems()
 end
 
 function GMT_AskItemGenre()
-    AskClientForNumber("GMT_OnItemGenre", 0, 10, {L("Nhập Genre (0=Trang bị, 1=Thuốc, 4=Khoáng/NV, 6=Script):")})
+    AskClientForNumber("GMT_OnItemGenre", 0, 10, {L("Nhập Genre (0..10):")})
 end
 
 function GMT_OnItemGenre(nGenre)
     if nGenre and nGenre >= 0 and nGenre <= 10 then
         GMT_SetTmp("it_g", nGenre)
-        AskClientForNumber("GMT_OnItemDetail", 0, 255, {L("Nhập DetailType (0..255):")})
+        AskClientForNumber("GMT_OnItemDetail", 0, 1000, {L("Nhập Detail (0..1000):")})
     end
 end
 
 function GMT_OnItemDetail(nDetail)
-    if nDetail and nDetail >= 0 and nDetail <= 255 then
+    if nDetail and nDetail >= 0 and nDetail <= 1000 then
         GMT_SetTmp("it_d", nDetail)
-        AskClientForNumber("GMT_OnItemParticular", 0, 10000, {L("Nhập ParticularType (0..10000):")})
+        AskClientForNumber("GMT_OnItemParticular", 0, 10000, {L("Nhập Particular (0..10000):")})
     end
 end
 
 function GMT_OnItemParticular(nParticular)
     if nParticular and nParticular >= 0 and nParticular <= 10000 then
         GMT_SetTmp("it_p", nParticular)
-        AskClientForNumber("GMT_OnItemLevel", 1, 10, {L("Nhập Level (1..10):")})
+        AskClientForNumber("GMT_OnItemLevel", 1, 100, {L("Nhập Level (1..100):")})
     end
 end
 
 function GMT_OnItemLevel(nLevel)
-    if nLevel and nLevel >= 1 and nLevel <= 10 then
+    if nLevel and nLevel >= 1 and nLevel <= 100 then
         local nG = GMT_GetTmp("it_g")
         local nD = GMT_GetTmp("it_d")
         local nP = GMT_GetTmp("it_p")
         if CalcFreeItemCellCount() >= 1 then
-            if nG == 0 then
+            if nG == 4 then
+                AddEventItem(nD)
+            elseif nG == 0 then
                 local nVer = ITEM_GetLatestItemVersion()
                 AddItemEx(nVer, 0, 0, 0, nD, nP, nLevel, 0, 0, 0, 0, 0, 0, 0, 0)
             else
@@ -1112,7 +1172,7 @@ end
 
 -- ==================== [5] MAP & TELEPORT ====================
 function GMT_MenuTeleport()
-    Say({L("Bản đồ & Dịch chuyển nhanh (Atomic):")}, 9,
+    Say({L("Bản đồ & Dịch chuyển nhanh (Atomic):")}, 10,
         {L("Ba Lăng Huyện - Trung tâm (53)")} .. "/GMT_Tp53",
         {L("Tương Dương Phủ (78)")} .. "/GMT_Tp78",
         {L("Dương Châu Phủ (80)")} .. "/GMT_Tp80",
@@ -1121,7 +1181,39 @@ function GMT_MenuTeleport()
         {L("Vũ Lăng Động - Cửa động (199)")} .. "/GMT_Tp199",
         {L("Nhập Map ID để dịch chuyển")} .. "/GMT_AskMapId",
         {L("Đặt điểm hồi sinh tại bản đồ hiện tại")} .. "/GMT_SetRevivalHere",
+        {L("Dịch chuyển tọa độ (Map,X,Y)")} .. "/GMT_AskTpCoords",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
+end
+
+function GMT_AskTpCoords()
+    AskClientForNumber("GMT_OnTpCoordMap", 1, 1000, {L("Nhập Map ID (1..1000):")})
+end
+
+function GMT_OnTpCoordMap(nMap)
+    if nMap and nMap >= 1 and nMap <= 1000 then
+        GMT_SetTmp("tp_map", nMap)
+        AskClientForNumber("GMT_OnTpCoordX", 1, 4096, {L("Nhập Tile X (1..4096):")})
+    end
+end
+
+function GMT_OnTpCoordX(nX)
+    if nX and nX >= 1 and nX <= 4096 then
+        GMT_SetTmp("tp_x", nX)
+        AskClientForNumber("GMT_OnTpCoordY", 1, 8192, {L("Nhập Tile Y (1..8192):")})
+    end
+end
+
+function GMT_OnTpCoordY(nY)
+    if nY and nY >= 1 and nY <= 8192 then
+        local nMap = GMT_GetTmp("tp_map")
+        local nX = GMT_GetTmp("tp_x")
+        if SubWorldID2Idx(nMap) >= 0 then
+            NewWorld(nMap, nX, nY)
+            SetFightState(0)
+        else
+            Msg2Player({L("Bản đồ chưa được nạp trên máy chủ này.")})
+        end
+    end
 end
 
 function GMT_Tp53() NewWorld(53, 1600, 3200) SetFightState(0) end
@@ -1213,12 +1305,32 @@ end
 
 -- ==================== [7] TASKS & DIAGNOSTICS ====================
 function GMT_MenuTasksAndDiag()
-    Say({L("Biến Hệ thống (Task) & Chẩn đoán (Atomic):")}, 5,
+    Say({L("Biến Hệ thống (Task) & Chẩn đoán (Atomic):")}, 6,
         {L("In Snapshot trạng thái nhân vật")} .. "/GMT_PrintSnapshot",
         {L("Đọc giá trị Task theo ID")} .. "/GMT_AskGetTask",
         {L("Đặt Task(ID) = 1")} .. "/GMT_AskSetTask1",
         {L("Đặt Task(ID) = 0")} .. "/GMT_AskSetTask0",
+        {L("Đặt Task(ID) = Giá trị bất kỳ")} .. "/GMT_AskSetTaskVal",
         {L("Quay lại")} .. "/GMT_OpenRootMenu")
+end
+
+function GMT_AskSetTaskVal()
+    AskClientForNumber("GMT_OnSetTaskValId", 0, 65535, {L("Nhập Task ID (0..65535):")})
+end
+
+function GMT_OnSetTaskValId(nTaskId)
+    if nTaskId and nTaskId >= 0 then
+        GMT_SetTmp("tsk_id", nTaskId)
+        AskClientForNumber("GMT_OnSetTaskValNum", 0, 2000000000, {L("Nhập giá trị Task:")})
+    end
+end
+
+function GMT_OnSetTaskValNum(nVal)
+    local nTaskId = GMT_GetTmp("tsk_id")
+    if nTaskId and nTaskId >= 0 and nVal then
+        SetTask(nTaskId, nVal)
+        Msg2Player("[GM] Task(" .. nTaskId .. ") = " .. nVal)
+    end
 end
 
 function GMT_PrintSnapshot()
@@ -1388,6 +1500,10 @@ def sanitize_lua_bytes(rel_path: str, data: bytes) -> bytes:
         if b"\nMEMBER_ADD_G_1" not in data and b"\r\nMEMBER_ADD_G_1" not in data:
             data = data + b"\nMEMBER_ADD_G_1 = DefFun3\nMEMBER_ADD_G_2 = DefFun3\n"
 
+    elif rel_path == "server1/script/missions/sevencity/sim_cities.lua":
+        if b"-- [ZERO-SIM] Safe Lua 4.0 fallbacks" not in data:
+            data = SEVENCITY_SG_FALLBACK_STUB + b"\n" + data
+
     return data
 
 
@@ -1508,6 +1624,8 @@ def build_profile_archive(
         "server1/script/global/login.lua": build_clean_login_lua(profile),
         "server1/script/global/nobitaxd/item/camnang_gm.lua": build_camnang_gm_lua(enabled=True),
         "server1/maps/worldset.ini": build_minimal_worldset_ini(),
+        "server1/script/missions/leaguematch/sims/config.lua": LSIM_CONFIG_STUB,
+        "server1/script/missions/leaguematch/sims/startup.lua": LSIM_STARTUP_STUB,
     }
 
     written_paths: set[str] = set()
