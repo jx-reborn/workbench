@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using JXReborn.ClientDriver;
 using JXReborn.GameAssets.WorldMaps;
 using JXReborn.WireParityProxy.Navigation;
 using JXReborn.WireParityProxy.Scenarios;
@@ -135,6 +137,8 @@ public sealed class WireParityScenarioAndPathfinderTests
             "gm_set_level",
             "gm_set_money",
             "gm_set_camp",
+            "gm_learn_skill",
+            "gm_join_faction",
             "gm_set_fight_mode",
             "gm_set_task",
             "gm_grant_item",
@@ -142,6 +146,7 @@ public sealed class WireParityScenarioAndPathfinderTests
             "walk_to",
             "step_trap",
             "interact_npc",
+            "attack_npc",
             "click_object",
             "select_dialog",
             "confirm_talk",
@@ -149,6 +154,7 @@ public sealed class WireParityScenarioAndPathfinderTests
             "input_number",
             "buy_shop_item",
             "repair_item",
+            "store_money",
             "box_operate",
             "crawl_region_npcs"
         };
@@ -301,5 +307,82 @@ public sealed class WireParityScenarioAndPathfinderTests
 
         double distMps = Math.Sqrt(Math.Pow(endX - 52464, 2) + Math.Pow(endY - 102834, 2));
         Assert.True(distMps <= 160.0, $"Expected shoreline stop within DialogNpc server range (<=160 Mps), got {distMps:F1} Mps at ({endX / 32},{endY / 32}).");
+    }
+
+    [Fact]
+    public void ResolveShopBuyGridCell_WhenGmTokenOccupiesOriginCell_ShouldReturnNonCollidingEquipRoomSlot()
+    {
+        // Ground Truth: magicscript.txt L4780 Cam nang Tan Thu (6, 1, 4258) is 1x1 in EquipRoom (place=3, gridX=0, gridY=0)
+        InventoryItemSnapshot gmToken = new(
+            ArrayIndex: 1,
+            ServerItemId: 1001u,
+            Place: 3,
+            GridX: 0,
+            GridY: 0,
+            Genre: 6,
+            DetailType: 1,
+            ParticularType: 4258,
+            Level: 1,
+            Series: 0,
+            Width: 1,
+            Height: 1,
+            CurDurability: -1,
+            MaxDurability: -1,
+            StackCount: 1,
+            NameTcvn3Hex: "43616D");
+
+        (int gridX, int gridY) = WireScenarioRunner.ResolveShopBuyGridCell([gmToken], requiredWidth: 2, requiredHeight: 3);
+
+        Assert.InRange(gridX, 0, 4);
+        Assert.InRange(gridY, 0, 3);
+        bool overlapsGmToken = gridX <= 0 && (gridX + 2) > 0 && gridY <= 0 && (gridY + 3) > 0;
+        Assert.False(overlapsGmToken, $"Selected shop buy slot ({gridX},{gridY}) collides with GM Token (6,1,4258) at (0,0).");
+    }
+
+    [Fact]
+    public void BuiltInMapSurveyScenario_BaLangHuyenMap53_ShouldPassStrictGroundTruthCoverageAudit()
+    {
+        string mapsScenarioDir = FindScenarioMapsDirectory();
+        string scenarioPath = Path.Combine(mapsScenarioDir, "053_ba-lang-huyen.scenario.json");
+        Assert.True(File.Exists(scenarioPath), $"Missing scenario file: {scenarioPath}");
+
+        DirectoryInfo? workbenchRoot = new(mapsScenarioDir);
+        while (workbenchRoot is not null && !File.Exists(Path.Combine(workbenchRoot.FullName, ".agents", "skills", "khao-sat-ban-do", "scripts", "audit_map_scenario.py")))
+        {
+            workbenchRoot = workbenchRoot.Parent;
+        }
+
+        Assert.NotNull(workbenchRoot);
+        string auditScript = Path.Combine(workbenchRoot.FullName, ".agents", "skills", "khao-sat-ban-do", "scripts", "audit_map_scenario.py");
+
+        var psi = new ProcessStartInfo("python", $"\"{auditScript}\" audit --scenario \"{scenarioPath}\" --strict --json")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using Process proc = Process.Start(psi)!;
+        string stdout = proc.StandardOutput.ReadToEnd();
+        string stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit();
+
+        Assert.False(string.IsNullOrWhiteSpace(stdout), $"Auditor produced empty output. STDERR:\n{stderr}");
+        using JsonDocument doc = JsonDocument.Parse(stdout);
+        JsonElement root = doc.RootElement;
+
+        Assert.True(
+            proc.ExitCode == 0 && root.GetProperty("passed").GetBoolean(),
+            $"Ba Lang Huyen scenario failed strict 100% Ground-Truth coverage audit:\n{stdout}\n{stderr}");
+
+        JsonElement counts = root.GetProperty("counts");
+        Assert.Equal(39, counts.GetProperty("dialogNpcsTotal").GetInt32());
+        Assert.Equal(39, counts.GetProperty("dialogNpcsCovered").GetInt32());
+        Assert.Equal(11, counts.GetProperty("objectsTotal").GetInt32());
+        Assert.Equal(11, counts.GetProperty("objectsCovered").GetInt32());
+        Assert.Equal(8, counts.GetProperty("trapsTotal").GetInt32());
+        Assert.Equal(8, counts.GetProperty("trapsCovered").GetInt32());
+        Assert.Equal(3, counts.GetProperty("scriptedMonsterGroupsTotal").GetInt32());
+        Assert.Equal(3, counts.GetProperty("scriptedMonsterGroupsCovered").GetInt32());
     }
 }

@@ -1,7 +1,7 @@
 {
   "name": "BaLangHuyenFullGroundTruthSurvey",
   "mapId": 53,
-  "description": "100% Legacy Ground-Truth end-to-end survey for Ba Lang Huyen (Map 53) and linked Map 199: Lv1 gate/station/wharf blocks, 4 fight-toggle gates, shops/storage/boards, 10 sect guides, 5 global NPCs, Tasks 46/48/47 quests, and Lv20 cross-map portal 199.",
+  "description": "100% Legacy Ground-Truth deterministic Set-Cover & E2E survey for Ba Lang Huyen (Map 53) and linked Maps 54/59/70/74/78/199: 39/39 active DialogNPCs, 11/11 MapObjects (box, 2 boards, 4 steles, 3 signposts, jade pendant), 8/8 Traps (4 bidirectional gates 0<->1 + 4 cross-map portals Lv1 blocked vs Lv20 unlocked), Tasks 46/47/48 (real Tham Cuu purchase), Task 32 Lightfoot (real Wooden Stake/Sandbag/Wooden Dummy OnDeath), Tianwang Task 38/Task 3 hooks, real shop purchase & box money deposit/withdraw.",
   "account": "gm_bl_01",
   "password": "123456",
   "roleName": "KhaoSat53",
@@ -11,229 +11,167 @@
     {
       "name": "LoginMap53Lv1",
       "type": "login",
-      "region": "Stage 1 - Square",
-      "notes": "T=0 initial character creation on Map 53 (Lv 1)."
+      "region": "Stage 1 - Lv1 Square & Blocks",
+      "notes": "T=0 initial character creation on Map 53 at Level 1."
     },
     {
-      "name": "ClickStorageBox1",
+      "name": "ClickStorageBox1Lv1",
       "type": "click_object",
-      "region": "Stage 1 - Square",
+      "region": "Stage 1 - Lv1 Square & Blocks",
       "mapId": 53,
       "tileX": 1612,
       "tileY": 3167,
-      "maxRadiusTiles": 6,
-      "notes": "Obj Ba Lang Storage Box 1 -> OpenBox() + SetRevPos(19)."
+      "dataId": 1,
+      "maxRadiusTiles": 8,
+      "notes": "Obj Storage Box 1 -> OpenBox() + SetRevPos(19)."
     },
     {
-      "name": "CloseStorageBoxDialog",
+      "name": "CloseStorageBox1Lv1",
       "type": "close_dialog",
-      "region": "Stage 1 - Square"
+      "region": "Stage 1 - Lv1 Square & Blocks"
     },
     {
       "name": "ClickNoticeBoard1",
       "type": "click_object",
-      "region": "Stage 1 - Square",
+      "region": "Stage 1 - Lv1 Square & Blocks",
       "mapId": 53,
       "tileX": 1627,
       "tileY": 3164,
-      "maxRadiusTiles": 6,
+      "dataId": 4,
+      "maxRadiusTiles": 8,
       "notes": "Obj Notice Board 1 -> Say('Nha mon thong cao', 0)."
     },
     {
       "name": "CloseNoticeBoard1",
       "type": "close_dialog",
-      "region": "Stage 1 - Square"
+      "region": "Stage 1 - Lv1 Square & Blocks"
     },
     {
       "name": "CheckDaTauLv1Block",
       "type": "interact_npc",
-      "region": "Stage 1 - Square",
+      "region": "Stage 1 - Lv1 Square & Blocks",
       "mapId": 53,
       "tileX": 1626,
       "tileY": 3172,
       "npcName": "Dã Tẩu",
       "maxRadiusTiles": 10,
-      "notes": "Level_DaTau = 10 -> blocked at Lv 1."
+      "notes": "seasonnpc.lua blocks Lv < 10."
     },
     {
       "name": "CloseDaTauLv1Block",
       "type": "close_dialog",
-      "region": "Stage 1 - Square"
+      "region": "Stage 1 - Lv1 Square & Blocks"
     },
     {
       "name": "CheckAFangLv1Lore",
       "type": "interact_npc",
-      "region": "Stage 1 - Lv1 Checks",
+      "region": "Stage 1 - Lv1 Square & Blocks",
       "mapId": 53,
       "tileX": 1619,
       "tileY": 3254,
       "npcName": "A Phương",
       "maxRadiusTiles": 10,
-      "notes": "Task 48 requires Lv >= 2 -> Lv 1 only gives Talk lore."
+      "notes": "Task 48 requires Lv >= 2 -> Lv 1 returns lore Talk."
     },
     {
-      "name": "ConfirmAFangLv1Lore",
-      "type": "confirm_talk",
-      "region": "Stage 1 - Lv1 Checks"
+      "name": "CloseAFangLv1Lore",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Square & Blocks"
     },
     {
       "name": "CheckCoLaoThaiLv1Lore",
       "type": "interact_npc",
-      "region": "Stage 1 - Lv1 Checks",
+      "region": "Stage 1 - Lv1 Square & Blocks",
       "mapId": 53,
       "tileX": 1631,
       "tileY": 3242,
       "npcName": "Cổ Lão Thái",
       "maxRadiusTiles": 10,
-      "notes": "Task 47 requires Lv >= 6 -> Lv 1 only gives Talk lore."
+      "notes": "Task 47 requires Lv >= 6 -> Lv 1 returns lore Talk."
     },
     {
-      "name": "ConfirmCoLaoThaiLv1Lore",
-      "type": "confirm_talk",
-      "region": "Stage 1 - Lv1 Checks"
+      "name": "CloseCoLaoThaiLv1Lore",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Square & Blocks"
     },
     {
       "name": "CheckStation10Lv1Block",
       "type": "interact_npc",
-      "region": "Stage 1 - Lv1 Checks",
+      "region": "Stage 1 - Lv1 Square & Blocks",
       "mapId": 53,
       "tileX": 1578,
       "tileY": 3236,
       "npcName": "Xa phu",
       "maxRadiusTiles": 10,
-      "notes": "Village Station 10 blocks Lv < 5."
+      "notes": "NewcomerStationCommon blocks Lv < 5."
     },
     {
-      "name": "ConfirmStation10Lv1Block",
-      "type": "confirm_talk",
-      "region": "Stage 1 - Lv1 Checks"
+      "name": "CloseStation10Lv1Block",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Square & Blocks"
     },
     {
-      "name": "WalkSouthGateFightToggle",
-      "type": "step_trap",
-      "region": "Stage 2 - 4 Gates",
-      "mapId": 53,
-      "trapId": 1968940038,
-      "expectedFightMode": 1,
-      "notes": "South gate toggles FightMode 0 -> 1 + AddStation(10) + SkillState(963)."
-    },
-    {
-      "name": "ResyncAfterSouthGate",
-      "type": "resync_if_drifted",
-      "region": "Stage 2 - 4 Gates",
-      "mapId": 53,
-      "tileX": 1564,
-      "tileY": 3248
-    },
-    {
-      "name": "TeleportEastGateForToggle",
+      "name": "TeleportDongtingBoatman2Lv1",
       "type": "gm_teleport",
-      "region": "Stage 2 - 4 Gates",
-      "mapId": 53,
-      "tileX": 1650,
-      "tileY": 3236
-    },
-    {
-      "name": "SetSafeModeBeforeEastGate",
-      "type": "gm_set_fight_mode",
-      "region": "Stage 2 - 4 Gates",
-      "value": 0
-    },
-    {
-      "name": "WalkEastGateFightToggle",
-      "type": "step_trap",
-      "region": "Stage 2 - 4 Gates",
-      "mapId": 53,
-      "trapId": 1073123649,
-      "expectedFightMode": 1
-    },
-    {
-      "name": "TeleportDongtingWharfLv1",
-      "type": "gm_teleport",
-      "region": "Stage 1 - Lv1 Checks",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1775,
       "tileY": 3180
     },
     {
-      "name": "CheckDongtingBoatmanLv1Block",
+      "name": "CheckDongtingBoatman2Lv1",
       "type": "interact_npc",
-      "region": "Stage 1 - Lv1 Checks",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1778,
       "tileY": 3177,
       "npcName": "Ngư dân",
-      "maxRadiusTiles": 10
+      "maxRadiusTiles": 8
     },
     {
-      "name": "SelectBoatmanToIslandOption",
+      "name": "SelectBoatman2ToIslandLv1",
       "type": "select_dialog",
-      "region": "Stage 1 - Lv1 Checks",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "optionIndex": 0
     },
     {
-      "name": "ConfirmBoatmanLv1Block",
-      "type": "confirm_talk",
-      "region": "Stage 1 - Lv1 Checks"
-    },
-    {
-      "name": "TeleportNamNhacPortalLv1",
-      "type": "gm_teleport",
-      "region": "Stage 2 - Lv1 Portal Blocks",
-      "mapId": 53,
-      "tileX": 1806,
-      "tileY": 3447
-    },
-    {
-      "name": "StepNamNhacPortalLv1Block",
-      "type": "step_trap",
-      "region": "Stage 2 - Lv1 Portal Blocks",
-      "mapId": 53,
-      "trapId": 2617733828,
-      "expectedMapId": 53,
-      "notes": "Lv < 5 pushes back to (1808,3456) on Map 53."
-    },
-    {
-      "name": "TeleportNorthGateArea",
-      "type": "gm_teleport",
-      "region": "Stage 2 - 4 Gates",
-      "mapId": 53,
-      "tileX": 1624,
-      "tileY": 3102
-    },
-    {
-      "name": "ClickNoticeBoard2",
-      "type": "click_object",
-      "region": "Stage 2 - 4 Gates",
-      "mapId": 53,
-      "tileX": 1619,
-      "tileY": 3097,
-      "maxRadiusTiles": 8,
-      "notes": "Notice Board 2 -> ShowLadder(4, 2, 3, 6, 17)."
-    },
-    {
-      "name": "CloseNoticeBoard2",
+      "name": "CloseBoatman2Lv1Block",
       "type": "close_dialog",
-      "region": "Stage 2 - 4 Gates"
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks"
     },
     {
-      "name": "SetSafeModeBeforeNorthGate",
-      "type": "gm_set_fight_mode",
-      "region": "Stage 2 - 4 Gates",
-      "value": 0
-    },
-    {
-      "name": "WalkNorthGateFightToggle",
-      "type": "step_trap",
-      "region": "Stage 2 - 4 Gates",
-      "mapId": 53,
-      "trapId": 2476324320,
-      "expectedFightMode": 1
-    },
-    {
-      "name": "TeleportMartialMasterNorth",
+      "name": "TeleportDongtingBoatman1Lv1",
       "type": "gm_teleport",
-      "region": "Stage 5 - North Training",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1798,
+      "tileY": 3156
+    },
+    {
+      "name": "CheckDongtingBoatman1Lv1",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1800,
+      "tileY": 3154,
+      "npcName": "Ngư dân",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectBoatman1ToIslandLv1",
+      "type": "select_dialog",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseBoatman1Lv1Block",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks"
+    },
+    {
+      "name": "TeleportMartialMasterLv1",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1668,
       "tileY": 2982
@@ -241,7 +179,7 @@
     {
       "name": "CheckMartialMasterLv1",
       "type": "interact_npc",
-      "region": "Stage 5 - North Training",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1671,
       "tileY": 2978,
@@ -249,14 +187,21 @@
       "maxRadiusTiles": 10
     },
     {
-      "name": "CloseMartialMasterLv1",
+      "name": "SelectMartialMasterLightfootLv1",
+      "type": "select_dialog",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "optionIndex": 2,
+      "notes": "education_fly blocks Lv < 2."
+    },
+    {
+      "name": "CloseMartialMasterLv1Block",
       "type": "close_dialog",
-      "region": "Stage 5 - North Training"
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks"
     },
     {
       "name": "TeleportYangtzeWharfLv1",
       "type": "gm_teleport",
-      "region": "Stage 5 - North Wharf",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1546,
       "tileY": 2928
@@ -264,7 +209,7 @@
     {
       "name": "CheckYangtzeWharfLv1Block",
       "type": "interact_npc",
-      "region": "Stage 5 - North Wharf",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1543,
       "tileY": 2923,
@@ -272,36 +217,79 @@
       "maxRadiusTiles": 10
     },
     {
-      "name": "ConfirmYangtzeWharfLv1Block",
-      "type": "confirm_talk",
-      "region": "Stage 5 - North Wharf"
+      "name": "CloseYangtzeWharfLv1Block",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks"
     },
     {
-      "name": "TeleportWestGateForToggle",
+      "name": "TeleportNamNhacSignpost1",
       "type": "gm_teleport",
-      "region": "Stage 2 - 4 Gates",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
-      "tileX": 1543,
-      "tileY": 3120
+      "tileX": 1806,
+      "tileY": 3433
     },
     {
-      "name": "SetSafeModeBeforeWestGate",
-      "type": "gm_set_fight_mode",
-      "region": "Stage 2 - 4 Gates",
-      "value": 0
+      "name": "ClickSignpost1NamNhac",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1807,
+      "tileY": 3433,
+      "dataId": 296,
+      "maxRadiusTiles": 8,
+      "notes": "Obj Signpost 1 -> Say('Ba Lang huyen<---->Nam Nhac tran', 0)."
     },
     {
-      "name": "WalkWestGateFightToggle",
+      "name": "CloseSignpost1NamNhac",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks"
+    },
+    {
+      "name": "TeleportNamNhacPortalLv1",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1806,
+      "tileY": 3447
+    },
+    {
+      "name": "StepNamNhacPortalLv1Block",
       "type": "step_trap",
-      "region": "Stage 2 - 4 Gates",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
-      "trapId": 1339313725,
-      "expectedFightMode": 1
+      "trapId": 2617733828,
+      "expectedMapId": 53,
+      "notes": "Lv < 5 pushes back to (1808,3456) on Map 53."
+    },
+    {
+      "name": "TeleportVuLangSignpost2",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1350,
+      "tileY": 3301
+    },
+    {
+      "name": "ClickSignpost2VuLangSon",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1349,
+      "tileY": 3299,
+      "dataId": 295,
+      "maxRadiusTiles": 8,
+      "notes": "Obj Signpost 2 -> Say('Ba Lang huyen<---->Vu Lang son', 0)."
+    },
+    {
+      "name": "CloseSignpost2VuLangSon",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks"
     },
     {
       "name": "TeleportVuLangSonPortalLv1",
       "type": "gm_teleport",
-      "region": "Stage 2 - Lv1 Portal Blocks",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1340,
       "tileY": 3298
@@ -309,15 +297,39 @@
     {
       "name": "StepVuLangSonPortalLv1Block",
       "type": "step_trap",
-      "region": "Stage 2 - Lv1 Portal Blocks",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "trapId": 4274748173,
       "expectedMapId": 53
     },
     {
+      "name": "TeleportMieuLinhSignpost3",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1350,
+      "tileY": 3335
+    },
+    {
+      "name": "ClickSignpost3MieuLinh",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
+      "mapId": 53,
+      "tileX": 1349,
+      "tileY": 3334,
+      "dataId": 295,
+      "maxRadiusTiles": 8,
+      "notes": "Obj Signpost 3 -> Say('Ba Lang huyen<---->Mieu Linh', 0)."
+    },
+    {
+      "name": "CloseSignpost3MieuLinh",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks"
+    },
+    {
       "name": "TeleportMieuLinhPortalLv1",
       "type": "gm_teleport",
-      "region": "Stage 2 - Lv1 Portal Blocks",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "tileX": 1340,
       "tileY": 3345
@@ -325,47 +337,433 @@
     {
       "name": "StepMieuLinhPortalLv1Block",
       "type": "step_trap",
-      "region": "Stage 2 - Lv1 Portal Blocks",
+      "region": "Stage 1 - Lv1 Wharf & Portal Blocks",
       "mapId": 53,
       "trapId": 3913465827,
       "expectedMapId": 53
     },
     {
-      "name": "TeleportTownCenterLv20Sweep",
+      "name": "TeleportSouthGateInside",
       "type": "gm_teleport",
-      "region": "Stage 3 - Town Sweep",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
       "mapId": 53,
-      "tileX": 1612,
-      "tileY": 3180
+      "tileX": 1564,
+      "tileY": 3251
+    },
+    {
+      "name": "SetSafeModeSouthGateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "value": 0
+    },
+    {
+      "name": "WalkSouthGateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 1968940038,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncSouthGateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1562,
+      "tileY": 3256
+    },
+    {
+      "name": "ClickSouthGateStele3",
+      "type": "click_object",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1557,
+      "tileY": 3253,
+      "dataId": 6,
+      "maxRadiusTiles": 10,
+      "notes": "Obj Stone Stele 3 -> Say('Ba Lang huyen', 0)."
+    },
+    {
+      "name": "CloseSouthGateStele3",
+      "type": "close_dialog",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles"
+    },
+    {
+      "name": "WalkSouthGateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 1968940038,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncSouthGateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1564,
+      "tileY": 3251
+    },
+    {
+      "name": "TeleportEastGateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1650,
+      "tileY": 3236
+    },
+    {
+      "name": "SetSafeModeEastGateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "value": 0
+    },
+    {
+      "name": "WalkEastGateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 1073123649,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEastGateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1654,
+      "tileY": 3242
+    },
+    {
+      "name": "ClickEastGateStele1",
+      "type": "click_object",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1660,
+      "tileY": 3238,
+      "dataId": 6,
+      "maxRadiusTiles": 10,
+      "notes": "Obj Stone Stele 1 -> Say('Ba Lang huyen', 0)."
+    },
+    {
+      "name": "CloseEastGateStele1",
+      "type": "close_dialog",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles"
+    },
+    {
+      "name": "WalkEastGateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 1073123649,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEastGateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1652,
+      "tileY": 3237
+    },
+    {
+      "name": "TeleportNorthGateArea",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1624,
+      "tileY": 3102
+    },
+    {
+      "name": "ClickNoticeBoard2",
+      "type": "click_object",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1619,
+      "tileY": 3097,
+      "dataId": 4,
+      "maxRadiusTiles": 8,
+      "notes": "Obj Notice Board 2 -> ShowLadder(4, 2, 3, 6, 17)."
+    },
+    {
+      "name": "CloseNoticeBoard2",
+      "type": "close_dialog",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles"
+    },
+    {
+      "name": "SetSafeModeNorthGateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "value": 0
+    },
+    {
+      "name": "WalkNorthGateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 2476324320,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncNorthGateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1631,
+      "tileY": 3096
+    },
+    {
+      "name": "ClickNorthGateStele4",
+      "type": "click_object",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1626,
+      "tileY": 3090,
+      "dataId": 6,
+      "maxRadiusTiles": 10,
+      "notes": "Obj Stone Stele 4 -> Say('Ba Lang huyen', 0)."
+    },
+    {
+      "name": "CloseNorthGateStele4",
+      "type": "close_dialog",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles"
+    },
+    {
+      "name": "WalkNorthGateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 2476324320,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncNorthGateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1628,
+      "tileY": 3100
+    },
+    {
+      "name": "TeleportWestGateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1543,
+      "tileY": 3120
+    },
+    {
+      "name": "SetSafeModeWestGateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "value": 0
+    },
+    {
+      "name": "WalkWestGateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 1339313725,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncWestGateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1539,
+      "tileY": 3112
+    },
+    {
+      "name": "ClickWestGateStele2",
+      "type": "click_object",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1544,
+      "tileY": 3109,
+      "dataId": 6,
+      "maxRadiusTiles": 10,
+      "notes": "Obj Stone Stele 2 -> Say('Ba Lang huyen', 0)."
+    },
+    {
+      "name": "CloseWestGateStele2",
+      "type": "close_dialog",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles"
+    },
+    {
+      "name": "WalkWestGateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "trapId": 1339313725,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncWestGateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 4 Bidirectional Gates & Steles",
+      "mapId": 53,
+      "tileX": 1542,
+      "tileY": 3116
+    },
+    {
+      "name": "TeleportHub1TownSquare",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1616,
+      "tileY": 3183
     },
     {
       "name": "SetLevel20",
       "type": "gm_set_level",
-      "region": "Stage 3 - Town Sweep",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "level": 20
     },
     {
       "name": "SetMoney50000",
       "type": "gm_set_money",
-      "region": "Stage 3 - Town Sweep",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "value": 50000
     },
     {
-      "name": "CrawlTownCenterEastNpcs",
+      "name": "LearnCombatSkill14Lv5",
+      "type": "gm_learn_skill",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "value": 14,
+      "level": 5
+    },
+    {
+      "name": "CrawlHub1TownSquare16Npcs",
       "type": "crawl_region_npcs",
-      "region": "Stage 3 - Town Sweep",
-      "maxRadiusTiles": 28,
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "maxRadiusTiles": 26,
       "maxBranches": 1,
       "excludeNpcNames": [
         "Xa phu",
         "Thuyền Phu",
         "Ngư dân"
-      ]
+      ],
+      "notes": "Set-Cover Hub #1: covers Da Tau (Lv20 unlocked), Le Quan, Cong thanh quan, 6 central sect guides, Grocer, and 6 global autoexec/spreader NPCs."
+    },
+    {
+      "name": "TeleportHub2WestTown",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1560,
+      "tileY": 3198
+    },
+    {
+      "name": "CrawlHub2WestTown4Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu",
+        "Thuyền Phu",
+        "Ngư dân"
+      ],
+      "notes": "Set-Cover Hub #2: covers Cuu can lao gia, Phuong Kha Vi, Du Cuu Chau, Thuy Yen Hoa Su."
+    },
+    {
+      "name": "TeleportHub3NorthInnerTown",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1585,
+      "tileY": 3133
+    },
+    {
+      "name": "CrawlHub3NorthTown7Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu",
+        "Thuyền Phu",
+        "Ngư dân"
+      ],
+      "notes": "Set-Cover Hub #3: covers Thieu Lam La Han, Ong chu tuu diem, De tu Cai Bang, Thuan Thuy, Con Lon Ho Phap, Tho ren."
+    },
+    {
+      "name": "TeleportLaGiaThamTu",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1562,
+      "tileY": 3146
+    },
+    {
+      "name": "InteractLaGiaThamTu",
+      "type": "interact_npc",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1564,
+      "tileY": 3145,
+      "npcName": "La gia Thẩm Tử",
+      "maxRadiusTiles": 8,
+      "notes": "Covers rx=97 villager outside 3x3 Region AOI of Hub #3 (rx=99)."
+    },
+    {
+      "name": "CloseLaGiaThamTu",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce"
+    },
+    {
+      "name": "TeleportGuildGuideNpc",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1593,
+      "tileY": 3187
+    },
+    {
+      "name": "InteractGuildGuideNpc",
+      "type": "interact_npc",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1593,
+      "tileY": 3188,
+      "npcName": "Người hướng dẫn bang hội",
+      "maxRadiusTiles": 8,
+      "notes": "Covers rx=99 autoexec Guild Guide outside 3x3 Region AOI of Hub #1 (rx=101) & Hub #2 (rx=97)."
+    },
+    {
+      "name": "CloseGuildGuideNpc",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce"
+    },
+    {
+      "name": "TeleportFishStallVendor",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1628,
+      "tileY": 3213
+    },
+    {
+      "name": "InteractFishStallVendor",
+      "type": "interact_npc",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "mapId": 53,
+      "tileX": 1632,
+      "tileY": 3214,
+      "npcName": "Ngư dân",
+      "maxRadiusTiles": 6,
+      "notes": "Explicitly covers fishmonger NPC sharing DisplayName 'Ngu dan' with Dongting boatmen."
+    },
+    {
+      "name": "CloseFishStallVendor",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce"
     },
     {
       "name": "OpenNgoThanYShop",
       "type": "interact_npc",
-      "region": "Stage 3 - Commerce",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "mapId": 53,
       "tileX": 1598,
       "tileY": 3209,
@@ -375,19 +773,19 @@
     {
       "name": "SelectNgoThanYShop",
       "type": "select_dialog",
-      "region": "Stage 3 - Commerce",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "optionIndex": 0,
       "notes": "Legacy opens Sale(99, 1) vs Reborn Sale(39)."
     },
     {
       "name": "CloseNgoThanYShop",
       "type": "close_dialog",
-      "region": "Stage 3 - Commerce"
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce"
     },
     {
       "name": "OpenGrocerShop",
       "type": "interact_npc",
-      "region": "Stage 3 - Commerce",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "mapId": 53,
       "tileX": 1600,
       "tileY": 3170,
@@ -397,18 +795,25 @@
     {
       "name": "SelectGrocerShop",
       "type": "select_dialog",
-      "region": "Stage 3 - Commerce",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "optionIndex": 0
+    },
+    {
+      "name": "BuyFirstGrocerItem",
+      "type": "buy_shop_item",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "value": 0,
+      "notes": "Real C2S 0x5D shop purchase into non-colliding bag cell."
     },
     {
       "name": "CloseGrocerShop",
       "type": "close_dialog",
-      "region": "Stage 3 - Commerce"
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce"
     },
     {
       "name": "OpenBlacksmithShop",
       "type": "interact_npc",
-      "region": "Stage 3 - Commerce",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "mapId": 53,
       "tileX": 1586,
       "tileY": 3154,
@@ -418,45 +823,56 @@
     {
       "name": "SelectBlacksmithShop",
       "type": "select_dialog",
-      "region": "Stage 3 - Commerce",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "optionIndex": 0
     },
     {
       "name": "CloseBlacksmithShop",
       "type": "close_dialog",
-      "region": "Stage 3 - Commerce"
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce"
     },
     {
-      "name": "TeleportTownWestForSweep",
-      "type": "gm_teleport",
-      "region": "Stage 3 - Town Sweep",
+      "name": "OpenStorageBoxForMoneyOps",
+      "type": "click_object",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "mapId": 53,
-      "tileX": 1559,
-      "tileY": 3181
+      "tileX": 1612,
+      "tileY": 3167,
+      "dataId": 1,
+      "maxRadiusTiles": 12
     },
     {
-      "name": "CrawlTownCenterWestAndVillagers",
-      "type": "crawl_region_npcs",
-      "region": "Stage 3 - Town Sweep",
-      "maxRadiusTiles": 26,
-      "maxBranches": 1,
-      "excludeNpcNames": [
-        "Xa phu",
-        "Thuyền Phu",
-        "Ngư dân"
-      ]
+      "name": "Deposit500SilverToBox",
+      "type": "store_money",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "optionIndex": 0,
+      "value": 500,
+      "notes": "Real C2S 0x73 deposit 500 silver into storage box."
     },
     {
-      "name": "StartTask46TieuNgu",
+      "name": "Withdraw500SilverFromBox",
+      "type": "store_money",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
+      "optionIndex": 1,
+      "value": 500,
+      "notes": "Real C2S 0x73 withdraw 500 silver back to bag."
+    },
+    {
+      "name": "CloseStorageBoxAfterMoneyOps",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover Town Sweep & Commerce"
+    },
+    {
+      "name": "ResetTask46TieuNgu",
       "type": "gm_set_task",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "taskId": 46,
       "value": 0
     },
     {
       "name": "TeleportNearTieuNgu",
       "type": "gm_teleport",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1628,
       "tileY": 3213
@@ -464,7 +880,7 @@
     {
       "name": "TalkTieuNguAcceptQuest",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1639,
       "tileY": 3213,
@@ -474,13 +890,18 @@
     {
       "name": "AcceptTieuNguTask46",
       "type": "select_dialog",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "optionIndex": 0
+    },
+    {
+      "name": "CloseTieuNguAcceptTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
     },
     {
       "name": "TalkNgoThanYDuringTask46",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1598,
       "tileY": 3209,
@@ -488,14 +909,14 @@
       "maxRadiusTiles": 12
     },
     {
-      "name": "ConfirmNgoThanYTask46",
-      "type": "confirm_talk",
-      "region": "Stage 4 - World Quests"
+      "name": "CloseNgoThanYTask46Talk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
     },
     {
       "name": "TalkThienVuongForPill",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1610,
       "tileY": 3196,
@@ -503,14 +924,14 @@
       "maxRadiusTiles": 12
     },
     {
-      "name": "ConfirmThienVuongPill",
-      "type": "confirm_talk",
-      "region": "Stage 4 - World Quests"
+      "name": "CloseThienVuongPillTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
     },
     {
       "name": "TurnInTieuNguTask46",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1639,
       "tileY": 3213,
@@ -518,21 +939,21 @@
       "maxRadiusTiles": 12
     },
     {
-      "name": "ConfirmTieuNguReward",
-      "type": "confirm_talk",
-      "region": "Stage 4 - World Quests"
+      "name": "CloseTieuNguRewardTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
     },
     {
       "name": "ResetTask48AFang",
       "type": "gm_set_task",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "taskId": 48,
       "value": 0
     },
     {
       "name": "TalkAFangAcceptTask48",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1619,
       "tileY": 3254,
@@ -542,44 +963,84 @@
     {
       "name": "SelectAFangHelp",
       "type": "select_dialog",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "optionIndex": 0
     },
     {
-      "name": "GrantEarringItem181",
-      "type": "gm_grant_item",
-      "region": "Stage 4 - World Quests",
-      "genre": 4,
-      "detailType": 181,
-      "particularType": 0,
-      "level": 1
+      "name": "CloseAFangAcceptTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
+    },
+    {
+      "name": "TeleportNearThamCuuMerchant",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1508,
+      "tileY": 3174
+    },
+    {
+      "name": "InteractThamCuuMerchantForEarring",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1506,
+      "tileY": 3174,
+      "npcName": "Thẩm Cửu",
+      "maxRadiusTiles": 8,
+      "notes": "No Intra-Map GM Shortcut: buy Earring (181) directly from Merchant Tham Cuu for 200 silver."
+    },
+    {
+      "name": "SelectThamCuuAPhuongQuestBranch",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "optionIndex": 1
+    },
+    {
+      "name": "SelectThamCuuBuyEarring200Silver",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseThamCuuPurchaseTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
+    },
+    {
+      "name": "TeleportReturnToAFang",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1620,
+      "tileY": 3252
     },
     {
       "name": "TurnInAFangTask48",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1619,
       "tileY": 3254,
       "npcName": "A Phương",
-      "maxRadiusTiles": 12
+      "maxRadiusTiles": 10
     },
     {
-      "name": "ConfirmAFangReward",
-      "type": "confirm_talk",
-      "region": "Stage 4 - World Quests"
+      "name": "CloseAFangRewardTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
     },
     {
       "name": "ResetTask47CoLaoThai",
       "type": "gm_set_task",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "taskId": 47,
       "value": 0
     },
     {
       "name": "TalkCoLaoThaiAcceptTask47",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1631,
       "tileY": 3242,
@@ -589,39 +1050,37 @@
     {
       "name": "SelectCoLaoThaiHelp",
       "type": "select_dialog",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "optionIndex": 0
+    },
+    {
+      "name": "CloseCoLaoThaiAcceptTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
     },
     {
       "name": "TeleportJadePendantNode",
       "type": "gm_teleport",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
-      "tileX": 1796,
-      "tileY": 3025
+      "tileX": 1802,
+      "tileY": 3023
     },
     {
       "name": "PickupJadePendantObject",
       "type": "click_object",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1803,
       "tileY": 3023,
-      "maxRadiusTiles": 10
-    },
-    {
-      "name": "EnsureJadePendantItem182",
-      "type": "gm_grant_item",
-      "region": "Stage 4 - World Quests",
-      "genre": 4,
-      "detailType": 182,
-      "particularType": 0,
-      "level": 1
+      "dataId": 303,
+      "maxRadiusTiles": 8,
+      "notes": "11th/11 MapObject: Tu Yen Ngoc Boi -> AddEventItem(182)."
     },
     {
       "name": "TeleportBackToCoLaoThai",
       "type": "gm_teleport",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1624,
       "tileY": 3242
@@ -629,7 +1088,7 @@
     {
       "name": "TurnInJadePendantToCoLaoThai",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1631,
       "tileY": 3242,
@@ -637,43 +1096,561 @@
       "maxRadiusTiles": 12
     },
     {
-      "name": "ConfirmCoLaoThaiCalligraphy",
-      "type": "confirm_talk",
-      "region": "Stage 4 - World Quests"
+      "name": "CloseCoLaoThaiCalligraphyTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
     },
     {
       "name": "TeleportToTouristDuKhach",
       "type": "gm_teleport",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
-      "tileX": 1790,
-      "tileY": 3090
+      "tileX": 1796,
+      "tileY": 3088
     },
     {
       "name": "SellCalligraphyToTourist",
       "type": "interact_npc",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "mapId": 53,
       "tileX": 1798,
       "tileY": 3088,
       "npcName": "Du Khách",
-      "maxRadiusTiles": 12
+      "maxRadiusTiles": 10
     },
     {
       "name": "ConfirmSellCalligraphy",
       "type": "select_dialog",
-      "region": "Stage 4 - World Quests",
+      "region": "Stage 4 - World Quests & Lightfoot",
       "optionIndex": 0
     },
     {
       "name": "CloseTouristDialog",
       "type": "close_dialog",
-      "region": "Stage 4 - World Quests"
+      "region": "Stage 4 - World Quests & Lightfoot"
+    },
+    {
+      "name": "ResetTask32Lightfoot",
+      "type": "gm_set_task",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "taskId": 32,
+      "value": 0
+    },
+    {
+      "name": "TeleportMartialMasterLv20",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1668,
+      "tileY": 2982
+    },
+    {
+      "name": "InteractMartialMasterEnrollLightfoot",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1671,
+      "tileY": 2978,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "SelectLightfootMenuEnroll",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "optionIndex": 2
+    },
+    {
+      "name": "AcceptLightfootPay100Silver",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "optionIndex": 0,
+      "notes": "Pays 100 silver -> Task 32 = 20."
+    },
+    {
+      "name": "CloseMartialMasterEnrollTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
+    },
+    {
+      "name": "PrimeTask32At69BeforeWoodenStake",
+      "type": "gm_set_task",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "taskId": 32,
+      "value": 69
+    },
+    {
+      "name": "DefeatWoodenStakeTrigger69To70",
+      "type": "attack_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1666,
+      "tileY": 2974,
+      "npcName": "Cọc gỗ",
+      "value": 14,
+      "maxRadiusTiles": 15,
+      "notes": "Exercises 巴陵县木桩.lua OnDeath -> SetTask(32, 70)."
+    },
+    {
+      "name": "ReportWoodenStakeDoneToMaster",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1671,
+      "tileY": 2978,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 12
+    },
+    {
+      "name": "AdvanceTask32From70To80",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "optionIndex": 2
+    },
+    {
+      "name": "CloseMasterStage2Talk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
+    },
+    {
+      "name": "PrimeTask32At129BeforeSandbag",
+      "type": "gm_set_task",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "taskId": 32,
+      "value": 129
+    },
+    {
+      "name": "TeleportNearSandbag",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1640,
+      "tileY": 2976
+    },
+    {
+      "name": "DefeatSandbagTrigger129To130",
+      "type": "attack_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1639,
+      "tileY": 2974,
+      "npcName": "Bao cát",
+      "value": 14,
+      "maxRadiusTiles": 15,
+      "notes": "Exercises 巴陵县沙袋.lua OnDeath -> SetTask(32, 130)."
+    },
+    {
+      "name": "TeleportBackMasterAfterSandbag",
+      "type": "gm_teleport",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1668,
+      "tileY": 2982
+    },
+    {
+      "name": "ReportSandbagDoneToMaster",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1671,
+      "tileY": 2978,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "AdvanceTask32From130To140",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "optionIndex": 2
+    },
+    {
+      "name": "CloseMasterStage3Talk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
+    },
+    {
+      "name": "PrimeTask32At189BeforeWoodenDummy",
+      "type": "gm_set_task",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "taskId": 32,
+      "value": 189
+    },
+    {
+      "name": "DefeatWoodenDummyTrigger189To190",
+      "type": "attack_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1670,
+      "tileY": 2992,
+      "npcName": "Mộc nhân",
+      "value": 14,
+      "maxRadiusTiles": 18,
+      "notes": "Exercises 巴陵县木人.lua OnDeath -> SetTask(32, 190)."
+    },
+    {
+      "name": "ReportWoodenDummyDoneToMaster",
+      "type": "interact_npc",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "mapId": 53,
+      "tileX": 1671,
+      "tileY": 2978,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 16
+    },
+    {
+      "name": "CompleteLightfootLearnSkill210",
+      "type": "select_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot",
+      "optionIndex": 2,
+      "notes": "Task 32: 190 -> 200 + AddMagic(210, 1)."
+    },
+    {
+      "name": "CloseMasterCompletionTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - World Quests & Lightfoot"
+    },
+    {
+      "name": "TeleportAmbientDeerField",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "mapId": 53,
+      "tileX": 1510,
+      "tileY": 2969
+    },
+    {
+      "name": "DefeatAmbientSpottedDeer",
+      "type": "attack_npc",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "mapId": 53,
+      "tileX": 1511,
+      "tileY": 2969,
+      "npcName": "Hươu đốm",
+      "value": 14,
+      "maxRadiusTiles": 15,
+      "notes": "Verifies ambient starter monster combat and death sync outside village gates."
+    },
+    {
+      "name": "TeleportTavernOwnerForTianwang38",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "mapId": 53,
+      "tileX": 1603,
+      "tileY": 3122
+    },
+    {
+      "name": "SetTianwangEnrollTask38Byte1To20",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "taskId": 38,
+      "value": 20,
+      "notes": "Cross-map Tianwang enroll precondition from Map 59."
+    },
+    {
+      "name": "InteractTavernOwnerBongLaiXuanQuest",
+      "type": "interact_npc",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "mapId": 53,
+      "tileX": 1605,
+      "tileY": 3120,
+      "npcName": "Ông chủ tửu điếm",
+      "maxRadiusTiles": 8,
+      "notes": "Advances Task 38 Byte 1: 20 -> 40 (Bong Lai Xuan recipe)."
+    },
+    {
+      "name": "CloseTavernOwnerQuestTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob"
+    },
+    {
+      "name": "TeleportNgoThanYForTianwang40",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "mapId": 53,
+      "tileX": 1600,
+      "tileY": 3207
+    },
+    {
+      "name": "SetTianwangLv40Task3To10260",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "taskId": 3,
+      "value": 10260,
+      "notes": "Cross-map Tianwang Lv40 precondition (40*256+20 = 10260)."
+    },
+    {
+      "name": "InteractNgoThanYTianwang40SnakeVenom",
+      "type": "interact_npc",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "mapId": 53,
+      "tileX": 1598,
+      "tileY": 3209,
+      "npcName": "Ngô Thần Y",
+      "maxRadiusTiles": 8,
+      "notes": "Triggers 5-page Talk + L40_tw_talk2 callback -> SetTask(3, 40*256+50)."
+    },
+    {
+      "name": "CloseNgoThanYTianwang40Talk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob"
+    },
+    {
+      "name": "ResetTianwangLv40Task3",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Cross-Faction Hooks & Field Mob",
+      "taskId": 3,
+      "value": 0
+    },
+    {
+      "name": "TeleportStation10Lv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1580,
+      "tileY": 3236
+    },
+    {
+      "name": "InteractStation10UnlockedLv20",
+      "type": "interact_npc",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1578,
+      "tileY": 3236,
+      "npcName": "Xa phu",
+      "maxRadiusTiles": 8,
+      "notes": "Lv >= 5 unlocked counterpart for Station 10."
+    },
+    {
+      "name": "SelectStation10WayPointsMenu",
+      "type": "select_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseStation10UnlockedDialog",
+      "type": "close_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals"
+    },
+    {
+      "name": "TeleportDongtingBoatman1Lv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1798,
+      "tileY": 3156
+    },
+    {
+      "name": "InteractDongtingBoatman1Unlocked",
+      "type": "interact_npc",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1800,
+      "tileY": 3154,
+      "npcName": "Ngư dân",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectBoatman1GoIslandPaid",
+      "type": "select_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "optionIndex": 0
+    },
+    {
+      "name": "ConfirmBoatman1Pay100ToMap59",
+      "type": "select_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "optionIndex": 0,
+      "notes": "Pays 100 silver -> NewWorld(59, 1425, 3472)."
+    },
+    {
+      "name": "ResyncOnThienVuongIslandMap59Paid",
+      "type": "resync_if_drifted",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 59,
+      "tileX": 1425,
+      "tileY": 3472
+    },
+    {
+      "name": "TeleportDongtingBoatman2Lv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1775,
+      "tileY": 3180
+    },
+    {
+      "name": "JoinTianwangFactionForFreeBoat",
+      "type": "gm_join_faction",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "value": 1,
+      "notes": "Joins Tianwang (faction index 1) to test free boat branch."
+    },
+    {
+      "name": "InteractDongtingBoatman2TianwangFree",
+      "type": "interact_npc",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1778,
+      "tileY": 3177,
+      "npcName": "Ngư dân",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectBoatman2GoIslandFree",
+      "type": "select_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "optionIndex": 0
+    },
+    {
+      "name": "ConfirmBoatman2FreeToMap59",
+      "type": "select_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "optionIndex": 0,
+      "notes": "Tianwang member rides free -> NewWorld(59, 1425, 3472)."
+    },
+    {
+      "name": "ResyncOnThienVuongIslandMap59Free",
+      "type": "resync_if_drifted",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 59,
+      "tileX": 1425,
+      "tileY": 3472
+    },
+    {
+      "name": "TeleportYangtzeWharfLv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1546,
+      "tileY": 2928
+    },
+    {
+      "name": "InteractYangtzeWharfUnlocked",
+      "type": "interact_npc",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1543,
+      "tileY": 2923,
+      "npcName": "Thuyền Phu",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "SelectYangtzeWharfFun",
+      "type": "select_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "optionIndex": 0
+    },
+    {
+      "name": "SelectYangtzeBoatToTuongDuong78",
+      "type": "select_dialog",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "optionIndex": 1,
+      "notes": "CurWharf=5 option 1 -> Tuong Duong Phu (Map 78, 1299, 3483) for 100 silver."
+    },
+    {
+      "name": "ResyncAtTuongDuongWharfMap78",
+      "type": "resync_if_drifted",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 78,
+      "tileX": 1299,
+      "tileY": 3483
+    },
+    {
+      "name": "TeleportNamNhacPortalLv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1806,
+      "tileY": 3447
+    },
+    {
+      "name": "EnableFightBeforeNamNhacPortal",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "value": 1
+    },
+    {
+      "name": "StepNamNhacPortalUnlockedTo54",
+      "type": "step_trap",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "trapId": 2617733828,
+      "expectedMapId": 54,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncAfterNamNhacMap54",
+      "type": "resync_if_drifted",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 54,
+      "tileX": 1471,
+      "tileY": 2992
+    },
+    {
+      "name": "TeleportVuLangSonPortalLv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1340,
+      "tileY": 3298
+    },
+    {
+      "name": "EnableFightBeforeVuLangSonPortal",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "value": 1
+    },
+    {
+      "name": "StepVuLangSonPortalUnlockedTo70",
+      "type": "step_trap",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "trapId": 4274748173,
+      "expectedMapId": 70,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncAfterVuLangSonMap70",
+      "type": "resync_if_drifted",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 70,
+      "tileX": 1608,
+      "tileY": 3230
+    },
+    {
+      "name": "TeleportMieuLinhPortalLv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "tileX": 1340,
+      "tileY": 3345
+    },
+    {
+      "name": "EnableFightBeforeMieuLinhPortal",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "value": 1
+    },
+    {
+      "name": "StepMieuLinhPortalUnlockedTo74",
+      "type": "step_trap",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 53,
+      "trapId": 3913465827,
+      "expectedMapId": 74,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncAfterMieuLinhMap74",
+      "type": "resync_if_drifted",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
+      "mapId": 74,
+      "tileX": 2040,
+      "tileY": 3259
     },
     {
       "name": "TeleportVuLangDongPortal",
       "type": "gm_teleport",
-      "region": "Stage 5 - CrossMap 199",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
       "mapId": 53,
       "tileX": 1780,
       "tileY": 3385
@@ -681,13 +1658,13 @@
     {
       "name": "EnableCombatBeforeMap199",
       "type": "gm_set_fight_mode",
-      "region": "Stage 5 - CrossMap 199",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
       "value": 1
     },
     {
       "name": "StepIntoVuLangDong199",
       "type": "step_trap",
-      "region": "Stage 5 - CrossMap 199",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
       "mapId": 53,
       "trapId": 1425692155,
       "expectedMapId": 199,
@@ -696,7 +1673,7 @@
     {
       "name": "ResyncAfterMap199",
       "type": "resync_if_drifted",
-      "region": "Stage 5 - CrossMap 199",
+      "region": "Stage 5 - Unlocked Wharves, Station & 4 Cross-Map Portals",
       "mapId": 199,
       "tileX": 1644,
       "tileY": 2906
@@ -706,8 +1683,8 @@
       "type": "gm_teleport",
       "region": "Stage 5 - Complete",
       "mapId": 53,
-      "tileX": 1600,
-      "tileY": 3200
+      "tileX": 1616,
+      "tileY": 3183
     }
   ]
 }

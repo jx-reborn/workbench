@@ -89,6 +89,21 @@ public sealed class WireNpcDialogCrawler
         ushort mapId = (ushort)Math.Clamp(initialSnap.Player.MapId, 0, ushort.MaxValue);
         double maxDistMps = Math.Max(4, radiusTiles) * 32.0;
 
+        if (initialSnap.Npcs.Any(n => !n.IsSelf && n.Kind == 3 && string.IsNullOrWhiteSpace(n.Name) && Distance(n.MpsX, n.MpsY, originX, originY) <= maxDistMps))
+        {
+            try
+            {
+                initialSnap = await client.WaitUntilAsync(
+                    s => !s.Npcs.Any(n => !n.IsSelf && n.Kind == 3 && string.IsNullOrWhiteSpace(n.Name) && Distance(n.MpsX, n.MpsY, originX, originY) <= maxDistMps),
+                    TimeSpan.FromMilliseconds(1500),
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                initialSnap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         var excluded = new HashSet<string>(
             (excludeNpcNames ?? []).Select(static n => n.Trim()),
             StringComparer.OrdinalIgnoreCase);

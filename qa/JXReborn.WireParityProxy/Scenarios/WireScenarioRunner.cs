@@ -321,6 +321,35 @@ public sealed class WireScenarioRunner
 
                 break;
 
+            case "gm_learn_skill":
+                {
+                    int skillId = step.Value ?? 14;
+                    int skillLv = Math.Clamp(step.Level ?? 5, 1, 63);
+                    await WireNpcDialogCrawler.CloseDialogSafelyAsync(client, cancellationToken).ConfigureAwait(false);
+                    if (skillId == 14 && skillLv == 5)
+                    {
+                        await InvokeGmMenuPathAsync(client, [1, 2, 0], cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await InvokeGmNumberSequenceAsync(client, [1, 2, 2], [skillId, skillLv], expectMapChange: false, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+
+                    await InvokeGmMenuPathAsync(client, [0, 2, 0], cancellationToken).ConfigureAwait(false);
+                }
+
+                break;
+
+            case "gm_join_faction":
+                {
+                    int factionOpt = Math.Clamp(step.OptionIndex ?? step.Value ?? 0, 0, 11);
+                    await WireNpcDialogCrawler.CloseDialogSafelyAsync(client, cancellationToken).ConfigureAwait(false);
+                    await InvokeGmMenuPathAsync(client, [1, 5, factionOpt], cancellationToken).ConfigureAwait(false);
+                }
+
+                break;
+
             case "gm_set_fight_mode":
                 {
                     int fightMode = (step.Value ?? 1) != 0 ? 0 : 1;
@@ -547,6 +576,89 @@ public sealed class WireScenarioRunner
 
                 break;
 
+            case "attack_npc":
+                {
+                    await WireNpcDialogCrawler.CloseDialogSafelyAsync(client, cancellationToken).ConfigureAwait(false);
+                    string targetName = step.NpcName ?? throw new ArgumentException($"Step '{step.Name}' requires 'npcName'.");
+                    int skillId = step.Value ?? 14;
+                    bool hitOnly = (step.OptionIndex ?? 0) != 0;
+
+                    WorldDomSnapshot snap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
+                    ushort currentMap = (ushort)snap.Player.MapId;
+                    if (snap.Player.FightMode == 0)
+                    {
+                        await InvokeGmMenuPathAsync(client, [4, 0], cancellationToken).ConfigureAwait(false);
+                        snap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
+                    }
+
+                    NpcSnapshot? target = FindBestMatchingCombatNpc(snap.Npcs, targetName, step.TileX, step.TileY, step.MaxRadiusTiles, snap.Player.MpsX, snap.Player.MpsY);
+                    if (target is null && step.TileX.HasValue && step.TileY.HasValue)
+                    {
+                        await WireNpcDialogCrawler.WalkNearPositionAsync(
+                            client,
+                            currentMap,
+                            step.TileX.Value * 32,
+                            step.TileY.Value * 32,
+                            _mapCatalog,
+                            _clientPakObstacles,
+                            stopRadiusCells: 2,
+                            cancellationToken).ConfigureAwait(false);
+                        snap = await WireNpcDialogCrawler.WaitTicksAsync(client, 8, cancellationToken).ConfigureAwait(false);
+                        target = FindBestMatchingCombatNpc(snap.Npcs, targetName, step.TileX, step.TileY, step.MaxRadiusTiles, snap.Player.MpsX, snap.Player.MpsY);
+                    }
+
+                    if (target is null)
+                    {
+                        snap = await client.WaitUntilAsync(
+                            s => FindBestMatchingCombatNpc(s.Npcs, targetName, step.TileX, step.TileY, step.MaxRadiusTiles, s.Player.MpsX, s.Player.MpsY) is not null,
+                            TimeSpan.FromSeconds(5),
+                            cancellationToken: cancellationToken).ConfigureAwait(false);
+                        target = FindBestMatchingCombatNpc(snap.Npcs, targetName, step.TileX, step.TileY, step.MaxRadiusTiles, snap.Player.MpsX, snap.Player.MpsY);
+                    }
+
+                    if (target is null)
+                    {
+                        throw new InvalidOperationException($"Combat target '{targetName}' not found on Map {currentMap} near ({step.TileX},{step.TileY}).");
+                    }
+
+                    uint targetDwId = target.DwId;
+                    int initialLife = target.Life;
+                    if (WireNpcDialogCrawler.Distance(snap.Player.MpsX, snap.Player.MpsY, target.MpsX, target.MpsY) > 128.0)
+                    {
+                        await WireNpcDialogCrawler.WalkNearPositionAsync(
+                            client,
+                            currentMap,
+                            target.MpsX,
+                            target.MpsY,
+                            _mapCatalog,
+                            _clientPakObstacles,
+                            stopRadiusCells: 1,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    bool resolved = false;
+                    for (int attempt = 0; attempt < 12; attempt++)
+                    {
+                        _ = await client.UseSkillOnTargetAsync(skillId, targetDwId, cancellationToken).ConfigureAwait(false);
+                        snap = await WireNpcDialogCrawler.WaitTicksAsync(client, 14, cancellationToken).ConfigureAwait(false);
+                        NpcSnapshot? after = snap.Npcs.FirstOrDefault(n => n.DwId == targetDwId);
+                        if (after is null || after.Life <= 0 || after.Doing == 14 || (hitOnly && after.Life < initialLife))
+                        {
+                            resolved = true;
+                            break;
+                        }
+                    }
+
+                    if (!resolved)
+                    {
+                        throw new InvalidOperationException($"Combat target '{targetName}' (dwId={targetDwId}) was not defeated after 12 skill casts (skillId={skillId}).");
+                    }
+
+                    _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 10, cancellationToken).ConfigureAwait(false);
+                }
+
+                break;
+
             case "click_object":
                 {
                     await WireNpcDialogCrawler.CloseDialogSafelyAsync(client, cancellationToken).ConfigureAwait(false);
@@ -650,8 +762,11 @@ public sealed class WireScenarioRunner
 
             case "buy_shop_item":
                 {
+                    WorldDomSnapshot snap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
                     int buyIdx = step.Value ?? step.OptionIndex ?? 0;
-                    _ = await client.BuyShopItemAsync(buyIdx, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    (int freeX, int freeY) = ResolveShopBuyGridCell(snap.Items);
+                    _ = await client.BuyShopItemAsync(buyIdx, PlaceEquipRoom, freeX, freeY, cancellationToken).ConfigureAwait(false);
+                    _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 10, cancellationToken).ConfigureAwait(false);
                 }
 
                 break;
@@ -660,6 +775,17 @@ public sealed class WireScenarioRunner
                 {
                     uint itemId = (uint)(step.Value ?? throw new ArgumentException($"Step '{step.Name}' requires 'value' (itemId)."));
                     _ = await client.RepairItemAsync(itemId, cancellationToken).ConfigureAwait(false);
+                    _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 10, cancellationToken).ConfigureAwait(false);
+                }
+
+                break;
+
+            case "store_money":
+                {
+                    byte dir = checked((byte)(step.OptionIndex ?? 0));
+                    int amount = step.Value ?? 100;
+                    _ = await client.StoreMoneyAsync(dir, amount, cancellationToken).ConfigureAwait(false);
+                    _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 10, cancellationToken).ConfigureAwait(false);
                 }
 
                 break;
@@ -934,6 +1060,89 @@ public sealed class WireScenarioRunner
         return query
             .OrderBy(o => WireNpcDialogCrawler.Distance(o.MpsX, o.MpsY, ax, ay))
             .FirstOrDefault();
+    }
+
+    private static NpcSnapshot? FindBestMatchingCombatNpc(
+        IReadOnlyList<NpcSnapshot> npcs,
+        string name,
+        int? anchorTileX,
+        int? anchorTileY,
+        int? maxRadiusTiles,
+        int playerMpsX,
+        int playerMpsY)
+    {
+        string target = name.Trim();
+        int ax = anchorTileX.HasValue ? anchorTileX.Value * 32 : playerMpsX;
+        int ay = anchorTileY.HasValue ? anchorTileY.Value * 32 : playerMpsY;
+        double maxDist = (maxRadiusTiles ?? 30) * 32.0;
+
+        List<NpcSnapshot> liveNpcs = npcs
+            .Where(n => !n.IsSelf && n.Kind != 3 && n.Life > 0 && n.Doing != 14)
+            .Where(n => WireNpcDialogCrawler.Distance(n.MpsX, n.MpsY, ax, ay) <= maxDist)
+            .ToList();
+
+        List<NpcSnapshot> exact = liveNpcs
+            .Where(n => string.Equals(n.Name.Trim(), target, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (exact.Count == 0)
+        {
+            exact = liveNpcs
+                .Where(n => n.Name.Contains(target, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        return exact
+            .OrderBy(n => WireNpcDialogCrawler.Distance(n.MpsX, n.MpsY, ax, ay))
+            .FirstOrDefault();
+    }
+
+    public static (int GridX, int GridY) ResolveShopBuyGridCell(
+        IReadOnlyList<InventoryItemSnapshot> items,
+        int requiredWidth = 2,
+        int requiredHeight = 3)
+    {
+        const int BagCols = 6;
+        const int BagRows = 6;
+
+        for (int w = Math.Clamp(requiredWidth, 1, BagCols); w >= 1; w--)
+        {
+            int h = w == requiredWidth ? Math.Clamp(requiredHeight, 1, BagRows) : 1;
+            for (int x = BagCols - w; x >= 0; x--)
+            {
+                for (int y = BagRows - h; y >= 0; y--)
+                {
+                    if (x == 0 && y == 0)
+                    {
+                        continue;
+                    }
+
+                    bool collides = false;
+                    foreach (InventoryItemSnapshot item in items)
+                    {
+                        if (item.Place != PlaceEquipRoom)
+                        {
+                            continue;
+                        }
+
+                        int iw = Math.Max(1, item.Width);
+                        int ih = Math.Max(1, item.Height);
+                        if (x < item.GridX + iw && x + w > item.GridX &&
+                            y < item.GridY + ih && y + h > item.GridY)
+                        {
+                            collides = true;
+                            break;
+                        }
+                    }
+
+                    if (!collides)
+                    {
+                        return (x, y);
+                    }
+                }
+            }
+        }
+
+        return (5, 5);
     }
 
     private static string SanitizeFilePart(string raw)

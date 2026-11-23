@@ -45,6 +45,10 @@ TCVN3_MAP: dict[str, int] = {
 # Compact 26-map test worldset covering J01-J16 journeys (villages, cities, portals, sects, missions)
 MINIMAL_TEST_MAPS: list[int] = [
     53,   # Ba Lang Huyen (Starter village)
+    54,   # Nam Nhac Tran (Ba Lang South-East portal / station)
+    59,   # Thien Vuong Bang (Dong Dinh wharf boat destination)
+    70,   # Vu Lang Son (Ba Lang West-North portal)
+    74,   # Mieu Linh / Than Nong Gia (Ba Lang West-South portal)
     101,  # Dao Huong Thon (Starter village)
     78,   # Tuong Duong Phu (Major city)
     80,   # Duong Chau Phu (Major city)

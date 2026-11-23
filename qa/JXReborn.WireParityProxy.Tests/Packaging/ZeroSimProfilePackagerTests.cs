@@ -49,6 +49,37 @@ public sealed class ZeroSimProfilePackagerTests
             print("PACKER_STUB_OK")
             """;
 
+        RunInlinePythonAssertion(packerPath, pyScript, "PACKER_STUB_OK");
+    }
+
+    [Fact]
+    public void PackLegacyProfiles_WorldsetIni_ShouldContainAllBaLangHuyenConnectedMaps()
+    {
+        // Ground Truth: legacy-server/bin/server1/script/两湖区/巴陵县/trap/*.lua + 洞庭湖码头船夫1对话.lua
+        // Map 53 connects directly to Nam Nhac Tran (54), Thien Vuong Bang (59), Vu Lang Son (70), Mieu Linh (74), Vu Lang Dong (199).
+        string workbenchRoot = FindWorkbenchRoot();
+        string packerPath = Path.Combine(workbenchRoot, "qa", "scripts", "pack_legacy_profiles.py");
+        Assert.True(File.Exists(packerPath), $"Missing packer script: {packerPath}");
+
+        string pyScript = """
+            import importlib.util, re, sys
+            spec = importlib.util.spec_from_file_location("packer", sys.argv[1])
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            ws_txt = mod.build_minimal_worldset_ini().decode("ascii")
+            loaded_maps = {int(m.group(1)) for m in re.finditer(r"World_?\d+\s*=\s*(\d+)", ws_txt)}
+            required_balang_maps = {53, 54, 59, 70, 74, 199}
+            missing = sorted(required_balang_maps - loaded_maps)
+            assert not missing, f"worldset.ini missing Ba Lang Huyen Ground-Truth connected maps: {missing}"
+            print("BALANG_WORLDSET_OK")
+            """;
+
+        RunInlinePythonAssertion(packerPath, pyScript, "BALANG_WORLDSET_OK");
+    }
+
+    private static void RunInlinePythonAssertion(string packerPath, string pyScript, string expectedToken)
+    {
         string tempPy = Path.Combine(Path.GetTempPath(), $"test_packer_{Guid.NewGuid():N}.py");
         File.WriteAllText(tempPy, pyScript, Encoding.UTF8);
         try
@@ -65,7 +96,7 @@ public sealed class ZeroSimProfilePackagerTests
             string stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();
             Assert.True(proc.ExitCode == 0, $"Exit={proc.ExitCode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
-            Assert.Contains("PACKER_STUB_OK", stdout);
+            Assert.Contains(expectedToken, stdout);
         }
         finally
         {
