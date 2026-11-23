@@ -5,12 +5,12 @@ using JXReborn.DualParityServer.Session;
 using JXReborn.DualParityServer.Standalone;
 using Xunit;
 
-namespace JXReborn.DualParityServer.Tests;
+namespace JXReborn.DualParityServer.Tests.Parity;
 
 public sealed class StandaloneStackTests
 {
     [Fact]
-    public void ParseArgs_StandaloneShouldEnableSpawnAndIsolateRebornPort()
+    public void ParseArgs_WhenStandaloneEnabled_ShouldEnableSpawnAndIsolateRebornPort()
     {
         DualParityOptions opts = DualParityOptions.ParseArgs(["--standalone", "--reuse-legacy", "--keep-containers"]);
 
@@ -25,7 +25,7 @@ public sealed class StandaloneStackTests
     }
 
     [Fact]
-    public void ParseArgs_StandaloneShouldRespectExplicitRebornPort()
+    public void ParseArgs_WhenExplicitRebornPortGiven_ShouldRespectExplicitRebornPort()
     {
         DualParityOptions opts = DualParityOptions.ParseArgs(["--standalone", "--reborn-port", "17777"]);
 
@@ -34,7 +34,7 @@ public sealed class StandaloneStackTests
     }
 
     [Fact]
-    public void RingLogBuffer_ShouldKeepMostRecentLinesWithinCapacity()
+    public void RingLogBuffer_WhenExceedingCapacity_ShouldKeepMostRecentLines()
     {
         var buffer = new RingLogBuffer(capacity: 3);
         buffer.Append("line-1");

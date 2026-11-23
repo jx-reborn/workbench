@@ -355,6 +355,8 @@ public sealed class SkillAndMissileCatalogParityTests
             ["poisondamage_v"] = 63,
         };
 
+        Assert.NotEmpty(defaults);
+        int checkedEffects = 0;
         foreach (SkillTemplate skill in defaults)
         {
             foreach (SkillEffectScalingTemplate eff in skill.EffectScaling)
@@ -363,8 +365,10 @@ public sealed class SkillAndMissileCatalogParityTests
                     expectedIdsByCode.TryGetValue(eff.AttributeCode, out int expectedId),
                     $"Unexpected fallback AttributeCode '{eff.AttributeCode}' on skill {skill.Id}.");
                 Assert.Equal(expectedId, eff.AttributeId);
+                checkedEffects++;
             }
         }
+        Assert.True(checkedEffects > 0);
     }
 
     [Fact]
@@ -414,6 +418,8 @@ public sealed class SkillAndMissileCatalogParityTests
         MagicAttributeRegistry registry = MagicAttributeRegistry.Load(WorkbenchPaths.Server1RootPath);
         IReadOnlyList<ItemTemplate> defaultItems = ItemTemplateCatalog.CreateDefaultItems();
 
+        Assert.NotEmpty(defaultItems);
+        int checkedBaseAttrs = 0;
         foreach (ItemTemplate item in defaultItems)
         {
             foreach (ItemBaseAttributeTemplate baseAttr in item.BaseAttributes)
@@ -421,8 +427,10 @@ public sealed class SkillAndMissileCatalogParityTests
                 int canonicalId = registry.GetId(baseAttr.AttributeCode);
                 Assert.True(canonicalId > 0, $"Fallback item '{item.Code}' uses non-canonical AttributeCode '{baseAttr.AttributeCode}'.");
                 Assert.Equal(canonicalId, baseAttr.AttributeId);
+                checkedBaseAttrs++;
             }
         }
+        Assert.True(checkedBaseAttrs > 0);
 
         ItemTemplate sword = defaultItems.First(i => i.Code == "equip-melee-sword-lvl1");
         Assert.Contains(sword.BaseAttributes, a => a.AttributeId == 28 && a.AttributeCode == "weapondamagemin_v");

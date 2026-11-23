@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.IO.Pipes;
+using System.Text;
+using System.Text.Json;
 using JXReborn.Primitives.Encodings;
 using Xunit;
 
@@ -33,7 +36,7 @@ public sealed class ClientDriverSandboxAndModelsTests
     {
         if (!OperatingSystem.IsWindows())
         {
-            return;
+            Assert.Skip("NTFS junctions require Windows.");
         }
         string tempRoot = Path.Combine(Path.GetTempPath(), $"jx-sandbox-unit-{Guid.NewGuid():N}");
         string targetDataDir = Path.Combine(tempRoot, "readonly-target", "data");
@@ -91,5 +94,53 @@ public sealed class ClientDriverSandboxAndModelsTests
         })!;
         proc.WaitForExit();
         Assert.Equal(0, proc.ExitCode);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task SubmitInputNumberAsync_ShouldSendInputNumberJsonRpcCommandAndNativePacketSourceExists()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("NTFS junctions require Windows.");
+        }
+
+        string jxMemoryPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..", "..",
+            "legacy-client", "src", "JXReborn.ClientDriver.Native", "JxHeadlessAgent", "JxMemory.cpp"));
+        Assert.True(File.Exists(jxMemoryPath), $"Missing JxMemory.cpp at {jxMemoryPath}");
+        string nativeSrc = await File.ReadAllTextAsync(jxMemoryPath);
+        Assert.Contains("method == \"input_number\"", nativeSrc, StringComparison.Ordinal);
+        Assert.Contains("0x82", nativeSrc, StringComparison.Ordinal);
+
+        string pipeName = $"jx-unit-num-{Guid.NewGuid():N}"[..20];
+        await using var serverPipe = new NamedPipeServerStream(
+            pipeName,
+            PipeDirection.InOut,
+            1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous);
+
+        Task serverTask = Task.Run(async () =>
+        {
+            await serverPipe.WaitForConnectionAsync();
+            var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+            using var reader = new StreamReader(serverPipe, utf8NoBom, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            await using var writer = new StreamWriter(serverPipe, utf8NoBom, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
+            string? line = await reader.ReadLineAsync();
+            Assert.NotNull(line);
+            using JsonDocument doc = JsonDocument.Parse(line!);
+            Assert.Equal("input_number", doc.RootElement.GetProperty("method").GetString());
+            Assert.Equal(15380, doc.RootElement.GetProperty("params").GetProperty("value").GetInt32());
+            string id = doc.RootElement.GetProperty("id").GetString()!;
+            await writer.WriteLineAsync($"{{\"id\":\"{id}\",\"ok\":true,\"result\":{{\"sent\":true,\"value\":15380}}}}");
+        });
+
+        await using JxHeadlessClient client = await JxHeadlessClient.ConnectExistingAsync(pipeName, crashDumpPath: null, TimeSpan.FromSeconds(5));
+        JsonElement result = await client.SubmitInputNumberAsync(15380);
+        Assert.True(result.GetProperty("sent").GetBoolean());
+        Assert.Equal(15380, result.GetProperty("value").GetInt32());
+        await serverTask;
     }
 }

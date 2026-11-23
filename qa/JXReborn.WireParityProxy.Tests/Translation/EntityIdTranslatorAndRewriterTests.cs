@@ -171,7 +171,7 @@ public sealed class EntityIdTranslatorAndRewriterTests
     }
 
     [Fact]
-    public void RewriteForShadow_ObjMouseClick_TranslatesObjIdAtOffset5AndPreservesRegionId()
+    public void RewriteForShadow_OnObjMouseClick_ShouldTranslateObjIdAtOffset5AndPreserveRegionId()
     {
         var primary = new ProxyShadowClientState("legacy-linux");
         var shadow = new ProxyShadowClientState("reborn-server");

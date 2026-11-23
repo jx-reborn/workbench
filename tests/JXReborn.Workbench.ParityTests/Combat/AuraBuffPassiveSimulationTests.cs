@@ -154,6 +154,7 @@ public sealed class AuraBuffPassiveSimulationTests
     private static void ConfigurePassiveMonsters(MapZoneWorker worker, uint life = 10_000)
     {
         Assert.True(worker.StaticNpcs.Count >= 3);
+        Assert.Equal(3, worker.StaticNpcs.Count);
         foreach (NpcZoneState npc in worker.StaticNpcs.Values)
         {
             npc.AiMode = 0;
@@ -854,6 +855,7 @@ public sealed class AuraBuffPassiveSimulationTests
 
         ZoneSimulationHarness harness = CreateHarness(42, arena);
         MapZoneWorker worker = harness.GetZone(53);
+        Assert.Equal(3, worker.StaticNpcs.Count);
         foreach (NpcZoneState npc in worker.StaticNpcs.Values)
         {
             npc.AiMode = 3;
@@ -907,6 +909,7 @@ public sealed class AuraBuffPassiveSimulationTests
         int lifeBeforeHiddenWait = player.CurrentLife;
         await harness.StepFramesAsync(20);
         Assert.Equal(lifeBeforeHiddenWait, player.CurrentLife);
+        Assert.Equal(3, worker.StaticNpcs.Count);
         foreach (NpcZoneState npc in worker.StaticNpcs.Values)
         {
             Assert.Equal(0u, npc.AggroTargetNpcId);

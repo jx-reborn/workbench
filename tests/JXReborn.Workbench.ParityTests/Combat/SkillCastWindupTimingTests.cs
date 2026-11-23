@@ -120,16 +120,20 @@ public sealed class SkillCastWindupTimingTests
         worker.TryEnqueueCommand(new CompletePlayerSyncZoneCommand(charId, 1L, 0x1111u, 1u));
         await worker.StepSingleTickAsync();
 
+        Assert.NotEmpty(worker.RegionGrid.ActiveRegions);
         PlayerZoneState? player = null;
+        int foundPlayers = 0;
         foreach (SpatialRegionSlot region in worker.RegionGrid.ActiveRegions)
         {
             foreach (PlayerZoneState p in region.Players)
             {
                 p.FightMode = 1;
                 player = p;
+                foundPlayers++;
             }
         }
 
+        Assert.Equal(1, foundPlayers);
         Assert.NotNull(player);
         NpcZoneState monster = worker.StaticNpcs[1u];
         return (worker, charId, player!, sink, monster);

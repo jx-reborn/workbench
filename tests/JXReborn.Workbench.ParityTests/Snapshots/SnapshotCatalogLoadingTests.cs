@@ -151,7 +151,8 @@ public sealed class SnapshotCatalogLoadingTests
         Assert.True(shopCatalog.TryGetShop(1, out ShopTemplate? shop1) && shop1 is not null);
         Assert.NotEmpty(shop1.Goods);
 
-        Assert.Equal(4, playerCatalog.DefaultStarterItems.Count);
+        Assert.Single(playerCatalog.DefaultStarterItems);
+        Assert.Equal("toan-dau-chuy", playerCatalog.DefaultStarterItems[0].ItemCode);
 
         // Verify all 5 ElementSeries growth rules against server1/settings/npc/player/level_add.txt
         PlayerSeriesGrowthRuleTemplate metalGrowth = playerCatalog.GetSeriesGrowthRule(ElementSeries.Metal);

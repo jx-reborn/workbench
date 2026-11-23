@@ -32,8 +32,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W01-RightClickEquippedWeapon";
@@ -174,8 +173,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W02-EatManaPotionRegenTicks";
@@ -316,8 +314,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W03-CastHangLongBatVuOnDummy";
@@ -440,8 +437,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W04-EatSmallManaPotionFullDuration";
@@ -581,8 +577,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W05-NpcShopBuyMedicine";
@@ -672,8 +667,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W06-RepositoryDepositAndWithdraw";
@@ -784,8 +778,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W07-NovicePkModeSwitch";
@@ -867,8 +860,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W08-MultiActorNearbyChat";
@@ -966,8 +958,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W09-MultiActorPartyInvite";
@@ -1065,8 +1056,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W10-MultiActorPlayerTradeInvite";
@@ -1091,12 +1081,13 @@ public sealed class OracleWireCaptureRecorderTests
 
         _ = await clientA.BeginWireCaptureAsync();
         _ = await clientB.BeginWireCaptureAsync();
-        _ = await clientA.SetTradeOpenAsync(open: true);
-        uint midTick = preA.TickCount + 6;
-        _ = await clientA.WaitUntilAsync(s => s.TickCount >= midTick, TimeSpan.FromSeconds(4));
+        uint s2cSeqB = preB.RecentS2c.LastOrDefault()?.Seq ?? 0u;
+        _ = await clientB.SetTradeOpenAsync(open: true);
+        _ = await clientB.WaitUntilAsync(s => s.Player.MenuState == 2, TimeSpan.FromSeconds(4));
         _ = await clientA.InviteTradeAsync(preB.Player.DwId);
-        uint endTickB = preB.TickCount + 18;
-        _ = await clientB.WaitUntilAsync(s => s.TickCount >= endTickB, TimeSpan.FromSeconds(5));
+        _ = await clientB.WaitUntilAsync(
+            s => s.RecentS2c.Any(p => p.Seq > s2cSeqB && p.Opcode == ProtocolOpcodes.s2c_tradeapplystart),
+            TimeSpan.FromSeconds(5));
         EndWireCaptureResult capA = await clientA.EndWireCaptureAsync();
         EndWireCaptureResult capB = await clientB.EndWireCaptureAsync();
 
@@ -1170,8 +1161,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W11-MultiActorFriendInvite";
@@ -1194,9 +1184,11 @@ public sealed class OracleWireCaptureRecorderTests
 
         _ = await clientA.BeginWireCaptureAsync();
         _ = await clientB.BeginWireCaptureAsync();
+        uint s2cSeqB = preB.RecentS2c.LastOrDefault()?.Seq ?? 0u;
         _ = await clientA.InviteFriendAsync("FriendPeerB");
-        uint endTickB = preB.TickCount + 14;
-        _ = await clientB.WaitUntilAsync(s => s.TickCount >= endTickB, TimeSpan.FromSeconds(5));
+        _ = await clientB.WaitUntilAsync(
+            s => s.RecentS2c.Any(p => p.Seq > s2cSeqB && p.Opcode == ProtocolOpcodes.s2c_chatapplyaddfriend),
+            TimeSpan.FromSeconds(5));
         EndWireCaptureResult capA = await clientA.EndWireCaptureAsync();
         EndWireCaptureResult capB = await clientB.EndWireCaptureAsync();
 
@@ -1268,8 +1260,7 @@ public sealed class OracleWireCaptureRecorderTests
         OracleServerOptions? oracleOpts = OracleServerOptions.TryFromEnvironment();
         if (oracleOpts is null || oracleOpts.IsReplayMode)
         {
-            _output.WriteLine("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
-            return;
+            Assert.Skip("Skipped Oracle wire capture recording (requires Live/Record mode with LEGACY_ORACLE_HOST).");
         }
 
         const string captureId = "W12-PlayerAttributeAllocation";

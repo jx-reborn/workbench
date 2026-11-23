@@ -480,6 +480,8 @@ public sealed class BaLangToVuLangSonJourneyTests
 
         Assert.Equal(VuLangDongMapId, caveSnap.Player.MapId);
         Assert.True(caveSnap.Player.InWorld);
+        Assert.False(ghostLeftInSourceRegion, "Source Map 53 region still retains ghost PlayerZoneState.");
+        Assert.True(map199Worker.PlayersByCharacterId.ContainsKey(serverPlayer.CharacterId), "Player must be attached to Map 199 worker.");
     }
 
     [Fact]

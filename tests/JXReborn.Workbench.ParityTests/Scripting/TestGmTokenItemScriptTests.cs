@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using JXReborn.GameAssets.Items;
 using JXReborn.GameAssets.PlayerTemplates;
+using JXReborn.GameAssets.WorldMaps;
 using JXReborn.Primitives.Characters;
 using JXReborn.Primitives.Encodings;
 using JXReborn.Primitives.Items;
@@ -15,6 +16,7 @@ using JXReborn.Primitives.WorldZones;
 using JXReborn.Scripts.Dialogs;
 using JXReborn.Scripts.Items;
 using JXReborn.TestBase.Fakes;
+using JXReborn.TestBase.Fixtures;
 using JXReborn.TestBase.SimulationHarnesses;
 using JXReborn.Workbench.Scripts.Items;
 using JXReborn.ZoneEngine.Items;
@@ -173,7 +175,7 @@ public sealed class TestGmTokenItemScriptTests
     [Fact]
     public async Task OnUseItemAsync_CharacterEconomyAndDurabilityAtomics_ShouldMutateSingleAxesOnly()
     {
-        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        var (harness, execCtx) = CreateHarness(enableGmToken: true);
         PlayerZoneState player = CreatePlayer(level: 1, money: 0);
 
         var weaponTpl = new ItemTemplate(
@@ -243,7 +245,7 @@ public sealed class TestGmTokenItemScriptTests
     [Fact]
     public async Task OnUseItemAsync_FactionSkillMaterialsAndCombatAtomics_ShouldComposeEndgameAndCraftingStates()
     {
-        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        var (harness, execCtx) = CreateHarness(enableGmToken: true);
         PlayerZoneState player = CreatePlayer(level: 1, money: 0);
         var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
         var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
@@ -294,7 +296,7 @@ public sealed class TestGmTokenItemScriptTests
     [Fact]
     public async Task OnUseItemAsync_BagBoundaryFillAndClear_ShouldReachZeroFreeCellsAndKeepGmTokenOnClear()
     {
-        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        var (harness, execCtx) = CreateHarness(enableGmToken: true);
         PlayerZoneState player = CreatePlayer(level: 10, money: 0);
         var (itemCtx, tokenSlot) = CreateGmTokenContext(player, execCtx, addToBag: true);
         var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
@@ -314,7 +316,7 @@ public sealed class TestGmTokenItemScriptTests
     [Fact]
     public async Task OnUseItemAsync_TestWeaponsMenu_ShouldGrantAllNineWeaponTypes()
     {
-        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        var (harness, execCtx) = CreateHarness(enableGmToken: true);
         PlayerZoneState player = CreatePlayer(level: 10, money: 0);
         var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
         var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
@@ -400,7 +402,7 @@ public sealed class TestGmTokenItemScriptTests
     [Fact]
     public async Task GmToken_EnsureLevel_FemaleCharacter_ShouldUseFemaleStaminaPerLevel()
     {
-        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        var (harness, execCtx) = CreateHarness(enableGmToken: true);
         PlayerZoneState player = CreatePlayer(
             level: 1,
             series: ElementSeries.Water,
@@ -419,7 +421,7 @@ public sealed class TestGmTokenItemScriptTests
     [Fact]
     public async Task GmToken_AllMenus_ShouldMatchPackLegacyCamNangGmLua_1To1()
     {
-        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        var (harness, execCtx) = CreateHarness(enableGmToken: true);
         PlayerZoneState player = CreatePlayer(level: 10);
         var recorder = (PlayerOutboundEventRecorder)player.OutboundSink;
         var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
@@ -456,9 +458,9 @@ public sealed class TestGmTokenItemScriptTests
             ([3, 4], "GMT_MenuBagBoundary", 3),
             ([3, 6], "GMT_MenuMounts", 7),
             ([4], "GMT_MenuCombat", 6),
-            ([5], "GMT_MenuTeleport", 9),
+            ([5], "GMT_MenuTeleport", 10),
             ([6], "GMT_MenuWorldEntities", 5),
-            ([7], "GMT_MenuTasksAndDiag", 5),
+            ([7], "GMT_MenuTasksAndDiag", 6),
         ];
 
         foreach ((int[] path, string luaFunc, int expectedCount) in menuSpecs)
@@ -488,7 +490,7 @@ public sealed class TestGmTokenItemScriptTests
     [Fact]
     public async Task GmToken_ExtendedCharacterEconomyMountsAndEntities_ShouldMatchCanonicalBehavior()
     {
-        var (_, execCtx) = CreateHarness(enableGmToken: true);
+        var (harness, execCtx) = CreateHarness(enableGmToken: true);
         PlayerZoneState player = CreatePlayer(level: 10);
         var (itemCtx, _) = CreateGmTokenContext(player, execCtx);
         var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx);
@@ -577,9 +579,154 @@ public sealed class TestGmTokenItemScriptTests
         Assert.Equal(19, player.RevivalPointId);
 
         // [6, 0] spawns Template 586; [6, 1] spawns Template 576; [6, 3] spawns custom Template ID
+        MapZoneWorker zone = harness.GetZone(53);
+        int npcsBeforeSpawn = zone.StaticNpcs.Count;
         await ExecutePathAsync(script, itemCtx, dialogCtx, player, 6, 0);
         await ExecutePathAsync(script, itemCtx, dialogCtx, player, 6, 1);
         await ExecuteNumberInputPathAsync(script, itemCtx, dialogCtx, player, 576, 6, 3);
+        Assert.Equal(npcsBeforeSpawn + 3, zone.StaticNpcs.Count);
+        Assert.Contains(zone.StaticNpcs.Values, static n => n.TemplateId == 586);
+        Assert.Equal(2, zone.StaticNpcs.Values.Count(static n => n.TemplateId == 576));
+    }
+
+    [Fact]
+    public async Task GmToken_TeleportCoordsArbitraryTaskAndQuestItemByIds_ShouldExecuteSymmetrically()
+    {
+        SharedGameAssetsFixture assets = SharedGameAssetsFixture.Default;
+        Assert.True(assets.MapCatalog.TryGetMapDescriptor(53, out MapDescriptor? map53) && map53 is not null);
+        Assert.True(assets.MapCatalog.TryGetMapDescriptor(78, out MapDescriptor? map78) && map78 is not null);
+
+        string repoRoot = FindWorkbenchRoot();
+        string packerPath = Path.Combine(repoRoot, "qa", "scripts", "pack_legacy_profiles.py");
+        string packerText = File.ReadAllText(packerPath, Encoding.UTF8);
+        int fnStart = packerText.IndexOf("def build_camnang_gm_lua(", StringComparison.Ordinal);
+        int fnEnd = packerText.IndexOf("def build_clean_login_lua(", fnStart, StringComparison.Ordinal);
+        string luaBlock = packerText[fnStart..fnEnd];
+
+        string[] requiredShortPrompts =
+        [
+            "Nhập Map ID (1..1000):",
+            "Nhập Tile X (1..4096):",
+            "Nhập Tile Y (1..8192):",
+            "Nhập Task ID (0..65535):",
+            "Nhập giá trị Task:",
+            "Nhập Genre (0..10):",
+            "Nhập Detail (0..1000):",
+            "Nhập Particular (0..10000):",
+            "Nhập Level (1..100):",
+        ];
+        foreach (string prompt in requiredShortPrompts)
+        {
+            byte[] tcvn3Bytes = Tcvn3Encoding.EncodeBytes(prompt);
+            Assert.True(tcvn3Bytes.Length <= 31, $"Prompt '{prompt}' exceeds Legacy 31-byte AskClientForNumber limit ({tcvn3Bytes.Length}B).");
+            Assert.Contains($"{{L(\"{prompt}\")}}", luaBlock, StringComparison.Ordinal);
+        }
+
+        var harnessOptions = new ZoneSimulationHarnessOptions
+        {
+            Assets = new ZoneAssetServices
+            {
+                MapCatalog = assets.MapCatalog,
+                ItemTemplateCatalog = assets.ItemTemplateCatalog,
+                PlayerTemplateCatalog = assets.PlayerTemplateCatalog,
+            }
+        };
+        harnessOptions.InitialMaps.Add(map53!);
+        harnessOptions.InitialMaps.Add(map78!);
+
+        var harness = new ZoneSimulationHarness(harnessOptions);
+        Assert.NotEmpty(harness.Workers);
+        foreach (MapZoneWorker w in harness.Workers)
+        {
+            w.ExecutionContext.Options.EnableTestGmToken = true;
+            w.ExecutionContext.Options.AutoGrantGmTokenOnLogin = true;
+            w.ExecutionContext.Options.TestGmTokenItemCode = TestGmTokenItemScript.GmTokenItemCode;
+            w.ExecutionContext.Options.TestGmTokenScriptCode = TestGmTokenItemScript.GmTokenScriptPath;
+        }
+
+        var charDto = new Contracts.Characters.CharacterDto(
+            Id: Guid.NewGuid(),
+            AccountId: Guid.NewGuid(),
+            SlotIndex: 0,
+            RoleNameUnicode: "GmTokenAdvTester",
+            Gender: CharacterGender.Male,
+            Series: ElementSeries.Earth,
+            Level: 10,
+            Experience: 0,
+            LeadExperience: 0,
+            MapId: 53,
+            RevivalMapId: 53,
+            RevivalPointId: 19,
+            MapMpsX: 51200,
+            MapMpsY: 102400,
+            CurrentLife: 100,
+            MaxLife: 100,
+            CurrentMana: 40,
+            MaxMana: 40,
+            CurrentStamina: 100,
+            MaxStamina: 100,
+            Strength: 20,
+            Dexterity: 15,
+            Vitality: 25,
+            Energy: 20,
+            Lucky: 0,
+            UnallocatedAttributePoints: 0,
+            UnallocatedSkillPoints: 0,
+            InventoryMoney: 0,
+            RepositoryMoney: 0,
+            CurrentFactionId: 255,
+            FirstFactionId: 255,
+            FactionJoinCount: 0,
+            Skills: []);
+        SimulatedPlayerHandle handle = await harness.AttachSimulatedPlayerAsync(charDto);
+        PlayerZoneState player = handle.GetZoneState()!;
+        ZoneExecutionContext execCtx53 = harness.GetZone(53).ExecutionContext;
+        var (itemCtx, tokenSlot) = CreateGmTokenContext(player, execCtx53);
+        var dialogCtx = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx53);
+        var script = new TestGmTokenItemScript();
+
+        // [5, 8]: Teleport to exact (MapId, TileX, TileY) -> (78, 1593, 3206)
+        await ExecutePathAsync(script, itemCtx, dialogCtx, player, 5, 8);
+        await SubmitPendingNumberAsync(dialogCtx, player, 78);
+        await SubmitPendingNumberAsync(dialogCtx, player, 1593);
+        await SubmitPendingNumberAsync(dialogCtx, player, 3206);
+        await harness.StepFramesAsync(2);
+        Assert.Equal((ushort)78, player.MapId);
+        Assert.Equal(1593 * 32, player.CurrentMpsX);
+        Assert.Equal(3206 * 32, player.CurrentMpsY);
+        Assert.Equal((byte)0, player.FightMode);
+
+        // [7, 4]: Set arbitrary Task value -> Task(5) = 60*256+20 (15380), Task(17) = 514
+        ZoneExecutionContext execCtx78 = harness.GetZone(78).ExecutionContext;
+        var itemCtx78 = new ZoneScriptItemContext(player, tokenSlot, targetNpcId: 0, execCtx78);
+        var dialogCtx78 = new ZoneScriptDialogContext(player, sourceNpc: null, execCtx78);
+        await ExecutePathAsync(script, itemCtx78, dialogCtx78, player, 7, 4);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 5);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 15380);
+        Assert.Equal(15380, player.GetTaskValue(5));
+
+        await ExecutePathAsync(script, itemCtx78, dialogCtx78, player, 7, 4);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 17);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 514);
+        Assert.Equal(514, player.GetTaskValue(17));
+
+        // [3, 5]: Grant QuestKey item (4, 118, 0, 1) -> resolves real pack item luong-ngan-khoang (Detail=118, Particular=1)
+        await ExecutePathAsync(script, itemCtx78, dialogCtx78, player, 3, 5);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 4);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 118);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 0);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 1);
+
+        // [3, 5]: Grant MagicScript (6, 1, 400, 90) -> Sát Thủ Giản Lv90
+        await ExecutePathAsync(script, itemCtx78, dialogCtx78, player, 3, 5);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 6);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 1);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 400);
+        await SubmitPendingNumberAsync(dialogCtx78, player, 90);
+
+        PlayerItemSlot[] bagItems = player.Inventory.GetBagItems().ToArray();
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.QuestKey && i.DetailType == 118 && i.Template?.Code == "luong-ngan-khoang");
+        Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.MagicScript && i.DetailType == 1 && i.ParticularType == 400 && i.Level == 90);
     }
 
     private static async Task ExecuteNumberInputPathAsync(
@@ -604,8 +751,6 @@ public sealed class TestGmTokenItemScriptTests
         await numberCb!(dialogCtx, validatedValue);
     }
 
-    private sealed record LegacyLuaMenu(string Prompt, int DeclaredCount, IReadOnlyList<string> Options);
-
     private static Dictionary<string, LegacyLuaMenu> ParsePackLegacyCamNangGmMenus()
     {
         string repoRoot = FindWorkbenchRoot();
@@ -624,13 +769,16 @@ public sealed class TestGmTokenItemScriptTests
             @"function\s+(GMT_\w+)\(\)\s*Say\(\{L\(""([^""]+)""\)\},\s*(\d+),(.*?)\nend",
             RegexOptions.Singleline);
 
+        Assert.NotEmpty(fnMatches);
         foreach (Match m in fnMatches)
         {
             string fnName = m.Groups[1].Value;
             string prompt = VerifyTcvn3RoundTrip(m.Groups[2].Value);
             int declaredCount = int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
             var opts = new List<string>();
-            foreach (Match om in Regex.Matches(m.Groups[4].Value, @"\{L\(""([^""]+)""\)\}"))
+            MatchCollection optionMatches = Regex.Matches(m.Groups[4].Value, @"\{L\(""([^""]+)""\)\}");
+            Assert.NotEmpty(optionMatches);
+            foreach (Match om in optionMatches)
             {
                 opts.Add(VerifyTcvn3RoundTrip(om.Groups[1].Value));
             }
@@ -663,50 +811,5 @@ public sealed class TestGmTokenItemScriptTests
         }
 
         throw new DirectoryNotFoundException("Could not locate workbench root containing qa/scripts/pack_legacy_profiles.py.");
-    }
-
-    private sealed class StubFactionPlayerTemplateCatalog : IPlayerTemplateCatalog
-    {
-        private readonly FakePlayerTemplateCatalog _inner = new();
-        private readonly Dictionary<byte, FactionTemplate> _factions;
-
-        public StubFactionPlayerTemplateCatalog(params FactionTemplate[] factions)
-        {
-            _factions = factions.ToDictionary(static f => f.Id);
-            AllFactions = factions;
-        }
-
-        public IReadOnlyCollection<CharacterBaseTemplate> CharacterTemplates => _inner.CharacterTemplates;
-        public IReadOnlyCollection<StarterVillageTemplate> StarterVillages => _inner.StarterVillages;
-        public IReadOnlyList<StarterItemTemplate> DefaultStarterItems => _inner.DefaultStarterItems;
-        public PkRulesTemplate PkRules => _inner.PkRules;
-        public IReadOnlyList<FactionTemplate> AllFactions { get; }
-
-        public bool TryGetCharacterTemplate(ElementSeries series, CharacterGender gender, out CharacterBaseTemplate? template) =>
-            _inner.TryGetCharacterTemplate(series, gender, out template);
-
-        public bool TryGetStarterVillage(ushort villageMapId, out StarterVillageTemplate? village) =>
-            _inner.TryGetStarterVillage(villageMapId, out village);
-
-        public PlayerSeriesGrowthRuleTemplate GetSeriesGrowthRule(ElementSeries series) =>
-            _inner.GetSeriesGrowthRule(series);
-
-        public long GetRequiredExpForNextLevel(int currentLevel) =>
-            _inner.GetRequiredExpForNextLevel(currentLevel);
-
-        public bool IsRoleNameProhibited(string roleNameUnicode) =>
-            _inner.IsRoleNameProhibited(roleNameUnicode);
-
-        public PkPenaltyRuleTemplate GetPkPenaltyRule(int pkValue) =>
-            _inner.GetPkPenaltyRule(pkValue);
-
-        public bool TryGetFactionById(byte factionId, out FactionTemplate? faction) =>
-            _factions.TryGetValue(factionId, out faction);
-
-        public bool TryGetFactionByCode(string code, out FactionTemplate? faction)
-        {
-            faction = AllFactions.FirstOrDefault(f => string.Equals(f.Code, code, StringComparison.OrdinalIgnoreCase));
-            return faction is not null;
-        }
     }
 }

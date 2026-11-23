@@ -201,6 +201,94 @@ public static class TestGmTokenDriver
             TimeSpan.FromSeconds(10));
     }
 
+    public static async Task<WorldDomSnapshot> TeleportToCoordsAsync(
+        JxHeadlessClient client,
+        int mapId,
+        int tileX,
+        int tileY)
+    {
+        _ = await InvokeNumberInputSequenceAsync(client, [MenuTeleport, 8], [mapId, tileX, tileY]);
+        return await client.WaitUntilAsync(
+            s => s.Player.InWorld && s.Player.SyncReady && s.Player.MapId == mapId &&
+                 Math.Abs(s.Player.MpsX - (tileX * 32)) <= 64 &&
+                 Math.Abs(s.Player.MpsY - (tileY * 32)) <= 64,
+            TimeSpan.FromSeconds(10));
+    }
+
+    public static Task<WorldDomSnapshot> SetTaskValueAsync(
+        JxHeadlessClient client,
+        int taskId,
+        int value) =>
+        InvokeNumberInputSequenceAsync(client, [MenuTasksAndDiagnostics, 4], [taskId, value]);
+
+    public static Task<WorldDomSnapshot> GrantItemByIdsAsync(
+        JxHeadlessClient client,
+        int genre,
+        int detail,
+        int particular,
+        int level) =>
+        InvokeNumberInputSequenceAsync(client, [MenuItems, 5], [genre, detail, particular, level]);
+
+    public static async Task<WorldDomSnapshot> InvokeNumberInputSequenceAsync(
+        JxHeadlessClient client,
+        IReadOnlyList<int> optionPath,
+        IReadOnlyList<int> numberInputs)
+    {
+        ArgumentNullException.ThrowIfNull(optionPath);
+        ArgumentNullException.ThrowIfNull(numberInputs);
+
+        WorldDomSnapshot snap = await client.GetStateAsync();
+        if (snap.Dialog.IsOpen)
+        {
+            snap = await client.DismissSystemLoginHintIfOpenAsync();
+        }
+
+        InventoryItemSnapshot? token = FindGmTokenInBag(snap)
+            ?? throw new InvalidOperationException("GM Token (6,1,4258) not found in bag.");
+
+        uint seqBeforeUse = GetMaxS2cSeq(snap);
+        _ = await client.UseItemAsync(token.ArrayIndex, token.Place, token.GridX, token.GridY);
+        snap = await client.WaitUntilAsync(
+            s => s.Dialog.IsOpen && s.RecentS2c.Any(p => p.Seq > seqBeforeUse && p.Opcode == ProtocolOpcodes.s2c_scriptaction),
+            TimeSpan.FromSeconds(6));
+
+        for (int step = 0; step < optionPath.Count; step++)
+        {
+            bool isLastOption = step == optionPath.Count - 1;
+            uint seqBeforeSelect = GetMaxS2cSeq(snap);
+            _ = await client.SelectDialogAsync(optionPath[step]);
+            if (!isLastOption)
+            {
+                snap = await client.WaitUntilAsync(
+                    s => s.Dialog.IsOpen && s.RecentS2c.Any(p => p.Seq > seqBeforeSelect && p.Opcode == ProtocolOpcodes.s2c_scriptaction),
+                    TimeSpan.FromSeconds(6));
+            }
+            else if (numberInputs.Count > 0)
+            {
+                snap = await client.WaitUntilAsync(
+                    s => s.RecentS2c.Any(p => p.Seq > seqBeforeSelect && p.Opcode == ProtocolOpcodes.s2c_citywarextend),
+                    TimeSpan.FromSeconds(6));
+            }
+        }
+
+        for (int i = 0; i < numberInputs.Count; i++)
+        {
+            bool isLastInput = i == numberInputs.Count - 1;
+            uint seqBeforeInput = GetMaxS2cSeq(snap);
+            _ = await client.SubmitInputNumberAsync(numberInputs[i]);
+            if (!isLastInput)
+            {
+                snap = await client.WaitUntilAsync(
+                    s => s.RecentS2c.Any(p => p.Seq > seqBeforeInput && p.Opcode == ProtocolOpcodes.s2c_citywarextend),
+                    TimeSpan.FromSeconds(6));
+            }
+        }
+
+        snap = await client.GetStateAsync();
+        uint targetTick = snap.TickCount + 20;
+        return await client.WaitUntilAsync(s => s.TickCount >= targetTick, TimeSpan.FromSeconds(5));
+    }
+
     private static uint GetMaxS2cSeq(WorldDomSnapshot snap) =>
         snap.RecentS2c.Count == 0 ? 0u : snap.RecentS2c.Max(static p => p.Seq);
 }

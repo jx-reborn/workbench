@@ -41,6 +41,7 @@ public sealed class FactionRankTitleParityTests
                 (10, "huashan", "Hoa Sơn phái", "S_WATER", "C_BALANCE"),
             ];
 
+            Assert.NotEmpty(factions);
             foreach (var f in factions)
             {
                 iniText.AppendLine($"[{f.Id}]");
@@ -87,6 +88,7 @@ public sealed class FactionRankTitleParityTests
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(jsonPath, Encoding.UTF8));
             JsonElement factionsArr = doc.RootElement.GetProperty("factions");
 
+            Assert.Equal(11, factionsArr.GetArrayLength());
             Dictionary<int, List<(int RankId, string TitleName)>> titlesByFaction = [];
             foreach (JsonElement f in factionsArr.EnumerateArray())
             {
@@ -94,6 +96,7 @@ public sealed class FactionRankTitleParityTests
                 var list = new List<(int RankId, string TitleName)>();
                 if (f.TryGetProperty("titles", out JsonElement tArr))
                 {
+                    Assert.NotEmpty(tArr.EnumerateArray());
                     foreach (JsonElement t in tArr.EnumerateArray())
                     {
                         list.Add((t.GetProperty("rankId").GetInt32(), t.GetProperty("titleName").GetString() ?? string.Empty));

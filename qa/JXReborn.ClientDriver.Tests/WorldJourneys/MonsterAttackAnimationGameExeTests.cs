@@ -136,7 +136,7 @@ public sealed class MonsterAttackAnimationGameExeTests
             if (liveCat is not null)
             {
                 observedDoings.Add(liveCat.Doing);
-                if (liveCat.Doing is not (0 or 1 or 2 or 3 or 4))
+                if (liveCat.Doing is (6 or 7 or 14))
                 {
                     sawAttackDoing = true;
                 }

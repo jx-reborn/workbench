@@ -221,8 +221,10 @@ public sealed class XiangyangMapAndScriptAuditTests
         Assert.True(assets.MapCatalog.TryGetMapDescriptor(78, out MapDescriptor? map78) && map78 is not null);
         Assert.True(assets.MapCatalog.TryGetMapDescriptor(79, out MapDescriptor? map79) && map79 is not null);
 
+        var map78DialogNpcs = map78!.RegionNpcSpawns.Where(static n => n.Kind == EntityKind.DialogNpc).ToList();
+        Assert.NotEmpty(map78DialogNpcs);
         var missingNpcBindings = new List<string>();
-        foreach (StaticNpcSpawnTemplate npc in map78!.RegionNpcSpawns.Where(static n => n.Kind == EntityKind.DialogNpc))
+        foreach (StaticNpcSpawnTemplate npc in map78DialogNpcs)
         {
             string? code = !string.IsNullOrWhiteSpace(npc.ScriptCode)
                 ? npc.ScriptCode
@@ -267,7 +269,9 @@ public sealed class XiangyangMapAndScriptAuditTests
             missingNpcBindings.Add($"Map79 Boss 53 ({wudangBoss53.DisplayName}) '{wudangBoss53.ScriptPath}'");
         }
 
-        foreach (StaticMapObjectSpawnTemplate obj in assets.MapCatalog.GetStaticMapObjectsForMap(78))
+        IReadOnlyList<StaticMapObjectSpawnTemplate> map78Objects = assets.MapCatalog.GetStaticMapObjectsForMap(78);
+        Assert.NotEmpty(map78Objects);
+        foreach (StaticMapObjectSpawnTemplate obj in map78Objects)
         {
             string? objCode = StaticMapObjectSpawnTemplate.InferDefaultScriptCode(obj.ObjTemplateId, obj.ScriptPath);
             if (string.IsNullOrWhiteSpace(objCode))

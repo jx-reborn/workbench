@@ -55,4 +55,18 @@ public sealed class WireParityProxyOptionsTests
         Assert.True(options.InteractiveWindow);
         Assert.True(options.OpenBrowserOnStandalone);
     }
+
+    [Fact]
+    public void ParseArgs_WithScenarioAndStandalone_ShouldSetScenarioPathAndHeadlessAutomationDefaults()
+    {
+        WireParityProxyOptions options = WireParityProxyOptions.ParseArgs(
+            ["--standalone", "--scenario", @"Scenarios\Maps\078_tuong-duong.scenario.json", "--keep-alive"]);
+
+        Assert.True(options.StandaloneMode);
+        Assert.Equal(@"Scenarios\Maps\078_tuong-duong.scenario.json", options.ScenarioPath);
+        Assert.True(options.KeepAliveAfterScenario);
+        Assert.True(options.SpawnClient);
+        Assert.False(options.InteractiveWindow);
+        Assert.False(options.OpenBrowserOnStandalone);
+    }
 }

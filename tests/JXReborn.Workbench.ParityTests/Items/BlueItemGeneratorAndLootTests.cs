@@ -168,6 +168,8 @@ public sealed class BlueItemGeneratorAndLootTests
         worker.TryEnqueueCommand(new CompletePlayerSyncZoneCommand(char1Id, 1L, 0x1111u, 1u));
         await worker.StepSingleTickAsync();
 
+        Assert.NotEmpty(worker.RegionGrid.ActiveRegions);
+        int updatedPlayers = 0;
         foreach (SpatialRegionSlot slot in worker.RegionGrid.ActiveRegions)
         {
             foreach (PlayerZoneState p in slot.Players)
@@ -175,8 +177,10 @@ public sealed class BlueItemGeneratorAndLootTests
                 p.FightMode = 1;
                 p.WeaponMinDamage = 500;
                 p.WeaponMaxDamage = 600;
+                updatedPlayers++;
             }
         }
+        Assert.Equal(1, updatedPlayers);
 
         NpcZoneState monster = worker.StaticNpcs[1u];
         monster.CurLife = 10;

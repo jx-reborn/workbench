@@ -1,13 +1,14 @@
 using JXReborn.ClientDriver;
 using JXReborn.DualParityServer.Diffing;
+using JXReborn.DualParityServer.Tests.Fixtures;
 using Xunit;
 
-namespace JXReborn.DualParityServer.Tests;
+namespace JXReborn.DualParityServer.Tests.Parity;
 
 public sealed class SemanticDiffEngineTests
 {
     [Fact]
-    public void Compare_ShouldPassWhenOnlyEphemeralIdsAndMinorPositionDiffer()
+    public void Compare_WhenOnlyEphemeralIdsAndMinorPositionDiffer_ShouldPass()
     {
         var engine = new SemanticDiffEngine(new DiffOptions { PositionToleranceMps = 64 });
 
@@ -34,15 +35,15 @@ public sealed class SemanticDiffEngineTests
     }
 
     [Fact]
-    public void Compare_ShouldFlagCriticalFindingsOnDialogPromptAndOptionsDivergence()
+    public void Compare_OnDialogPromptAndOptionsDivergence_ShouldFlagCriticalFindings()
     {
         var engine = new SemanticDiffEngine();
 
         WorldDomSnapshot legacy = TestSnapshotFactory.Create(
-            dialog: TestSnapshotFactory.CreateDialog("Chao hiep khach!", "Nhan nhiem vu", "Thoat"));
+            dialog: TestSnapshotFactory.CreateDialog("Chao hiep khach! Co can ho tro gi khong?", "Nhan nhiem vu", "Thoat"));
 
         WorldDomSnapshot reborn = TestSnapshotFactory.Create(
-            dialog: TestSnapshotFactory.CreateDialog("Xin chao!", "Nhan nhiem vu", "Huy bo", "Thoat"));
+            dialog: TestSnapshotFactory.CreateDialog("Chao ban! Chon chuc nang:", "Nhan nhiem vu", "Huy bo", "Thoat"));
 
         StepComparisonResult result = engine.Compare(
             stepIndex: 2,
@@ -59,19 +60,19 @@ public sealed class SemanticDiffEngineTests
     }
 
     [Fact]
-    public void Compare_ShouldFlagInventoryMoneyAndCriticalPositionDrift()
+    public void Compare_OnInventoryMoneyAndPositionDrift_ShouldFlagFindings()
     {
         var engine = new SemanticDiffEngine(new DiffOptions { PositionToleranceMps = 64, CriticalPositionDriftMps = 256 });
 
         WorldDomSnapshot legacy = TestSnapshotFactory.Create(
-            mpsX: 1600,
-            mpsY: 3200,
+            mpsX: 51150,
+            mpsY: 102713,
             money: 5000,
-            items: [TestSnapshotFactory.CreateItem(serverItemId: 100, place: 0, genre: 6, detail: 1, particular: 4258, stack: 1)]);
+            items: [TestSnapshotFactory.CreateItem(serverItemId: 100, place: 0, genre: 1, detail: 0, particular: 0, stack: 1)]);
 
         WorldDomSnapshot reborn = TestSnapshotFactory.Create(
-            mpsX: 2000,
-            mpsY: 3200,
+            mpsX: 51550,
+            mpsY: 102713,
             money: 4500,
             items: []);
 

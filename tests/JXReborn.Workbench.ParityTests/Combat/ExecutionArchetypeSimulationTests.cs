@@ -87,6 +87,7 @@ public sealed class ExecutionArchetypeSimulationTests
             Assets = services,
             InitialMaps = { map },
         });
+        Assert.NotEmpty(harness.Workers);
         foreach (MapZoneWorker w in harness.Workers)
         {
             // Isolate post-cast missile trajectory/archetype physics from the 18-frame player wind-up (tested in SkillCastWindupTimingTests)

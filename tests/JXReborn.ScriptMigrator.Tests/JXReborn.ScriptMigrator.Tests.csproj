@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\tools\JXReborn.ScriptMigrator\JXReborn.ScriptMigrator.csproj" />
+    <ProjectReference Include="..\..\tools\JXReborn.LegacyImporter\JXReborn.LegacyImporter.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

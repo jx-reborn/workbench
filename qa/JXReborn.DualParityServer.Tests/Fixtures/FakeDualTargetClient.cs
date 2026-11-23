@@ -1,7 +1,7 @@
 using JXReborn.ClientDriver;
 using JXReborn.DualParityServer.Session;
 
-namespace JXReborn.DualParityServer.Tests;
+namespace JXReborn.DualParityServer.Tests.Fixtures;
 
 internal sealed class FakeDualTargetClient : IDualTargetClient
 {

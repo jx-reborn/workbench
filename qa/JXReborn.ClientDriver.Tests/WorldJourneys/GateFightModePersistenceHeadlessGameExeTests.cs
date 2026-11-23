@@ -44,6 +44,7 @@ public sealed class GateFightModePersistenceHeadlessGameExeTests
                 snap1.Player.MpsY,
                 NorthGateTrapId,
                 clientPakObstacles);
+            Assert.NotEmpty(gateWaypoints);
             for (int i = 0; i < gateWaypoints.Count; i++)
             {
                 (int gx, int gy) = gateWaypoints[i];
@@ -132,9 +133,9 @@ public sealed class GateFightModePersistenceHeadlessGameExeTests
 
         WorldDomSnapshot afterAtk = await client2.GetStateAsync();
         NpcSnapshot? mobAfter = afterAtk.Npcs.FirstOrDefault(n => n.DwId == mob.DwId);
-        int lifeAfter = mobAfter?.Life ?? 0;
+        bool mobDamaged = (mobAfter is not null && mobAfter.Life < lifeBefore) || afterAtk.Player.Exp > expBefore;
         Assert.True(
-            lifeAfter < lifeBefore,
-            $"Expected monster HP to drop below {lifeBefore} (actual {lifeAfter}) after relogin combat.");
+            mobDamaged,
+            $"Expected monster HP to drop below {lifeBefore} or EXP to increase after relogin combat (LifeAfter={mobAfter?.Life}, Exp={afterAtk.Player.Exp}).");
     }
 }

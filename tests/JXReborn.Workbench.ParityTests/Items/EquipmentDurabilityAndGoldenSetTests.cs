@@ -680,21 +680,31 @@ public sealed class EquipmentDurabilityAndGoldenSetTests
         var catalog = CreateCatalogFromAssets();
         var generator = new ItemGenerator(catalog);
 
-        // Look for a golden set with rings or use a mock suite to assert non-stacking
         var player = CreateTestPlayer(series: ElementSeries.Water);
         player.ItemCatalog = catalog;
 
-        // Equip 2 identical golden rings (Row 15)
-        GeneratedItemData ring1Gen = generator.GenerateGoldEquipment(15, 2001u);
-        var ring1Slot = PlayerItemSlot.FromGeneratedItem(101, ring1Gen, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring1, 0);
-        var ring2Slot = PlayerItemSlot.FromGeneratedItem(102, ring1Gen, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring2, 0);
+        // Suite 29 ("Vô Danh Chỉ Hoàn" Row 141 + "Vô Danh Giới Chỉ" Row 142) is a 2-piece ring set (level >= 60, no gender lock).
+        // Equipping two identical Row 141 rings must count as only 1 distinct piece and NOT activate the 2-piece full-suite bonus.
+        Assert.Equal(2, catalog.GetClassicSuiteRequiredPieces(29));
+        GeneratedItemData ring1Gen = generator.GenerateGoldEquipment(141, 2001u);
+        var dupRing1 = PlayerItemSlot.FromGeneratedItem(101, ring1Gen, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring1, 0);
+        var dupRing2 = PlayerItemSlot.FromGeneratedItem(102, ring1Gen, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring2, 0);
 
-        Assert.True(player.Inventory.TryPlaceItemDirect(ring1Slot, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring1, 0, player));
+        Assert.True(player.Inventory.TryPlaceItemDirect(dupRing1, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring1, 0, player));
+        Assert.True(player.Inventory.TryPlaceItemDirect(dupRing2, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring2, 0, player));
+
+        player.Inventory.RecalculateEquipmentAndFiveElementsActivation(player, catalog);
+        Assert.False(dupRing1.ActiveHiddenSlots[0], "Two duplicate Row 141 rings must not unlock Suite 29 hidden allskill_v bonus.");
+
+        // Swapping Ring2 to distinct Row 142 (same Suite 29) brings distinct suite piece count to 2 -> unlocks all Suite 29 hidden slots!
+        Assert.True(player.Inventory.TryRemoveItem(102u, out _, player));
+        GeneratedItemData ring142Gen = generator.GenerateGoldEquipment(142, 2002u);
+        var ring2Slot = PlayerItemSlot.FromGeneratedItem(103, ring142Gen, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring2, 0);
         Assert.True(player.Inventory.TryPlaceItemDirect(ring2Slot, ItemContainerPlace.Equip, (byte)EquipmentPartKind.Ring2, 0, player));
 
-        // Two identical RowId pieces must count as 1 distinct piece, not 2
         player.Inventory.RecalculateEquipmentAndFiveElementsActivation(player, catalog);
-        Assert.False(ring1Slot.ActiveHiddenSlots[0] && ring1Slot.ActiveHiddenSlots[1] && ring1Slot.ActiveHiddenSlots[2]);
+        Assert.True(dupRing1.ActiveHiddenSlots[0] && dupRing1.ActiveHiddenSlots[1] && dupRing1.ActiveHiddenSlots[2],
+            "Distinct Suite 29 pair (Row 141 + Row 142) must unlock Suite 29 hidden slots.");
     }
 
     #endregion

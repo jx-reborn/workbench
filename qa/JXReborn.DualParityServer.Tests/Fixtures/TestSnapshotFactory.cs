@@ -1,7 +1,7 @@
 using JXReborn.ClientDriver;
 using JXReborn.ClientDriver.Encodings;
 
-namespace JXReborn.DualParityServer.Tests;
+namespace JXReborn.DualParityServer.Tests.Fixtures;
 
 internal static class TestSnapshotFactory
 {
@@ -16,8 +16,8 @@ internal static class TestSnapshotFactory
         uint tick = 500,
         uint playerDwId = 10,
         int mapId = 53,
-        int mpsX = 1600,
-        int mpsY = 3200,
+        int mpsX = 51150,
+        int mpsY = 102713,
         int level = 10,
         long exp = 1200,
         int money = 5000,
@@ -141,5 +141,5 @@ internal static class TestSnapshotFactory
             CurDurability: 0,
             MaxDurability: 0,
             StackCount: stack,
-            NameTcvn3Hex: ToTcvn3Hex("Kim Sang Duoc"));
+            NameTcvn3Hex: ToTcvn3Hex(genre == 6 && detail == 1 && particular == 4258 ? "Lenh Bai GM" : "Kim Sang Duoc"));
 }

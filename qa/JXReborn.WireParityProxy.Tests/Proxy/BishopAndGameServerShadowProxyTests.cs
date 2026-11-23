@@ -214,6 +214,7 @@ public sealed class BishopAndGameServerShadowProxyTests
 
         long shadowSyncEndSentTick = 0;
         long shadowC2sSyncEndReceivedTick = 0;
+        var shadowBurstGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         static byte[] StructBytes<T>(T value) where T : struct
         {
@@ -222,7 +223,7 @@ public sealed class BishopAndGameServerShadowProxyTests
             return bytes;
         }
 
-        Task RunServerAsync(TcpListener listener, int initialBurstDelayMs, bool recordTicks) => Task.Run(async () =>
+        Task RunServerAsync(TcpListener listener, Task? releaseGate, bool recordTicks) => Task.Run(async () =>
         {
             TcpClient tcp = await listener.AcceptTcpClientAsync();
             await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("fake-gs", tcp, keyTable, CancellationToken.None);
@@ -231,9 +232,9 @@ public sealed class BishopAndGameServerShadowProxyTests
             Assert.NotNull(login);
             Assert.Equal(ProtocolOpcodes.c2s_logiclogin, login.Opcode);
 
-            if (initialBurstDelayMs > 0)
+            if (releaseGate is not null)
             {
-                await Task.Delay(initialBurstDelayMs);
+                await releaseGate;
             }
 
             byte[] syncWorld = StructBytes(SyncWorldS2CPacket.Create(53, 52032, 101696, 100, "Ba Lang Huyen"));
@@ -292,8 +293,8 @@ public sealed class BishopAndGameServerShadowProxyTests
             }
         });
 
-        Task primaryTask = RunServerAsync(primaryGsListener, initialBurstDelayMs: 0, recordTicks: false);
-        Task shadowTask = RunServerAsync(shadowGsListener, initialBurstDelayMs: 180, recordTicks: true);
+        Task primaryTask = RunServerAsync(primaryGsListener, releaseGate: null, recordTicks: false);
+        Task shadowTask = RunServerAsync(shadowGsListener, releaseGate: shadowBurstGate.Task, recordTicks: true);
 
         await using (JxWireConnection clientGs = await JxWireConnection.ConnectUpstreamAsync(
             "client-gs",
@@ -326,12 +327,19 @@ public sealed class BishopAndGameServerShadowProxyTests
             BinaryPrimitives.WriteUInt32LittleEndian(c2sSyncEnd.AsSpan(5, 4), 2u);
             await clientGs.WriteEncryptedFrameAsync(c2sSyncEnd, CancellationToken.None);
 
+            // Release Shadow after Primary finished s2c_syncend and client sent c2s_syncend,
+            // proving the proxy holds Shadow's c2s_syncend until Shadow emits its own s2c_syncend.
+            shadowBurstGate.TrySetResult();
+
             JxWireFrame? moneyFrame = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
             Assert.NotNull(moneyFrame);
             Assert.Equal(ProtocolOpcodes.s2c_syncmoney, moneyFrame.Opcode);
 
-            // Allow Step 1 action window to close cleanly before disconnect.
-            await Task.Delay(120);
+            using var stepWaitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while ((gsProxy.LatestSession?.DiffCoordinator.GetSteps().Count ?? 0) < 1 && !stepWaitCts.IsCancellationRequested)
+            {
+                await Task.Yield();
+            }
         }
 
         await Task.WhenAll(primaryTask, shadowTask);

@@ -58,7 +58,9 @@ public sealed class WireParityMcpToolDispatcherTests
         Assert.NotNull(listResp);
         JsonArray? tools = listResp["result"]?["tools"] as JsonArray;
         Assert.NotNull(tools);
-        Assert.Equal(9, tools.Count);
+        Assert.Equal(11, tools.Count);
+        Assert.Contains(tools.OfType<JsonObject>(), t => string.Equals(t["name"]?.GetValue<string>(), "run_scenario", StringComparison.Ordinal));
+        Assert.Contains(tools.OfType<JsonObject>(), t => string.Equals(t["name"]?.GetValue<string>(), "crawl_nearby_npcs", StringComparison.Ordinal));
 
         JsonObject? resListResp = await dispatcher.HandleRequestAsync(new JsonObject
         {
@@ -263,22 +265,20 @@ public sealed class WireParityMcpToolDispatcherTests
             "add_skill_point",
             "add_attribute",
             "pickup_obj",
-            "dismiss_login_hint"
+            "dismiss_login_hint",
+            "input_number",
+            "buy_shop_item",
+            "repair_item",
+            "box_operate",
+            "walk_to"
         ];
         foreach (string act in expectedActions)
         {
             Assert.Contains(act, actionDesc, StringComparison.Ordinal);
         }
-    }
 
-    private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
-    {
-        public int CallCount { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            CallCount++;
-            return Task.FromResult(responder(request));
-        }
+        Assert.True(props.ContainsKey("value"), "Expected perform_action schema to define 'value'.");
+        Assert.True(props.ContainsKey("buy_index"), "Expected perform_action schema to define 'buy_index'.");
+        Assert.True(props.ContainsKey("item_id"), "Expected perform_action schema to define 'item_id'.");
     }
 }

@@ -9,34 +9,35 @@ using JXReborn.DualParityServer.Diffing;
 using JXReborn.DualParityServer.Proxy;
 using JXReborn.DualParityServer.Reporting;
 using JXReborn.DualParityServer.Session;
+using JXReborn.DualParityServer.Tests.Fixtures;
 using Xunit;
 
-namespace JXReborn.DualParityServer.Tests;
+namespace JXReborn.DualParityServer.Tests.Parity;
 
 public sealed class AutomationAndReportingTests
 {
     [Fact]
-    public async Task NpcDialogCrawlerAndReportWriter_ShouldScoreMatchingDivergingAndMissingNpcs()
+    public async Task NpcDialogCrawlerAndReportWriter_WhenAuditingMixedNpcs_ShouldScoreMatchingDivergingAndMissingNpcs()
     {
-        NpcSnapshot legacyNpcA = TestSnapshotFactory.CreateDialogNpc(101, "Xa Phu", 1610, 3210);
-        NpcSnapshot legacyNpcB = TestSnapshotFactory.CreateDialogNpc(102, "Duoc Diem", 1620, 3220);
-        NpcSnapshot legacyNpcC = TestSnapshotFactory.CreateDialogNpc(103, "Da Tau", 1630, 3230);
+        NpcSnapshot legacyNpcA = TestSnapshotFactory.CreateDialogNpc(101, "Xa Phu", 51488, 101856);
+        NpcSnapshot legacyNpcB = TestSnapshotFactory.CreateDialogNpc(102, "Duoc Diem", 51150, 102713);
+        NpcSnapshot legacyNpcC = TestSnapshotFactory.CreateDialogNpc(103, "Da Tau", 51184, 102000);
 
-        NpcSnapshot rebornNpcA = TestSnapshotFactory.CreateDialogNpc(901, "Xa Phu", 1610, 3210);
-        NpcSnapshot rebornNpcB = TestSnapshotFactory.CreateDialogNpc(902, "Duoc Diem", 1620, 3220);
+        NpcSnapshot rebornNpcA = TestSnapshotFactory.CreateDialogNpc(901, "Xa Phu", 51488, 101856);
+        NpcSnapshot rebornNpcB = TestSnapshotFactory.CreateDialogNpc(902, "Duoc Diem", 51150, 102713);
 
         var legacyClient = new FakeDualTargetClient(
             "legacy",
             TestSnapshotFactory.Create(npcs: [legacyNpcA, legacyNpcB, legacyNpcC]));
-        legacyClient.SetNpcDialog(101, TestSnapshotFactory.CreateDialog("Nguoi muon di dau?", "Thoat"));
-        legacyClient.SetNpcDialog(102, TestSnapshotFactory.CreateDialog("Mua thuoc nao?", "Mo tiem", "Thoat"));
+        legacyClient.SetNpcDialog(101, TestSnapshotFactory.CreateDialog("Ngua cua ta chay nhanh nhat Ba Lang, nguoi muon di dau?", "Ket thuc doi thoai"));
+        legacyClient.SetNpcDialog(102, TestSnapshotFactory.CreateDialog("Bon tiem deu la than duoc! Co benh se khoi benh.", "Giao dich", "Khong giao dich"));
         legacyClient.SetNpcDialog(103, TestSnapshotFactory.CreateDialog("Nhiem vu Da Tau", "Thoat"));
 
         var rebornClient = new FakeDualTargetClient(
             "reborn",
             TestSnapshotFactory.Create(npcs: [rebornNpcA, rebornNpcB]));
-        rebornClient.SetNpcDialog(901, TestSnapshotFactory.CreateDialog("Nguoi muon di dau?", "Thoat"));
-        rebornClient.SetNpcDialog(902, TestSnapshotFactory.CreateDialog("Tiem thuoc sai text", "Mo tiem", "Thoat"));
+        rebornClient.SetNpcDialog(901, TestSnapshotFactory.CreateDialog("Ngua cua ta chay nhanh nhat Ba Lang, nguoi muon di dau?", "Ket thuc doi thoai"));
+        rebornClient.SetNpcDialog(902, TestSnapshotFactory.CreateDialog("Tiem thuoc sai text", "Giao dich", "Khong giao dich"));
 
         string tempDir = Path.Combine(Path.GetTempPath(), $"jx-dual-parity-test-{Guid.NewGuid():N}");
         try
@@ -83,7 +84,7 @@ public sealed class AutomationAndReportingTests
     }
 
     [Fact]
-    public async Task DualTcpProxyRelay_ShouldForwardBytesBidirectionallyAndTrackStats()
+    public async Task DualTcpProxyRelay_WhenRelayingEchoPayload_ShouldForwardBytesBidirectionallyAndTrackStats()
     {
         using var echoListener = new TcpListener(IPAddress.Loopback, 0);
         echoListener.Start();

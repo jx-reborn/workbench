@@ -189,6 +189,8 @@ public sealed class HeadlessGameExeE2ETests
         Assert.True(router.TryGetWorker(53, out MapZoneWorker? worker));
         Assert.NotNull(worker);
 
+        Assert.NotEmpty(worker.RegionGrid.ActiveRegions);
+        int configuredPlayers = 0;
         foreach (SpatialRegionSlot slot in worker.RegionGrid.ActiveRegions)
         {
             foreach (PlayerZoneState p in slot.Players)
@@ -205,8 +207,10 @@ public sealed class HeadlessGameExeE2ETests
                     p.BaseCamp = EntityCamp.Evil;
                     p.CurrentCamp = EntityCamp.Evil;
                 }
+                configuredPlayers++;
             }
         }
+        Assert.Equal(2, configuredPlayers);
 
         _ = await clientA.WaitUntilAsync(
             s => s.Npcs.Any(n => !n.IsSelf && n.DwId == snapB.Player.DwId),

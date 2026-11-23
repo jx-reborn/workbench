@@ -33,6 +33,7 @@ public static class OfflineWireCaptureReplayer
 
         try
         {
+            Assert.NotEmpty(doc.Actors);
             foreach (WireCaptureActorDefinition actorDef in doc.Actors)
             {
                 GameServerClientSession? ResolveNewSession(Guid? _)
@@ -86,8 +87,15 @@ public static class OfflineWireCaptureReplayer
                 $"Symmetric GM setup pre-state mismatch before replaying '{captureId}':{Environment.NewLine}{string.Join(Environment.NewLine, preFailures)}");
 
             var allStepFailures = new List<string>();
+            Assert.NotEmpty(doc.Steps);
             foreach (WireCaptureStep step in doc.Steps)
             {
+                Assert.NotEmpty(step.C2sFrames);
+                if (step.UserActionDescription.Contains("0x8B", StringComparison.OrdinalIgnoreCase) ||
+                    step.UserActionDescription.Contains("0x6A", StringComparison.OrdinalIgnoreCase))
+                {
+                    Assert.NotEmpty(step.ExpectedS2cContract);
+                }
                 VirtualJxClient stepClient = actors[step.ActorId];
                 RefreshResolvedItemLocations(doc.Symbols, actors, resolvedDwIds, resolvedItems);
 

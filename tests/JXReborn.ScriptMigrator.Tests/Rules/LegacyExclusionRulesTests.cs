@@ -1,7 +1,7 @@
 using JXReborn.ScriptMigrator.Rules;
 using Xunit;
 
-namespace JXReborn.ScriptMigrator.Tests;
+namespace JXReborn.ScriptMigrator.Tests.Rules;
 
 public sealed class LegacyExclusionRulesTests
 {
@@ -14,7 +14,7 @@ public sealed class LegacyExclusionRulesTests
     [InlineData("server1/script/global/station.lua", false)]
     [InlineData("server1/script/item/baowubox.lua", false)]
     [InlineData("gateway/s3relay/script/worldboss/boss_schedule.lua", false)]
-    public void IsExcludedSimBotScript_MatchesCanonicalProfileRules(string path, bool expectedExcluded)
+    public void IsExcludedSimBotScript_ForLegacyPaths_ShouldMatchCanonicalProfileRules(string path, bool expectedExcluded)
     {
         Assert.Equal(expectedExcluded, LegacyExclusionRules.IsExcludedSimBotScript(path));
     }

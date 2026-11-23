@@ -102,6 +102,7 @@ public sealed class CombatFormulaSimulationTests
             Assets = services,
             InitialMaps = { map },
         });
+        Assert.NotEmpty(harness.Workers);
         foreach (MapZoneWorker w in harness.Workers)
         {
             // Isolate damage-formula math from the 18-frame player wind-up (tested in SkillCastWindupTimingTests)
@@ -1201,36 +1202,20 @@ public sealed class CombatFormulaSimulationTests
         Assert.Equal(baseLightRes + 20, state.LightResistPercent);
         Assert.Equal(basePoisonRes + 20, state.PoisonResistPercent);
 
-        // M1-F2: Golden mask detailType=11, particularType=578, level=1 with AttributeId 233 (lifemax_yan_v = 484) must resolve to 1311, NOT 484
-        var goldenMaskTpl = new ItemTemplate(
-            Id: 4367,
-            Code: "test-gold-mask-578",
-            Name: "Test Gold Mask",
-            Genre: ItemGenreKind.Equipment,
-            Quality: ItemQualityKind.Golden,
-            DetailType: 11,
-            ParticularType: 578,
-            Level: 1,
-            ElementSeries: ElementSeries.Metal,
-            GridWidthCells: 1,
-            GridHeightCells: 1,
-            ObjDataId: 379,
-            AppearanceResId: 0,
-            PriceGold: 100,
-            MaxStackCount: 1,
-            BaseAttributes:
-            [
-                new ItemBaseAttributeTemplate(233, "lifemax_yan_v", 484, 484),
-            ],
-            Requirements: []);
+        // M1-F2: Golden mask Row 4367 (detailType=11, particularType=578, lifemax_yan_v=484) must resolve disguise NPC template 1311, NOT 484
+        Assert.True(
+            SharedGameAssetsFixture.Default.ItemTemplateCatalog.TryGetItemByRowId(ItemQualityKind.Golden, 4367, out ItemTemplate? goldenMaskTpl) &&
+            goldenMaskTpl is not null);
+        Assert.Equal(11, goldenMaskTpl.DetailType);
+        Assert.Equal(578, goldenMaskTpl.ParticularType);
         var maskSlot = new PlayerItemSlot(
             runtimeItemId: 99u,
             domainItemId: Guid.NewGuid(),
             template: goldenMaskTpl,
-            genre: ItemGenreKind.Equipment,
-            detailType: 11,
-            particularType: 578,
-            level: 1,
+            genre: goldenMaskTpl.Genre,
+            detailType: (short)goldenMaskTpl.DetailType,
+            particularType: (short)goldenMaskTpl.ParticularType,
+            level: goldenMaskTpl.Level,
             series: ElementSeries.Metal,
             quality: ItemQualityKind.Golden,
             randomSeed: 1u,

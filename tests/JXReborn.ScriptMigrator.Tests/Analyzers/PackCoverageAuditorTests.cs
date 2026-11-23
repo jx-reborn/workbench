@@ -5,12 +5,12 @@ using JXReborn.ScriptMigrator.Analyzers;
 using JXReborn.ScriptMigrator.Models;
 using Xunit;
 
-namespace JXReborn.ScriptMigrator.Tests;
+namespace JXReborn.ScriptMigrator.Tests.Analyzers;
 
 public sealed class PackCoverageAuditorTests
 {
     [Fact]
-    public void Audit_DetectsBrokenAndUnresolvedScriptPaths()
+    public void Audit_WhenPackReferencesMissingScript_ShouldDetectBrokenAndUnresolvedPaths()
     {
         string tempRoot = Path.Combine(Path.GetTempPath(), "jxreborn-migrator-test-" + Guid.NewGuid().ToString("N"));
         try

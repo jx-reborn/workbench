@@ -41,21 +41,13 @@ public sealed class PlayerSitHeadlessGameExeTests
         RawOpResult op = await client.RawOperationAsync(6u, 2u, 0);
         _output.WriteLine($"RawOp(6, 2, 0): ReturnValue={op.ReturnValue}");
 
-        WorldDomSnapshot after;
-        try
-        {
-            after = await client.WaitUntilAsync(
-                s =>
-                {
-                    NpcSnapshot? selfSnap = s.Npcs.FirstOrDefault(n => n.IsSelf);
-                    return selfSnap is not null && beforeSelf is not null && selfSnap.Doing != beforeSelf.Doing;
-                },
-                TimeSpan.FromSeconds(2));
-        }
-        catch (TimeoutException)
-        {
-            after = await client.GetStateAsync();
-        }
+        WorldDomSnapshot after = await client.WaitUntilAsync(
+            s =>
+            {
+                NpcSnapshot? selfSnap = s.Npcs.FirstOrDefault(n => n.IsSelf);
+                return selfSnap is not null && selfSnap.Doing == 8;
+            },
+            TimeSpan.FromSeconds(2));
 
         NpcSnapshot? afterSelf = after.Npcs.FirstOrDefault(n => n.IsSelf);
 
@@ -64,6 +56,8 @@ public sealed class PlayerSitHeadlessGameExeTests
         _output.WriteLine("Recent S2C: " + string.Join(", ", (after?.RecentS2c ?? []).Select(p => $"0x{p.Opcode:X2}")));
 
         Assert.NotNull(afterSelf);
+        Assert.Equal(8, afterSelf!.Doing);
+        Assert.Contains(after!.RecentS2c, static p => p.Opcode == 0x83);
     }
 
     [Fact]
@@ -95,6 +89,7 @@ public sealed class PlayerSitHeadlessGameExeTests
             snap.Player.MpsY,
             2476324320u,
             clientPakObstacles);
+        Assert.NotEmpty(gateWaypoints);
         for (int i = 0; i < gateWaypoints.Count; i++)
         {
             (int gx, int gy) = gateWaypoints[i];
@@ -163,7 +158,7 @@ public sealed class PlayerSitHeadlessGameExeTests
         NpcSnapshot? mobAfter = afterAtk.Npcs.FirstOrDefault(n => n.DwId == mob.DwId);
         _output.WriteLine($"After Attack(53): MobLife={mobAfter?.Life}/{mobAfter?.LifeMax} (was {lifeBefore}), Exp={afterAtk.Player.Exp}");
         _output.WriteLine("Recent C2S: " + string.Join(", ", afterAtk.RecentC2s.TakeLast(10).Select(p => $"0x{p.Opcode:X2}")));
-        bool mobDamagedOrDefeated = mobAfter is null || mobAfter.Life < lifeBefore || afterAtk.Player.Exp > 0;
+        bool mobDamagedOrDefeated = (mobAfter is not null && mobAfter.Life < lifeBefore) || afterAtk.Player.Exp > 0;
         Assert.True(mobDamagedOrDefeated, $"Expected skill 53 to damage or defeat mob (LifeBefore={lifeBefore}, LifeAfter={mobAfter?.Life}, Exp={afterAtk.Player.Exp}).");
     }
 }
