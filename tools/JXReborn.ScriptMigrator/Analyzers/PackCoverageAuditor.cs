@@ -25,6 +25,9 @@ public sealed partial class PackCoverageAuditor
     [GeneratedRegex(@"ScriptCode\s*=>\s*""([^""]+)""", RegexOptions.Compiled)]
     private static partial Regex ScriptCodePropertyRegex();
 
+    [GeneratedRegex(@"\[LegacySource\(\s*""([^""]+)""\s*,\s*""([^""]+)""\s*\)\]", RegexOptions.Compiled)]
+    private static partial Regex LegacySourceAttributeRegex();
+
     public CoverageAuditReport Audit(ScriptInventoryManifest manifest, string packRoot)
     {
         ArgumentNullException.ThrowIfNull(manifest);
@@ -39,8 +42,9 @@ public sealed partial class PackCoverageAuditor
 
         var resolver = new TieuDaoTuScriptCodeResolver();
 
-        // 1. Collect C# registered ScriptCodes
+        // 1. Collect C# registered ScriptCodes & [LegacySource] attributes
         var registeredCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var legacySourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string packSrcDir = Path.Combine(packRoot, "src");
         if (Directory.Exists(packSrcDir))
         {
@@ -50,6 +54,11 @@ public sealed partial class PackCoverageAuditor
                 foreach (Match match in ScriptCodePropertyRegex().Matches(src))
                 {
                     registeredCodes.Add(match.Groups[1].Value);
+                }
+
+                foreach (Match match in LegacySourceAttributeRegex().Matches(src))
+                {
+                    legacySourcePaths.Add(NormalizeSlashPath(match.Groups[1].Value));
                 }
             }
         }
@@ -237,12 +246,35 @@ public sealed partial class PackCoverageAuditor
                 brokenPaths.Add(sp);
             }
 
-            // Item resolution currently matches ScriptCode directly; track unresolved
-            unresolvedItems.Add(sp);
+            if (registeredCodes.Contains(sp) || legacySourcePaths.Contains(sp))
+            {
+                resolvedItems++;
+            }
+            else
+            {
+                unresolvedItems.Add(sp);
+            }
+        }
+
+        // 6. Account for skill formula scripts already exported into data/skills/*.skills.json
+        int accountedSkillFormulas = 0;
+        string skillsDir = Path.Combine(packRoot, "data", "skills");
+        if (Directory.Exists(skillsDir) &&
+            Directory.EnumerateFiles(skillsDir, "*.skills.json", SearchOption.TopDirectoryOnly).Any())
+        {
+            foreach (ScriptInventoryEntry entry in manifest.Entries)
+            {
+                if (!entry.IsExcludedSimBot &&
+                    entry.RelativePath.Replace('\\', '/').StartsWith("server1/script/skill/", StringComparison.OrdinalIgnoreCase))
+                {
+                    accountedSkillFormulas++;
+                }
+            }
         }
 
         int totalActiveLegacy = manifest.Server1ActiveFiles + manifest.S3RelayActiveFiles;
-        int accountedEstimate = resolvedNpc + resolvedObj + resolvedItems + ambientDialogCount + portalPaths.Count;
+        int extraAmbientOnly = Math.Max(0, ambientDialogCount - resolvedNpc);
+        int accountedEstimate = resolvedNpc + extraAmbientOnly + resolvedObj + resolvedItems + portalPaths.Count + accountedSkillFormulas;
         int unaccounted = Math.Max(0, totalActiveLegacy - accountedEstimate);
 
         return new CoverageAuditReport
@@ -250,6 +282,8 @@ public sealed partial class PackCoverageAuditor
             GeneratedAtUtc = DateTime.UtcNow.ToString("O"),
             TotalLegacyActiveScripts = totalActiveLegacy,
             RegisteredCSharpScriptCodes = registeredCodes.Count,
+            LegacySourceAttributedScripts = legacySourcePaths.Count,
+            AccountedSkillFormulaScripts = accountedSkillFormulas,
             AmbientDialogEntries = ambientDialogCount,
             UniqueMapNpcScriptPaths = npcPaths.Count,
             ResolvedMapNpcScriptPaths = resolvedNpc,
@@ -280,8 +314,9 @@ public sealed partial class PackCoverageAuditor
         sb.AppendLine();
         sb.AppendLine($"- **Generated (UTC)**: `{report.GeneratedAtUtc}`");
         sb.AppendLine($"- **Total Active Legacy Scripts (`server1` + `s3relay`)**: **{report.TotalLegacyActiveScripts:N0}**");
-        sb.AppendLine($"- **Registered C# `ScriptCode`s**: **{report.RegisteredCSharpScriptCodes:N0}**");
+        sb.AppendLine($"- **Registered C# `ScriptCode`s**: **{report.RegisteredCSharpScriptCodes:N0}** (`[LegacySource]` attributed: `{report.LegacySourceAttributedScripts:N0}`)");
         sb.AppendLine($"- **Ambient Dialog JSON Entries**: **{report.AmbientDialogEntries:N0}**");
+        sb.AppendLine($"- **Skill Formula Scripts Accounted by `data/skills/*.skills.json`**: **{report.AccountedSkillFormulaScripts:N0}**");
         sb.AppendLine($"- **Map/Global NPC Unique Script Paths**: `{report.ResolvedMapNpcScriptPaths:N0}` / `{report.UniqueMapNpcScriptPaths:N0}` resolved");
         sb.AppendLine($"- **Map Object (`0x72`) Unique Script Paths**: `{report.ResolvedMapObjectScriptPaths:N0}` / `{report.UniqueMapObjectScriptPaths:N0}` resolved");
         sb.AppendLine($"- **Map Portal Unique Script Paths**: `{report.UniqueMapPortalScriptPaths:N0}`");

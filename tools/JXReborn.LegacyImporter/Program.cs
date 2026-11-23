@@ -119,6 +119,10 @@ public static class Program
         var (shopCount, goodsCount) = shopExporter.ExportShops(source, dataDir, registry);
         Console.WriteLine($"  Shops: {shopCount}, Goods: {goodsCount}");
 
+        var systemSettingsExporter = new SystemSettingsDataExporter();
+        int systemSettingsFiles = systemSettingsExporter.ExportCoreSystemSettings(source, dataDir);
+        Console.WriteLine($"  CoreSystemSettings: {systemSettingsFiles} files -> data/system/");
+
         var questExporter = new QuestDataExporter();
         var (treaCount, milestoneCount, basicCount, buyCount, findCount, upCount, killCount) =
             questExporter.ExportQuests(source, dataDir, registry);

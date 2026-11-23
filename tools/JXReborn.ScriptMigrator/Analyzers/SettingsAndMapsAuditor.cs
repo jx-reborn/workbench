@@ -42,6 +42,16 @@ public sealed class SettingsAndMapsAuditor
         "factiontitle.txt",
         "ranksetting.txt",
         "rolename.flt",
+        "timertask.txt",
+        "playertitle.txt",
+        "taxrates.ini",
+        "map_type.txt",
+        "item_type.txt",
+        "item_detail.txt",
+        "gamesetting.ini",
+        "progressconfig.txt",
+        "ÎäÆ÷ÎïÀí¹¥»÷¶ÔÕÕ±í.txt",
+        "tongname.flt",
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     private static readonly JsonSerializerOptions JsonOptions = new()

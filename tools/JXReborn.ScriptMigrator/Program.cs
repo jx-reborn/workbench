@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using JXReborn.ScriptMigrator.Analyzers;
+using JXReborn.ScriptMigrator.Generators;
 using JXReborn.ScriptMigrator.Models;
 
 namespace JXReborn.ScriptMigrator;
@@ -51,6 +52,8 @@ public static class Program
         {
             case "export-utf8-mirror":
                 return RunUtf8Mirror(legacyRoot, mirrorDir);
+            case "export-static-dialogs":
+                return RunExportStaticDialogs(legacyRoot, packRoot);
             case "build-manifest":
                 return RunBuildManifest(legacyRoot, migrationDir);
             case "audit-settings":
@@ -78,6 +81,19 @@ public static class Program
         var exporter = new LuaUtf8MirrorExporter();
         int count = exporter.ExportMirror(legacyRoot, mirrorDir);
         Console.WriteLine($"[JXReborn.ScriptMigrator] Exported {count:N0} UTF-8 Lua mirror files -> '{mirrorDir}'.");
+        return 0;
+    }
+
+    private static int RunExportStaticDialogs(string legacyRoot, string packRoot)
+    {
+        var builder = new ScriptInventoryBuilder();
+        ScriptInventoryManifest manifest = builder.Build(legacyRoot);
+        var exporter = new StaticDialogExporter();
+        StaticDialogExportResult result = exporter.Export(manifest, legacyRoot, packRoot);
+        Console.WriteLine(
+            $"[JXReborn.ScriptMigrator] Exported {result.ExportedEntries:N0}/{result.TotalPureStaticCandidates:N0} " +
+            $"pure static dialogs -> '{Path.Combine(packRoot, "data", "dialogs", "ambient-npcs.dialogs.json")}' " +
+            $"(skipped={result.SkippedCandidates:N0}).");
         return 0;
     }
 
