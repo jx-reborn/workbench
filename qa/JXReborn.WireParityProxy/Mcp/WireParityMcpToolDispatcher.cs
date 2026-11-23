@@ -4,10 +4,13 @@ using System.Text.Json.Nodes;
 using JXReborn.ClientDriver;
 using JXReborn.DualParityServer.Diffing;
 using JXReborn.DualParityServer.Standalone;
+using JXReborn.GameAssets.WorldMaps;
 using JXReborn.WireParityProxy.Configuration;
 using JXReborn.WireParityProxy.Driver;
+using JXReborn.WireParityProxy.Navigation;
 using JXReborn.WireParityProxy.Proxy;
 using JXReborn.WireParityProxy.Reporting;
+using JXReborn.WireParityProxy.Scenarios;
 
 namespace JXReborn.WireParityProxy.Mcp;
 
@@ -146,6 +149,8 @@ public sealed class WireParityMcpToolDispatcher
                 "export_l3a_capture" => ExportL3aCapture(args),
                 "export_report" => await ExportReportAsync(cancellationToken).ConfigureAwait(false),
                 "reset_drift" => ResetDrift(),
+                "run_scenario" => await RunScenarioAsync(args, cancellationToken).ConfigureAwait(false),
+                "crawl_nearby_npcs" => await CrawlNearbyNpcsAsync(args, cancellationToken).ConfigureAwait(false),
                 _ => throw new InvalidOperationException($"Unknown tool '{toolName}'.")
             };
 
@@ -340,6 +345,52 @@ public sealed class WireParityMcpToolDispatcher
                     await client.DismissSystemLoginHintIfOpenAsync(cancellationToken).ConfigureAwait(false);
                     return new { ok = true, action };
 
+                case "input_number":
+                    int numberVal = args["value"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'value'.");
+                    await client.SubmitInputNumberAsync(numberVal, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, value = numberVal };
+
+                case "buy_shop_item":
+                    int buyIdx = args["buy_index"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'buy_index'.");
+                    int buyPlace = args["place"]?.GetValue<int>() ?? 3;
+                    int buyX = args["grid_x"]?.GetValue<int>() ?? 0;
+                    int buyY = args["grid_y"]?.GetValue<int>() ?? 0;
+                    await client.BuyShopItemAsync(buyIdx, buyPlace, buyX, buyY, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, buyIdx, buyPlace, buyX, buyY };
+
+                case "repair_item":
+                    uint repairItemId = args["item_id"]?.GetValue<uint>() ?? throw new ArgumentException("Missing 'item_id'.");
+                    await client.RepairItemAsync(repairItemId, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, itemId = repairItemId };
+
+                case "box_operate":
+                    byte boxOp = checked((byte)(args["operation"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'operation'.")));
+                    uint boxPassword = args["password"]?.GetValue<uint>() ?? 0;
+                    uint boxNewPassword = args["new_password"]?.GetValue<uint>() ?? 0;
+                    await client.BoxOperateAsync(boxOp, boxPassword, boxNewPassword, cancellationToken).ConfigureAwait(false);
+                    return new { ok = true, action, operation = boxOp };
+
+                case "walk_to":
+                    WorldDomSnapshot walkStart = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
+                    ushort walkMap = (ushort)walkStart.Player.MapId;
+                    int targetWalkX = args["mps_x"]?.GetValue<int>() ?? ((args["tile_x"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_x' or 'tile_x'.")) * 32);
+                    int targetWalkY = args["mps_y"]?.GetValue<int>() ?? ((args["tile_y"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'mps_y' or 'tile_y'.")) * 32);
+                    IMapCatalog? catalog = ProxyMapCatalogLoader.TryGetDefault();
+                    using (ProxyClientPakObstacleReader? pak = ProxyClientPakObstacleReader.TryOpenFromTemplate())
+                    {
+                        await WireNpcDialogCrawler.WalkNearPositionAsync(
+                            client,
+                            walkMap,
+                            targetWalkX,
+                            targetWalkY,
+                            catalog,
+                            pak,
+                            stopRadiusCells: 1,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    return new { ok = true, action, targetWalkX, targetWalkY };
+
                 case "switch_pk":
                     int pkMode = args["pk_mode"]?.GetValue<int>() ?? throw new ArgumentException("Missing 'pk_mode'.");
                     await client.SwitchPkAsync(pkMode, cancellationToken).ConfigureAwait(false);
@@ -477,6 +528,39 @@ public sealed class WireParityMcpToolDispatcher
         return new { ok = true };
     }
 
+    private async Task<object> RunScenarioAsync(JsonObject args, CancellationToken cancellationToken)
+    {
+        string? scenarioPath = args["scenario_path"]?.GetValue<string>();
+        string? scenarioJson = args["scenario_json"]?.GetValue<string>();
+        bool stopOnFailure = args["stop_on_failure"]?.GetValue<bool>() ?? false;
+
+        if (!string.IsNullOrWhiteSpace(scenarioPath))
+        {
+            scenarioJson = await File.ReadAllTextAsync(Path.GetFullPath(scenarioPath), cancellationToken).ConfigureAwait(false);
+        }
+
+        if (string.IsNullOrWhiteSpace(scenarioJson))
+        {
+            throw new ArgumentException("Provide either 'scenario_path' or 'scenario_json'.");
+        }
+
+        WireParityScenario scenario = JsonSerializer.Deserialize<WireParityScenario>(scenarioJson)
+            ?? throw new InvalidDataException("Failed to deserialize WireParityScenario JSON.");
+
+        var runner = new WireScenarioRunner(_options, _driverBridge, _bishopProxy, _gameServerProxy, logOut: TextWriter.Null);
+        return await runner.RunAsync(scenario, stopOnFailure, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<object> CrawlNearbyNpcsAsync(JsonObject args, CancellationToken cancellationToken)
+    {
+        int radiusTiles = args["radius_tiles"]?.GetValue<int>() ?? 20;
+        int maxBranches = args["max_branches"]?.GetValue<int>() ?? 0;
+        var crawler = new WireNpcDialogCrawler(_driverBridge, _gameServerProxy, _options);
+        IReadOnlyList<string> crawled = await crawler.CrawlNearbyNpcsAsync(radiusTiles, maxBranches, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return new { ok = true, count = crawled.Count, npcs = crawled };
+    }
+
     private static JsonArray BuildToolsList() =>
     [
         new JsonObject
@@ -507,18 +591,24 @@ public sealed class WireParityMcpToolDispatcher
             new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() }),
         CreateToolSchema(
             "perform_action",
-            "Drive the single game.exe client via driver RPC (login, respawn, move_to, interact_npc, select_dialog, confirm_talk, use_item, move_item, cast_skill_target, cast_skill_pos, change_aura_skill, add_skill_point, add_attribute, pickup_obj, switch_pk, send_chat, dismiss_login_hint).",
+            "Drive the single game.exe client via driver RPC (login, respawn, move_to, walk_to, interact_npc, select_dialog, confirm_talk, input_number, use_item, move_item, buy_shop_item, repair_item, box_operate, cast_skill_target, cast_skill_pos, change_aura_skill, add_skill_point, add_attribute, pickup_obj, switch_pk, send_chat, dismiss_login_hint).",
             new JsonObject
             {
                 ["type"] = "object",
                 ["properties"] = new JsonObject
                 {
-                    ["action"] = new JsonObject { ["type"] = "string", ["description"] = "Action name: login | respawn | move_to | interact_npc | select_dialog | confirm_talk | use_item | move_item | cast_skill_target | cast_skill_pos | change_aura_skill | add_skill_point | add_attribute | pickup_obj | switch_pk | send_chat | dismiss_login_hint" },
+                    ["action"] = new JsonObject { ["type"] = "string", ["description"] = "Action name: login | respawn | move_to | walk_to | interact_npc | select_dialog | confirm_talk | input_number | use_item | move_item | buy_shop_item | repair_item | box_operate | cast_skill_target | cast_skill_pos | change_aura_skill | add_skill_point | add_attribute | pickup_obj | switch_pk | send_chat | dismiss_login_hint" },
                     ["mps_x"] = new JsonObject { ["type"] = "integer" },
                     ["mps_y"] = new JsonObject { ["type"] = "integer" },
+                    ["tile_x"] = new JsonObject { ["type"] = "integer" },
+                    ["tile_y"] = new JsonObject { ["type"] = "integer" },
                     ["run"] = new JsonObject { ["type"] = "boolean" },
                     ["npc_dw_id"] = new JsonObject { ["type"] = "integer" },
                     ["option_index"] = new JsonObject { ["type"] = "integer" },
+                    ["value"] = new JsonObject { ["type"] = "integer" },
+                    ["buy_index"] = new JsonObject { ["type"] = "integer" },
+                    ["item_id"] = new JsonObject { ["type"] = "integer" },
+                    ["operation"] = new JsonObject { ["type"] = "integer" },
                     ["array_index"] = new JsonObject { ["type"] = "integer" },
                     ["place"] = new JsonObject { ["type"] = "integer" },
                     ["grid_x"] = new JsonObject { ["type"] = "integer" },
@@ -581,7 +671,32 @@ public sealed class WireParityMcpToolDispatcher
         CreateToolSchema(
             "reset_drift",
             "Reset the cumulative StateDriftDetector flag after resyncing the character.",
-            new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() })
+            new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() }),
+        CreateToolSchema(
+            "run_scenario",
+            "Run a declarative WireParityScenario JSON file or payload through headless game.exe and return per-step parity findings and capture paths.",
+            new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["scenario_path"] = new JsonObject { ["type"] = "string" },
+                    ["scenario_json"] = new JsonObject { ["type"] = "string" },
+                    ["stop_on_failure"] = new JsonObject { ["type"] = "boolean" }
+                }
+            }),
+        CreateToolSchema(
+            "crawl_nearby_npcs",
+            "Walk to and interact with all nearby Kind==3 dialog NPCs around the player within radius_tiles, recording parity diffs.",
+            new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["radius_tiles"] = new JsonObject { ["type"] = "integer" },
+                    ["max_branches"] = new JsonObject { ["type"] = "integer" }
+                }
+            })
     ];
 
     private static JsonObject CreateToolSchema(string name, string description, JsonObject inputSchema) => new()

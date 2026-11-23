@@ -71,6 +71,10 @@ public sealed class WireParityProxyOptions
 
     public bool OpenBrowserOnStandalone { get; set; } = true;
 
+    public string? ScenarioPath { get; set; }
+
+    public bool KeepAliveAfterScenario { get; set; }
+
     public string PrimaryBackendName => SwapPrimary ? "reborn-server" : "legacy-linux";
 
     public string ShadowBackendName => SwapPrimary ? "legacy-linux" : "reborn-server";
@@ -104,6 +108,7 @@ public sealed class WireParityProxyOptions
     public static WireParityProxyOptions ParseArgs(string[] args)
     {
         var options = new WireParityProxyOptions();
+        bool explicitNoSpawn = false;
         for (int i = 0; i < args.Length; i++)
         {
             string arg = args[i];
@@ -212,12 +217,23 @@ public sealed class WireParityProxyOptions
                     break;
                 case "--no-spawn":
                     options.SpawnClient = false;
+                    explicitNoSpawn = true;
                     break;
                 case "--headless":
                     options.InteractiveWindow = false;
                     break;
                 case "--no-browser":
                     options.OpenBrowserOnStandalone = false;
+                    break;
+                case "--scenario":
+                    if (Next() is { } scenarioPath)
+                    {
+                        options.ScenarioPath = scenarioPath;
+                    }
+
+                    break;
+                case "--keep-alive":
+                    options.KeepAliveAfterScenario = true;
                     break;
                 case "--mcp":
                     options.McpMode = true;
@@ -231,6 +247,17 @@ public sealed class WireParityProxyOptions
 
                     break;
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ScenarioPath))
+        {
+            if (!explicitNoSpawn)
+            {
+                options.SpawnClient = true;
+            }
+
+            options.InteractiveWindow = false;
+            options.OpenBrowserOnStandalone = false;
         }
 
         return options;

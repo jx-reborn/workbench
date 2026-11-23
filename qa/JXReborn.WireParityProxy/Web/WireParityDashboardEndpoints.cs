@@ -153,6 +153,39 @@ public static class WireParityDashboardEndpoints
                 return Results.Content(resp?.ToJsonString() ?? "{}", "application/json; charset=utf-8");
             });
 
+            app.MapGet("/api/scenarios", () =>
+            {
+                string scenarioDir = ResolveScenariosMapsDirectory();
+                if (!Directory.Exists(scenarioDir))
+                {
+                    return Results.Json(Array.Empty<object>());
+                }
+
+                var files = Directory.GetFiles(scenarioDir, "*.scenario.json")
+                    .OrderBy(static f => f, StringComparer.OrdinalIgnoreCase)
+                    .Select(static f => new { file = Path.GetFileName(f), path = f })
+                    .ToArray();
+                return Results.Json(files);
+            });
+
+            app.MapPost("/api/scenarios/run", async (HttpRequest httpRequest, CancellationToken ct) =>
+            {
+                JsonObject? args = await JsonNode.ParseAsync(httpRequest.Body, cancellationToken: ct) as JsonObject ?? new JsonObject();
+                var req = new JsonObject
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = 1,
+                    ["method"] = "tools/call",
+                    ["params"] = new JsonObject
+                    {
+                        ["name"] = "run_scenario",
+                        ["arguments"] = args
+                    }
+                };
+                JsonObject? resp = await mcpDispatcher.HandleRequestAsync(req, ct).ConfigureAwait(false);
+                return Results.Content(resp?.ToJsonString() ?? "{}", "application/json; charset=utf-8");
+            });
+
             app.MapPost("/api/mcp", async (HttpRequest httpRequest, CancellationToken ct) =>
             {
                 JsonObject? req = await JsonNode.ParseAsync(httpRequest.Body, cancellationToken: ct) as JsonObject;
@@ -167,5 +200,29 @@ public static class WireParityDashboardEndpoints
                     : Results.Content(resp.ToJsonString(), "application/json; charset=utf-8");
             });
         }
+    }
+
+    private static string ResolveScenariosMapsDirectory()
+    {
+        foreach (string seed in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        {
+            DirectoryInfo? dir = new(seed);
+            for (int depth = 0; depth < 8 && dir is not null; depth++, dir = dir.Parent)
+            {
+                string direct = Path.Combine(dir.FullName, "Scenarios", "Maps");
+                if (Directory.Exists(direct))
+                {
+                    return direct;
+                }
+
+                string nested = Path.Combine(dir.FullName, "qa", "JXReborn.WireParityProxy", "Scenarios", "Maps");
+                if (Directory.Exists(nested))
+                {
+                    return nested;
+                }
+            }
+        }
+
+        return Path.Combine(Directory.GetCurrentDirectory(), "Scenarios", "Maps");
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json;
 using JXReborn.Adapter.Legacy.Ciphers;
 using JXReborn.DualParityServer.Diffing;
 using JXReborn.DualParityServer.Standalone;
@@ -8,6 +9,7 @@ using JXReborn.WireParityProxy.Driver;
 using JXReborn.WireParityProxy.Mcp;
 using JXReborn.WireParityProxy.Proxy;
 using JXReborn.WireParityProxy.Reporting;
+using JXReborn.WireParityProxy.Scenarios;
 using JXReborn.WireParityProxy.Web;
 using JXReborn.WireParityProxy.Wire;
 
@@ -92,6 +94,41 @@ try
         await mcpHost.RunAsync(Console.In, Console.Out);
         await app.StopAsync();
     }
+    else if (!string.IsNullOrWhiteSpace(options.ScenarioPath))
+    {
+        await app.StartAsync();
+        string fullScenarioPath = Path.GetFullPath(options.ScenarioPath);
+        string scenarioJson = await File.ReadAllTextAsync(fullScenarioPath);
+        WireParityScenario scenario = JsonSerializer.Deserialize<WireParityScenario>(scenarioJson)
+            ?? throw new InvalidDataException($"Failed to deserialize scenario '{fullScenarioPath}'.");
+
+        var runner = new WireScenarioRunner(options, driverBridge, bishopProxy, gameServerProxy, logOut: logOut);
+        WireScenarioRunReport runReport = await runner.RunAsync(scenario);
+
+        Directory.CreateDirectory(options.ReportOutputDir);
+        string scenarioReportPath = Path.Combine(options.ReportOutputDir, "scenario-report.json");
+        await File.WriteAllTextAsync(
+            scenarioReportPath,
+            JsonSerializer.Serialize(runReport, new JsonSerializerOptions { WriteIndented = true }));
+        logOut.WriteLine(
+            $"[WireParityProxy] Scenario '{runReport.ScenarioName}' finished: {runReport.PassedSteps}/{runReport.TotalSteps} steps OK, " +
+            $"{runReport.StepFailures} step failures, {runReport.TotalFindings} parity findings ({runReport.CriticalFindings} crit).");
+        logOut.WriteLine($"[WireParityProxy] Scenario summary saved to: {scenarioReportPath}");
+
+        if (options.KeepAliveAfterScenario)
+        {
+            logOut.WriteLine("[WireParityProxy] --keep-alive specified; waiting until Ctrl+C...");
+            await app.WaitForShutdownAsync();
+        }
+        else
+        {
+            await app.StopAsync();
+            if (runReport.StepFailures > 0)
+            {
+                Environment.ExitCode = 1;
+            }
+        }
+    }
     else
     {
         logOut.WriteLine("[WireParityProxy] Press Ctrl+C to stop, export reports, and clean up.");
@@ -106,16 +143,33 @@ try
 finally
 {
     WireParitySession? latest = gameServerProxy.LatestSession;
+    ParityFinding[] globalList = globalFindings.ToArray();
+    if (globalList.Length > 0)
+    {
+        logOut.WriteLine($"[WireParityProxy] Global/Bishop findings ({globalList.Length}):");
+        foreach (ParityFinding gf in globalList)
+        {
+            logOut.WriteLine($"  - [{gf.Severity}] {gf.FindingId} {gf.FieldPath}: Legacy='{gf.LegacyValue}' vs Reborn='{gf.RebornValue}'");
+        }
+    }
+
+    if (standalone is not null)
+    {
+        try
+        {
+            await standalone.WriteServerLogsAsync(options.ReportOutputDir);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[WireParityProxy] Failed to write standalone logs: {ex.Message}");
+        }
+    }
+
     if (latest is not null)
     {
         try
         {
-            string reportDir = WireParityReportWriter.WriteAll(latest, options.ReportOutputDir, globalFindings.ToArray());
-            if (standalone is not null)
-            {
-                await standalone.WriteServerLogsAsync(reportDir);
-            }
-
+            string reportDir = WireParityReportWriter.WriteAll(latest, options.ReportOutputDir, globalList);
             logOut.WriteLine($"[WireParityProxy] Reports exported to: {reportDir}");
         }
         catch (Exception ex)

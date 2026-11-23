@@ -6,6 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\legacy-client\src\JXReborn.ClientDriver\JXReborn.ClientDriver.csproj" />
     <ProjectReference Include="..\..\..\server\src\JXReborn.Adapter.Legacy\JXReborn.Adapter.Legacy.csproj" />
+    <ProjectReference Include="..\..\..\server\src\JXReborn.GameAssets\JXReborn.GameAssets.csproj" />
     <ProjectReference Include="..\..\..\server\src\JXReborn.Primitives\JXReborn.Primitives.csproj" />
     <ProjectReference Include="..\..\..\server\tests\JXReborn.TestBase\JXReborn.TestBase.csproj" />
     <ProjectReference Include="..\JXReborn.DualParityServer\JXReborn.DualParityServer.csproj" />

@@ -293,6 +293,15 @@ public sealed class BishopShadowProxy : IAsyncDisposable
     {
         NotifyPlayerLoginS2CPacket primaryPkt = MemoryMarshal.Read<NotifyPlayerLoginS2CPacket>(primaryPayload);
         string roleName = primaryPkt.GetRoleName();
+        if (primaryPkt.Permit == 0 || string.IsNullOrWhiteSpace(roleName))
+        {
+            EmitBishopFinding(
+                FindingSeverity.Critical,
+                FindingCategory.WireProtocol,
+                "Bishop.PrimaryNotifyPlayerLogin",
+                $"Len={primaryPayload.Length}, Permit={primaryPkt.Permit}, Role='{roleName}', Hex={Convert.ToHexString(primaryPayload)}",
+                "Primary denied login or sent unexpected 0x34 payload");
+        }
 
         NotifyPlayerLoginS2CPacket? shadowPkt = await WaitShadowNotifyAsync(shadowNotifySlot, cancellationToken).ConfigureAwait(false);
         if (shadowPkt is null)
