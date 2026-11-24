@@ -69,32 +69,57 @@ public sealed class LuaToCSharpGeneratorTests
             Assert.True(File.Exists(queueJson));
             Assert.Contains("undefined-var:UTask", File.ReadAllText(queueMd));
 
-            // Verify every written C# file contains valid [LegacySource] (except GeneratedLuaRuntime.cs)
-            // and ZERO duplicate [LegacySource] paths exist across handcrafted + generated scripts.
+            // Verify every written C# file contains valid [LegacySource] (except GeneratedLuaRuntime.cs / GeneratedIncludedHeaderProvenance.cs),
+            // ZERO duplicate [LegacySource] paths exist across generated files, and ZERO generated [LegacySource] collides with handcrafted scripts.
             var legacySourceRegex = new Regex(@"\[LegacySource\(\s*@?""([^""]+)""", RegexOptions.Compiled);
-            var seenLegacySources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var handcraftedSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var seenGeneratedSources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             string scriptsRoot = Path.Combine(tempPack, "src", "JXReborn.Packs.TieuDaoTu", "Scripts");
+            string generatedDirPrefix = Path.Combine(scriptsRoot, "Generated") + Path.DirectorySeparatorChar;
             string[] allScriptFiles = Directory.GetFiles(scriptsRoot, "*.cs", SearchOption.AllDirectories);
             Assert.NotEmpty(allScriptFiles);
 
             foreach (string csFile in allScriptFiles)
             {
+                bool isGeneratedFile = csFile.StartsWith(generatedDirPrefix, StringComparison.OrdinalIgnoreCase);
                 string code = File.ReadAllText(csFile);
                 foreach (Match match in legacySourceRegex.Matches(code))
                 {
                     string pathKey = match.Groups[1].Value.Replace("\\\\", "\\", StringComparison.Ordinal);
-                    Assert.False(
-                        seenLegacySources.TryGetValue(pathKey, out string? existingOwner),
-                        $"Duplicate [LegacySource] path '{pathKey}' owned by both '{existingOwner}' and '{Path.GetFileName(csFile)}'.");
-                    seenLegacySources[pathKey] = Path.GetFileName(csFile);
+                    if (!isGeneratedFile)
+                    {
+                        handcraftedSources.TryAdd(pathKey, Path.GetFileName(csFile));
+                    }
+                    else
+                    {
+                        Assert.False(
+                            handcraftedSources.TryGetValue(pathKey, out string? handcraftedOwner),
+                            $"Generated script '{Path.GetFileName(csFile)}' collided with handcrafted owner '{handcraftedOwner}' on '{pathKey}'.");
+                        Assert.False(
+                            seenGeneratedSources.TryGetValue(pathKey, out string? existingGenOwner),
+                            $"Duplicate generated [LegacySource] path '{pathKey}' in both '{existingGenOwner}' and '{Path.GetFileName(csFile)}'.");
+                        seenGeneratedSources[pathKey] = Path.GetFileName(csFile);
+                    }
                 }
+            }
+
+            foreach ((string genPath, string genFile) in seenGeneratedSources)
+            {
+                Assert.False(
+                    handcraftedSources.TryGetValue(genPath, out string? hcOwner),
+                    $"Generated script '{genFile}' collided with handcrafted owner '{hcOwner}' on '{genPath}'.");
             }
 
             foreach (string csFile in result.WrittenCSharpFiles)
             {
                 Assert.True(File.Exists(csFile));
                 string code = File.ReadAllText(csFile);
-                if (!Path.GetFileName(csFile).Equals("GeneratedLuaRuntime.cs", StringComparison.Ordinal))
+                string fileName = Path.GetFileName(csFile);
+                if (fileName.Equals("GeneratedIncludedHeaderProvenance.cs", StringComparison.Ordinal))
+                {
+                    Assert.Contains("Sha256ByHeaderPath", code, StringComparison.Ordinal);
+                }
+                else if (!fileName.Equals("GeneratedLuaRuntime.cs", StringComparison.Ordinal))
                 {
                     Assert.Contains("[LegacySource(@\"", code, StringComparison.Ordinal);
                     Assert.Contains("public sealed class ", code, StringComparison.Ordinal);

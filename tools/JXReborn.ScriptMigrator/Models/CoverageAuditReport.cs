@@ -15,6 +15,8 @@ public sealed class CoverageAuditReport
     public int LegacySourceAttributedScripts { get; init; }
     public int AccountedSkillFormulaScripts { get; init; }
     public int AccountedNpcLevelScripts { get; init; }
+    public int IncludedHeaderProvenanceCount { get; init; }
+    public int FullyAccountedLibraryFiles { get; init; }
     public required int AmbientDialogEntries { get; init; }
     public required int UniqueMapNpcScriptPaths { get; init; }
     public required int ResolvedMapNpcScriptPaths { get; init; }

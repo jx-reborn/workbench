@@ -143,8 +143,23 @@ public sealed class Lua4AstParserTests
 
         byte[] pilidanBytes = ReadLegacyLuaByUtf8Suffix("activitysys/config/39/pilidan.lua");
         LuaParseResult pilidanResult = parser.Parse(pilidanBytes);
-        Assert.False(pilidanResult.IsSuccess);
-        Assert.StartsWith("unsupported-syntax:member-access(PlayerFunLib)", pilidanResult.FailureReason, StringComparison.Ordinal);
+        Assert.True(pilidanResult.IsSuccess, $"pilidan.lua parse failed: {pilidanResult.FailureReason}");
+        LuaFunctionDecl pilidanMain = Assert.Single(pilidanResult.Program!.Functions, static f => f.Name == "main");
+        Assert.Contains(
+            pilidanMain.Body,
+            static s => s is LuaIfStmt
+            {
+                Condition: LuaBinaryExpr
+                {
+                    Left: LuaMemberCallExpr { Receiver: LuaIdentifierExpr { Name: "PlayerFunLib" }, IsColonCall: true }
+                }
+            } or LuaIfStmt
+            {
+                Condition: LuaUnaryExpr
+                {
+                    Operand: LuaMemberCallExpr { Receiver: LuaIdentifierExpr { Name: "PlayerFunLib" }, IsColonCall: true }
+                }
+            } or LuaMemberCallStmt { Call: { Receiver: LuaIdentifierExpr { Name: "PlayerFunLib" }, IsColonCall: true } });
     }
 
     [Fact]
@@ -170,14 +185,19 @@ public sealed class Lua4AstParserTests
         }
 
         LuaParseResult huangRes = parser.ParseLibrary(ReadLegacyLuaByUtf8Suffix("event/great_night/huangzhizhang/event.lua"));
-        Assert.False(huangRes.IsSuccess);
-        Assert.Equal("unsupported-syntax:keyed-table@line92", huangRes.FailureReason);
+        Assert.True(huangRes.IsSuccess, $"ParseLibrary failed on huangzhizhang/event.lua: {huangRes.FailureReason}");
+        Assert.NotNull(huangRes.Program);
+        Assert.NotEmpty(huangRes.Program.Functions);
 
         LuaParseResult awardTpl = parser.ParseLibrary(ReadLegacyLuaByUtf8Suffix("lib/awardtemplet.lua"));
         Assert.True(awardTpl.IsSuccess, $"ParseLibrary failed on awardtemplet.lua: {awardTpl.FailureReason}");
         Assert.NotNull(awardTpl.Program);
         Assert.Contains(
             awardTpl.Program.TopLevelStatements,
-            static s => s is LuaAssignStmt { TargetName: "tbAwardTemplet", Value: LuaUnsupportedExpr });
+            static s => s is LuaMemberAssignStmt
+            {
+                Target: LuaIdentifierExpr { Name: "tbAwardTemplet" },
+                FieldName: "TYPE"
+            });
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -12,11 +11,27 @@ namespace JXReborn.ScriptMigrator.Verification;
 /// </summary>
 public sealed class ScriptEffectTrace
 {
+    private readonly SortedDictionary<int, SortedDictionary<ushort, int>> _teammateTasks = [];
+    private readonly SortedDictionary<int, SortedDictionary<ushort, int>> _teammateTempTasks = [];
+    private readonly SortedDictionary<int, long> _teammateExp = [];
+
     public List<string> Events { get; } = [];
 
     public bool OpenedStoreBox { get; set; }
 
     public (ushort MapId, int ReviveId)? RevivalPoint { get; set; }
+
+    public (ushort MapId, int MpsX, int MpsY)? TempDeathRevival { get; set; }
+
+    public bool UseReviveIdOnLogin { get; set; }
+
+    public bool IsTownPortalDisabled { get; set; }
+
+    public bool IsPkSwitchForbidden { get; set; }
+
+    public bool IsDeathPunishDisabled { get; set; }
+
+    public int ActiveScriptTimerId { get; set; }
 
     public SortedSet<ushort> UnlockedStations { get; } = [];
 
@@ -35,6 +50,10 @@ public sealed class ScriptEffectTrace
     public int FinalMpsY { get; set; }
 
     public byte FinalFightMode { get; set; }
+
+    public byte FinalCurrentFactionId { get; set; } = 255;
+
+    public byte InitialCurrentFactionId { get; private init; } = 255;
 
     public int FinalMoney { get; set; }
 
@@ -60,23 +79,38 @@ public sealed class ScriptEffectTrace
 
     public byte? ObjectPropState { get; set; }
 
+    public int TeamSize { get; init; }
+
+    public int InitiatorPartySlot { get; init; } = 1;
+
+    public int CurrentPlayerIndex { get; private set; } = 1;
+
+    public bool IsCurrentPlayerCaptain => TeamSize > 0 && CurrentPlayerIndex == 1;
+
     public SortedDictionary<ushort, int> Tasks { get; } = [];
 
     public SortedDictionary<ushort, int> TempTasks { get; } = [];
 
     public SortedDictionary<int, int> GlobalValues { get; } = [];
 
+    public IReadOnlyDictionary<int, SortedDictionary<ushort, int>> TeammateTasksBySlot => _teammateTasks;
+
+    public IReadOnlyDictionary<int, long> TeammateExpBySlot => _teammateExp;
+
     public string? ItemResult { get; set; }
 
     public static ScriptEffectTrace CreateFromVector(ScriptStateVector vector)
     {
         ArgumentNullException.ThrowIfNull(vector);
+        int initSlot = vector.TeamSize > 0 ? Math.Clamp(vector.InitiatorPartySlot, 1, vector.TeamSize) : 1;
         var trace = new ScriptEffectTrace
         {
             FinalMapId = vector.MapId,
             FinalMpsX = vector.MpsX,
             FinalMpsY = vector.MpsY,
             FinalFightMode = vector.FightMode,
+            InitialCurrentFactionId = vector.CurrentFactionId,
+            FinalCurrentFactionId = vector.CurrentFactionId,
             FinalMoney = vector.InventoryMoney,
             FinalRepute = vector.Repute,
             FinalFuYuan = vector.FuYuan,
@@ -87,6 +121,10 @@ public sealed class ScriptEffectTrace
             FinalPkMode = vector.PkMode,
             FinalPkValue = vector.PkValue,
             FinalRankId = vector.RankId,
+            ActiveScriptTimerId = vector.ActiveTimerId,
+            TeamSize = Math.Max(0, vector.TeamSize),
+            InitiatorPartySlot = initSlot,
+            CurrentPlayerIndex = initSlot,
         };
 
         if (vector.Tasks is not null)
@@ -96,6 +134,27 @@ public sealed class ScriptEffectTrace
                 if (kv.Value != 0)
                 {
                     trace.Tasks[kv.Key] = kv.Value;
+                }
+            }
+        }
+
+        if (vector.TeammateTasks is not null && vector.TeamSize >= 2)
+        {
+            for (int slot = 1; slot <= vector.TeamSize; slot++)
+            {
+                if (slot == initSlot) continue;
+                var slotDict = new SortedDictionary<ushort, int>();
+                foreach (KeyValuePair<ushort, int> kv in vector.TeammateTasks)
+                {
+                    if (kv.Value != 0)
+                    {
+                        slotDict[kv.Key] = kv.Value;
+                    }
+                }
+
+                if (slotDict.Count > 0)
+                {
+                    trace._teammateTasks[slot] = slotDict;
                 }
             }
         }
@@ -125,8 +184,58 @@ public sealed class ScriptEffectTrace
         return trace;
     }
 
+    public void SwitchActivePlayer(int playerIndex)
+    {
+        int maxSlots = Math.Max(1, TeamSize);
+        if ((uint)(playerIndex - 1) < (uint)maxSlots)
+        {
+            CurrentPlayerIndex = playerIndex;
+        }
+    }
+
+    public string PrefixForActivePlayer(string rawEvent) =>
+        CurrentPlayerIndex == InitiatorPartySlot ? rawEvent : $"P{CurrentPlayerIndex}:{rawEvent}";
+
+    public void AddExperienceForActivePlayer(long exp)
+    {
+        if (exp <= 0)
+        {
+            return;
+        }
+
+        if (CurrentPlayerIndex == InitiatorPartySlot)
+        {
+            ExpGranted += exp;
+        }
+        else
+        {
+            _teammateExp[CurrentPlayerIndex] = _teammateExp.GetValueOrDefault(CurrentPlayerIndex, 0L) + exp;
+        }
+    }
+
     public void SetTaskValue(ushort id, int val)
     {
+        if (CurrentPlayerIndex != InitiatorPartySlot)
+        {
+            if (!_teammateTasks.TryGetValue(CurrentPlayerIndex, out SortedDictionary<ushort, int>? tMap))
+            {
+                if (val == 0) return;
+                tMap = [];
+                _teammateTasks[CurrentPlayerIndex] = tMap;
+            }
+
+            if (val == 0)
+            {
+                tMap.Remove(id);
+            }
+            else
+            {
+                tMap[id] = val;
+            }
+
+            return;
+        }
+
         if (val == 0)
         {
             Tasks.Remove(id);
@@ -137,10 +246,34 @@ public sealed class ScriptEffectTrace
         }
     }
 
-    public int GetTaskValue(ushort id) => Tasks.GetValueOrDefault(id, 0);
+    public int GetTaskValue(ushort id)
+    {
+        if (CurrentPlayerIndex != InitiatorPartySlot)
+        {
+            return _teammateTasks.TryGetValue(CurrentPlayerIndex, out SortedDictionary<ushort, int>? tMap)
+                ? tMap.GetValueOrDefault(id, 0)
+                : 0;
+        }
+
+        return Tasks.GetValueOrDefault(id, 0);
+    }
 
     public void SetTempTaskValue(ushort id, int val)
     {
+        if (CurrentPlayerIndex != InitiatorPartySlot)
+        {
+            if (!_teammateTempTasks.TryGetValue(CurrentPlayerIndex, out SortedDictionary<ushort, int>? tMap))
+            {
+                if (val == 0) return;
+                tMap = [];
+                _teammateTempTasks[CurrentPlayerIndex] = tMap;
+            }
+
+            if (val == 0) tMap.Remove(id);
+            else tMap[id] = val;
+            return;
+        }
+
         if (val == 0)
         {
             TempTasks.Remove(id);
@@ -151,7 +284,17 @@ public sealed class ScriptEffectTrace
         }
     }
 
-    public int GetTempTaskValue(ushort id) => TempTasks.GetValueOrDefault(id, 0);
+    public int GetTempTaskValue(ushort id)
+    {
+        if (CurrentPlayerIndex != InitiatorPartySlot)
+        {
+            return _teammateTempTasks.TryGetValue(CurrentPlayerIndex, out SortedDictionary<ushort, int>? tMap)
+                ? tMap.GetValueOrDefault(id, 0)
+                : 0;
+        }
+
+        return TempTasks.GetValueOrDefault(id, 0);
+    }
 
     public void SetGlobalVal(int id, int val)
     {
@@ -177,6 +320,11 @@ public sealed class ScriptEffectTrace
           .Append(",Money=").Append(FinalMoney)
           .Append(",Exp+=").Append(ExpGranted)
           .Append(",Repute=").Append(FinalRepute);
+
+        if (FinalCurrentFactionId != InitialCurrentFactionId)
+        {
+            sb.Append(",Faction=").Append(FinalCurrentFactionId);
+        }
 
         if (OpenedStoreBox)
         {
@@ -213,6 +361,31 @@ public sealed class ScriptEffectTrace
             sb.Append(",Revival=").Append(rev.MapId).Append(':').Append(rev.ReviveId);
         }
 
+        if (TempDeathRevival is { } tempRev)
+        {
+            sb.Append(",TempRev=").Append(tempRev.MapId).Append(':').Append(tempRev.MpsX).Append(':').Append(tempRev.MpsY);
+        }
+
+        if (UseReviveIdOnLogin)
+        {
+            sb.Append(",LogoutRV=true");
+        }
+
+        if (IsTownPortalDisabled)
+        {
+            sb.Append(",NoTownP=true");
+        }
+
+        if (IsPkSwitchForbidden)
+        {
+            sb.Append(",NoPkSwitch=true");
+        }
+
+        if (IsDeathPunishDisabled)
+        {
+            sb.Append(",NoPunish=true");
+        }
+
         if (ProtectFrames > 0)
         {
             sb.Append(",Protect=").Append(ProtectFrames);
@@ -242,6 +415,24 @@ public sealed class ScriptEffectTrace
               .Append('}');
         }
 
+        foreach (KeyValuePair<int, SortedDictionary<ushort, int>> slotKv in _teammateTasks)
+        {
+            if (slotKv.Value.Count > 0)
+            {
+                sb.Append($",P{slotKv.Key}Tasks={{")
+                  .Append(string.Join(",", slotKv.Value.Select(static kv => $"{kv.Key}={kv.Value}")))
+                  .Append('}');
+            }
+        }
+
+        foreach (KeyValuePair<int, long> expKv in _teammateExp)
+        {
+            if (expKv.Value > 0)
+            {
+                sb.Append($",P{expKv.Key}Exp+=").Append(expKv.Value);
+            }
+        }
+
         if (TempTasks.Count > 0)
         {
             sb.Append(",TempTasks={")
@@ -256,42 +447,29 @@ public sealed class ScriptEffectTrace
               .Append('}');
         }
 
-        if (ItemResult is not null)
+        if (!string.IsNullOrEmpty(ItemResult))
         {
-            sb.Append(",ItemResult=").Append(ItemResult);
+            sb.Append(",ItemRes=").Append(ItemResult);
         }
 
         if (Events.Count > 0)
         {
-            sb.Append(" | Events=[")
-              .Append(string.Join(" -> ", Events))
-              .Append(']');
+            sb.Append(",Events=[").Append(string.Join(" | ", Events)).Append(']');
         }
 
         return sb.ToString();
     }
 
-    public static string EscapeEventText(string? text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return string.Empty;
-        }
-
-        return text
+    public static string EscapeEventText(string text) =>
+        text
             .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
             .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal)
-            .Replace("\t", "\\t", StringComparison.Ordinal);
-    }
+            .Replace("\n", "\\n", StringComparison.Ordinal);
 
     public static string FormatSayEvent(string prompt, IReadOnlyList<string> optionLabels) =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"SAY(\"{EscapeEventText(prompt)}\",[{string.Join(",", optionLabels.Select(static o => $"\"{EscapeEventText(o)}\""))}])");
+        $"SAY(\"{EscapeEventText(prompt)}\",[{string.Join(",", optionLabels.Select(static o => $"\"{EscapeEventText(o)}\""))}])";
 
     public static string FormatTalkEvent(IReadOnlyList<string> pages) =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"TALK([{string.Join(",", pages.Select(static p => $"\"{EscapeEventText(p)}\""))}])");
+        $"TALK([{string.Join(",", pages.Select(static p => $"\"{EscapeEventText(p)}\""))}])";
 }

@@ -27,8 +27,25 @@ public sealed class LuaIncludeLinker
         "TASKSYS",
         "TITLE",
         "LEAGUEMATCH",
+        "LEAGUE",
+        "NPCINFO",
+        "TIMER",
+        "GM",
         "SPREADER",
         "TONGWAR",
+    };
+
+    private static readonly HashSet<string> LoweredLibraryIntrinsics = new(StringComparer.Ordinal)
+    {
+        "CreateNewSayEx",
+        "CreateTaskSay",
+        "TaskSay",
+    };
+
+    private static readonly HashSet<string> LoweredFrameworkGlobals = new(StringComparer.Ordinal)
+    {
+        "tbAwardTemplet",
+        "DailogClass",
     };
 
     private readonly ILegacyServerSource _source;
@@ -223,7 +240,8 @@ public sealed class LuaIncludeLinker
             if (stmt is LuaCallStmt callStmt)
             {
                 string callee = callStmt.Call.CalleeName;
-                if (callee.Equals("IncludeLib", StringComparison.OrdinalIgnoreCase))
+                if (callee.Equals("IncludeLib", StringComparison.OrdinalIgnoreCase) ||
+                    callee.Equals("IL", StringComparison.OrdinalIgnoreCase))
                 {
                     string lib = callStmt.Call.Arguments.Count > 0 && callStmt.Call.Arguments[0] is LuaStringExpr ls
                         ? ls.DecodedUtf8.Trim()
@@ -247,7 +265,15 @@ public sealed class LuaIncludeLinker
 
                     if (!TryResolveIncludeKey(pathExpr, out string? incKey) || string.IsNullOrWhiteSpace(incKey))
                     {
-                        blockingReasons.Add($"missing-include:{pathExpr.DecodedUtf8}");
+                        if (isEntryChunk)
+                        {
+                            blockingReasons.Add($"missing-include:{pathExpr.DecodedUtf8}");
+                        }
+                        else
+                        {
+                            AddImpure(impureStatementsByChunk, myChunkId, new LuaUnsupportedStmt($"missing-include:{pathExpr.DecodedUtf8}", callStmt.Line));
+                        }
+
                         continue;
                     }
 
@@ -263,7 +289,15 @@ public sealed class LuaIncludeLinker
                         LuaParseResult incParsed = ParseIncludedLibraryCached(incKey);
                         if (!incParsed.IsSuccess || incParsed.Program is null)
                         {
-                            blockingReasons.Add($"include-parse:{incKey}({incParsed.FailureReason ?? "failed"})");
+                            if (isEntryChunk)
+                            {
+                                blockingReasons.Add($"include-parse:{incKey}({incParsed.FailureReason ?? "failed"})");
+                            }
+                            else
+                            {
+                                AddImpure(impureStatementsByChunk, myChunkId, new LuaUnsupportedStmt($"include-parse:{incKey}({incParsed.FailureReason ?? "failed"})", callStmt.Line));
+                            }
+
                             continue;
                         }
 
@@ -305,6 +339,11 @@ public sealed class LuaIncludeLinker
 
             if (stmt is LuaAssignStmt assignStmt)
             {
+                if (!isEntryChunk && LoweredFrameworkGlobals.Contains(assignStmt.TargetName))
+                {
+                    continue;
+                }
+
                 if (isEntryChunk && constTable.TryGetValue(assignStmt.TargetName, out var prev) && prev.ChunkId == myChunkId)
                 {
                     // Reassigning a global twice in the entry chunk itself is kept as impure so semantic validator flags it
@@ -317,11 +356,30 @@ public sealed class LuaIncludeLinker
                 continue;
             }
 
+            if (!isEntryChunk && stmt is LuaMemberAssignStmt)
+            {
+                // Library OOP prototype field initialization (`ExpType.pFun = ...`, `Class.tbTemplate = {}`)
+                continue;
+            }
+
+            if (!isEntryChunk &&
+                stmt is LuaMemberCallStmt libMemberCall &&
+                libMemberCall.Call.MemberName is "_init" or "Reg" or "RegType")
+            {
+                // Library OOP startup registration (`G_DIALOG:_init()`, `ExpType:Reg()`, `EventSys:GetType(...):Reg(...)`)
+                continue;
+            }
+
             AddImpure(impureStatementsByChunk, myChunkId, stmt);
         }
 
         foreach (LuaFunctionDecl rawFn in program.Functions)
         {
+            if (!isEntryChunk && LoweredLibraryIntrinsics.Contains(rawFn.Name))
+            {
+                continue;
+            }
+
             LuaFunctionDecl fn = chunkLocalRenameMap.Count > 0
                 ? RewriteFunctionChunkLocals(rawFn, chunkLocalRenameMap)
                 : rawFn;
@@ -393,6 +451,13 @@ public sealed class LuaIncludeLinker
             {
                 case LuaCallStmt cs:
                     ScanExpressionForReachability(cs.Call, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                    break;
+                case LuaMemberCallStmt mcs:
+                    ScanExpressionForReachability(mcs.Call, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                    break;
+                case LuaMemberAssignStmt mas:
+                    ScanExpressionForReachability(mas.Target, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                    ScanExpressionForReachability(mas.Value, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
                     break;
                 case LuaLocalDeclStmt ld when ld.Initializer is not null:
                     ScanExpressionForReachability(ld.Initializer, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
@@ -492,6 +557,11 @@ public sealed class LuaIncludeLinker
                     constQueue?.Enqueue(id.Name);
                 }
 
+                if (functionsByName.ContainsKey(id.Name) && reachableFunctions.Add(id.Name))
+                {
+                    fnQueue.Enqueue(id.Name);
+                }
+
                 break;
 
             case LuaUpvalueExpr up:
@@ -538,6 +608,32 @@ public sealed class LuaIncludeLinker
                 foreach (LuaExpression el in tbl.Elements)
                 {
                     ScanExpressionForReachability(el, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                }
+
+                break;
+
+            case LuaKeyedTableLiteralExpr ktbl:
+                foreach (LuaTableFieldEntry entry in ktbl.Entries)
+                {
+                    if (entry.BracketKey is not null)
+                    {
+                        ScanExpressionForReachability(entry.BracketKey, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                    }
+
+                    ScanExpressionForReachability(entry.Value, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                }
+
+                break;
+
+            case LuaMemberAccessExpr macc:
+                ScanExpressionForReachability(macc.Target, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                break;
+
+            case LuaMemberCallExpr mcall:
+                ScanExpressionForReachability(mcall.Receiver, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                foreach (LuaExpression arg in mcall.Arguments)
+                {
+                    ScanExpressionForReachability(arg, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
                 }
 
                 break;
@@ -678,6 +774,16 @@ public sealed class LuaIncludeLinker
             case LuaCallStmt cs:
                 return cs with { Call = (LuaCallExpr)RewriteExprChunkLocals(cs.Call, chunkLocalMap, shadowedLocals) };
 
+            case LuaMemberCallStmt mcs:
+                return mcs with { Call = (LuaMemberCallExpr)RewriteExprChunkLocals(mcs.Call, chunkLocalMap, shadowedLocals) };
+
+            case LuaMemberAssignStmt mas:
+                return mas with
+                {
+                    Target = RewriteExprChunkLocals(mas.Target, chunkLocalMap, shadowedLocals),
+                    Value = RewriteExprChunkLocals(mas.Value, chunkLocalMap, shadowedLocals),
+                };
+
             case LuaReturnStmt ret:
                 return ret with
                 {
@@ -750,6 +856,23 @@ public sealed class LuaIncludeLinker
                 },
             LuaTableLiteralExpr tbl =>
                 tbl with { Elements = tbl.Elements.Select(e => RewriteExprChunkLocals(e, chunkLocalMap, shadowedLocals)).ToArray() },
+            LuaKeyedTableLiteralExpr ktbl =>
+                ktbl with
+                {
+                    Entries = ktbl.Entries.Select(e => e with
+                    {
+                        BracketKey = e.BracketKey is not null ? RewriteExprChunkLocals(e.BracketKey, chunkLocalMap, shadowedLocals) : null,
+                        Value = RewriteExprChunkLocals(e.Value, chunkLocalMap, shadowedLocals),
+                    }).ToArray(),
+                },
+            LuaMemberAccessExpr macc =>
+                macc with { Target = RewriteExprChunkLocals(macc.Target, chunkLocalMap, shadowedLocals) },
+            LuaMemberCallExpr mcall =>
+                mcall with
+                {
+                    Receiver = RewriteExprChunkLocals(mcall.Receiver, chunkLocalMap, shadowedLocals),
+                    Arguments = mcall.Arguments.Select(a => RewriteExprChunkLocals(a, chunkLocalMap, shadowedLocals)).ToArray(),
+                },
             _ => expr,
         };
 }

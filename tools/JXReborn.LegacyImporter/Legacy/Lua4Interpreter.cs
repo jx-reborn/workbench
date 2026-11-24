@@ -985,6 +985,11 @@ public sealed class Lua4Interpreter
             };
             scopes.Add(loopScope);
             Lua4Value[] res = ExecuteBlock(tokens, ref runPos, scopes, upvalues, out didReturn, out bool didBreak);
+            if (loopScope.TryGetValue(firstVar, out Lua4Value? mutatedLoopVar) && mutatedLoopVar.IsNumber)
+            {
+                cur = mutatedLoopVar.AsNumberOrDefault(cur);
+            }
+
             scopes.RemoveAt(scopes.Count - 1);
             if (didReturn)
             {

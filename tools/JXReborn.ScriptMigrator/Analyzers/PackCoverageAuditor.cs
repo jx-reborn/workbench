@@ -28,6 +28,9 @@ public sealed partial class PackCoverageAuditor
     [GeneratedRegex(@"\[LegacySource\(\s*(@?)""([^""]+)""\s*,\s*(@?)""([^""]+)""\s*\)\]", RegexOptions.Compiled)]
     private static partial Regex LegacySourceAttributeRegex();
 
+    [GeneratedRegex(@"\[@""([^""]+)""\]\s*=\s*""([0-9a-fA-F]{64})""", RegexOptions.Compiled)]
+    private static partial Regex HeaderProvenanceEntryRegex();
+
     public CoverageAuditReport Audit(ScriptInventoryManifest manifest, string packRoot, string? scope = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
@@ -432,6 +435,65 @@ public sealed partial class PackCoverageAuditor
             }
         }
 
+        // 8. Audit GeneratedIncludedHeaderProvenance.cs: verify SHA-256 against manifest and identify pure library headers
+        //    whose callers are 100% migrated (zero unaccounted scripts include them).
+        int includedHeaderProvenanceCount = 0;
+        int fullyAccountedLibraries = 0;
+        string hdrProvFile = Path.Combine(packRoot, "src", "JXReborn.Packs.TieuDaoTu", "Scripts", "Generated", "GeneratedIncludedHeaderProvenance.cs");
+        if (File.Exists(hdrProvFile))
+        {
+            var verifiedPureHeaders = new List<ScriptInventoryEntry>();
+            string provSrc = File.ReadAllText(hdrProvFile);
+            foreach (Match m in HeaderProvenanceEntryRegex().Matches(provSrc))
+            {
+                string hdrPath = NormalizeSlashPath(m.Groups[1].Value.Replace("\"\"", "\"", StringComparison.Ordinal));
+                string hdrSha = m.Groups[2].Value;
+                if (entryByNormalizedPath.TryGetValue(hdrPath, out ScriptInventoryEntry? hdrEntry) &&
+                    string.Equals(hdrEntry.Sha256, hdrSha, StringComparison.OrdinalIgnoreCase))
+                {
+                    includedHeaderProvenanceCount++;
+                    if (!hdrEntry.DefinedFunctions.Contains("main", StringComparer.Ordinal) &&
+                        !hdrEntry.DefinedFunctions.Contains("OnDeath", StringComparer.Ordinal) &&
+                        !accountedRelativePaths.Contains(hdrEntry.RelativePath))
+                    {
+                        verifiedPureHeaders.Add(hdrEntry);
+                    }
+                }
+            }
+
+            if (verifiedPureHeaders.Count > 0)
+            {
+                var unaccountedIncludeTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (ScriptInventoryEntry e in activeEntries)
+                {
+                    if (accountedRelativePaths.Contains(e.RelativePath))
+                    {
+                        continue;
+                    }
+
+                    foreach (string inc in e.IncludedFiles)
+                    {
+                        string normInc = NormalizeSlashPath(inc);
+                        unaccountedIncludeTargets.Add(normInc);
+                        unaccountedIncludeTargets.Add(LegacyScriptPathNormalizer.NormalizeToUtf8(normInc));
+                    }
+                }
+
+                foreach (ScriptInventoryEntry hdr in verifiedPureHeaders)
+                {
+                    string rawCan = NormalizeSlashPath(hdr.CanonicalScriptPath);
+                    string utf8Can = ToScriptPathFromUtf8Display(hdr.Utf8DisplayPath);
+                    if (!unaccountedIncludeTargets.Contains(rawCan) && !unaccountedIncludeTargets.Contains(utf8Can))
+                    {
+                        if (accountedRelativePaths.Add(hdr.RelativePath))
+                        {
+                            fullyAccountedLibraries++;
+                        }
+                    }
+                }
+            }
+        }
+
         int totalActiveLegacy = activeEntries.Count;
         int accountedTotal = accountedRelativePaths.Count;
         int unaccounted = Math.Max(0, totalActiveLegacy - accountedTotal);
@@ -452,6 +514,8 @@ public sealed partial class PackCoverageAuditor
             LegacySourceAttributedScripts = attributedExistingCount,
             AccountedSkillFormulaScripts = accountedSkillFormulas,
             AccountedNpcLevelScripts = accountedNpcLevelScripts,
+            IncludedHeaderProvenanceCount = includedHeaderProvenanceCount,
+            FullyAccountedLibraryFiles = fullyAccountedLibraries,
             AmbientDialogEntries = ambientDialogCount,
             UniqueMapNpcScriptPaths = npcPaths.Count,
             ResolvedMapNpcScriptPaths = resolvedNpc,
@@ -494,6 +558,7 @@ public sealed partial class PackCoverageAuditor
         sb.AppendLine($"- **Ambient Dialog JSON Entries**: **{report.AmbientDialogEntries:N0}**");
         sb.AppendLine($"- **Skill Formula Scripts Accounted by `data/skills/*.skills.json`**: **{report.AccountedSkillFormulaScripts:N0}**");
         sb.AppendLine($"- **NPC Level Scripts Accounted by `data/npcs/level-scripts.npcs.json`**: **{report.AccountedNpcLevelScripts:N0}**");
+        sb.AppendLine($"- **Included Library Headers Locked by SHA-256 (`GeneratedIncludedHeaderProvenance`)**: **{report.IncludedHeaderProvenanceCount:N0}** (100%-caller-migrated pure libraries accounted: `{report.FullyAccountedLibraryFiles:N0}`)");
         sb.AppendLine($"- **Map/Global NPC Unique Script Paths**: `{report.ResolvedMapNpcScriptPaths:N0}` / `{report.UniqueMapNpcScriptPaths:N0}` resolved");
         sb.AppendLine($"- **Map Object (`0x72`) Unique Script Paths**: `{report.ResolvedMapObjectScriptPaths:N0}` / `{report.UniqueMapObjectScriptPaths:N0}` resolved");
         sb.AppendLine($"- **Map Portal/Trap Unique Script Paths**: `{report.ResolvedMapPortalScriptPaths:N0}` / `{report.UniqueMapPortalScriptPaths:N0}` resolved");

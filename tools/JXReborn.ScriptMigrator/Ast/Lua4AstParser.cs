@@ -340,6 +340,28 @@ public sealed class Lua4AstParser
                 Advance();
                 matchedGuardCond = true;
             }
+            else if (Current.Kind == Lua4TokenKind.Identifier &&
+                     Current.Text is "MODEL_GAMESERVER" or "GAMESERVER" &&
+                     Peek(1).Kind == Lua4TokenKind.Eq &&
+                     Peek(2).Kind == Lua4TokenKind.Number &&
+                     Peek(2).Text == "1")
+            {
+                Advance();
+                Advance();
+                Advance();
+                while (Current.Kind == Lua4TokenKind.Or &&
+                       Peek(1).Kind == Lua4TokenKind.Identifier &&
+                       Peek(2).Kind == Lua4TokenKind.Eq &&
+                       Peek(3).Kind == Lua4TokenKind.Number)
+                {
+                    Advance();
+                    Advance();
+                    Advance();
+                    Advance();
+                }
+
+                matchedGuardCond = true;
+            }
             else if (Current.Kind == Lua4TokenKind.Number && Current.Text == "1")
             {
                 Advance();
@@ -439,14 +461,46 @@ public sealed class Lua4AstParser
             }
             catch (LuaAstParseFailureException ex)
             {
-                // Isolate `X = { ... }`, `X.Y = { ... }`, or `local X = { ... }` when RHS is pure
+                // Isolate pure unsupported top-level assignments or library control-flow blocks
                 _pos = startPos;
                 if (TryRecoverPureUnsupportedTableAssignment(ex.Reason, out LuaStatement? recovered) && recovered is not null)
                 {
                     return recovered;
                 }
 
+                _pos = startPos;
+                if (Current.Kind is Lua4TokenKind.If or Lua4TokenKind.For or Lua4TokenKind.While or Lua4TokenKind.Do)
+                {
+                    int line = Current.Line;
+                    SkipBalancedBlockAtCurrentKeyword();
+                    return new LuaUnsupportedStmt(ex.Reason, line);
+                }
+
                 throw;
+            }
+        }
+
+        private void SkipBalancedBlockAtCurrentKeyword()
+        {
+            int depth = 0;
+            while (!IsAtEnd)
+            {
+                Lua4TokenKind k = Current.Kind;
+                if (k is Lua4TokenKind.Function or Lua4TokenKind.If or Lua4TokenKind.Do)
+                {
+                    depth++;
+                }
+                else if (k == Lua4TokenKind.End)
+                {
+                    depth--;
+                    if (depth <= 0)
+                    {
+                        Advance();
+                        return;
+                    }
+                }
+
+                Advance();
             }
         }
 
@@ -505,13 +559,13 @@ public sealed class Lua4AstParser
                     return false;
                 }
             }
+            else if (Current.Kind == Lua4TokenKind.Function)
+            {
+                SkipFromFunctionHeaderToMatchingEnd(_pos + 1);
+            }
             else if (hadFieldChain && Current.Kind is Lua4TokenKind.Nil or Lua4TokenKind.Number or Lua4TokenKind.String)
             {
                 Advance();
-            }
-            else if (hadFieldChain && Current.Kind == Lua4TokenKind.Function)
-            {
-                SkipFromFunctionHeaderToMatchingEnd(_pos + 1);
             }
             else
             {
@@ -645,6 +699,8 @@ public sealed class Lua4AstParser
                     throw Abort($"unsupported-syntax:nested-function@line{tok.Line}");
                 case Lua4TokenKind.Identifier:
                     return ParseIdentifierStatement();
+                case Lua4TokenKind.UpvalueIdentifier:
+                    return ParseUpvalueStatement();
                 default:
                     throw Abort($"syntax-error:unexpected-{tok.Kind}({tok.Text})@line{tok.Line}");
             }
@@ -807,7 +863,13 @@ public sealed class Lua4AstParser
             if (Current.Kind == Lua4TokenKind.LParen)
             {
                 LuaCallExpr call = ParseCallArguments(identTok);
-                if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon or Lua4TokenKind.LBracket or Lua4TokenKind.LParen)
+                if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon or Lua4TokenKind.LBracket)
+                {
+                    LuaExpression chained = ParsePostfixContinuation(call);
+                    return CompletePostfixStatement(chained, identTok.Line);
+                }
+
+                if (Current.Kind == Lua4TokenKind.LParen)
                 {
                     throw Abort($"unsupported-syntax:chained-call({identTok.Text})@line{identTok.Line}");
                 }
@@ -848,7 +910,9 @@ public sealed class Lua4AstParser
 
             if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon)
             {
-                throw Abort($"unsupported-syntax:member-access({identTok.Text})@line{identTok.Line}");
+                LuaExpression receiver = new LuaIdentifierExpr(identTok.Text, identTok.Line);
+                LuaExpression postfix = ParsePostfixContinuation(receiver);
+                return CompletePostfixStatement(postfix, identTok.Line);
             }
 
             if (Current.Kind == Lua4TokenKind.LBracket)
@@ -856,22 +920,69 @@ public sealed class Lua4AstParser
                 Advance();
                 LuaExpression idxExpr = ParseExpression();
                 Expect(Lua4TokenKind.RBracket);
-                if (Current.Kind != Lua4TokenKind.Assign)
+                if (Current.Kind == Lua4TokenKind.Assign)
                 {
-                    throw Abort($"unsupported-syntax:table-mutation({identTok.Text})@line{identTok.Line}");
+                    Advance();
+                    LuaExpression valExpr = ParseExpression();
+                    if (Current.Kind == Lua4TokenKind.Comma)
+                    {
+                        throw Abort($"unsupported-syntax:multi-assign({identTok.Text})@line{identTok.Line}");
+                    }
+
+                    return new LuaIndexAssignStmt(identTok.Text, idxExpr, valExpr, identTok.Line);
                 }
 
-                Advance();
-                LuaExpression valExpr = ParseExpression();
-                if (Current.Kind == Lua4TokenKind.Comma)
+                if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon or Lua4TokenKind.LBracket)
                 {
-                    throw Abort($"unsupported-syntax:multi-assign({identTok.Text})@line{identTok.Line}");
+                    LuaExpression baseIdx = new LuaIndexExpr(new LuaIdentifierExpr(identTok.Text, identTok.Line), idxExpr, identTok.Line);
+                    LuaExpression postfix = ParsePostfixContinuation(baseIdx);
+                    return CompletePostfixStatement(postfix, identTok.Line);
                 }
 
-                return new LuaIndexAssignStmt(identTok.Text, idxExpr, valExpr, identTok.Line);
+                throw Abort($"unsupported-syntax:table-mutation({identTok.Text})@line{identTok.Line}");
             }
 
             throw Abort($"syntax-error:unexpected-after-ident({identTok.Text}:{Current.Kind})@line{Current.Line}");
+        }
+
+        private LuaStatement ParseUpvalueStatement()
+        {
+            Lua4Token upTok = Expect(Lua4TokenKind.UpvalueIdentifier);
+            LuaExpression receiver = new LuaUpvalueExpr(upTok.Text, upTok.Line);
+            if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon or Lua4TokenKind.LBracket)
+            {
+                LuaExpression postfix = ParsePostfixContinuation(receiver);
+                return CompletePostfixStatement(postfix, upTok.Line);
+            }
+
+            throw Abort($"unsupported-syntax:upvalue-mutation(%{upTok.Text})@line{upTok.Line}");
+        }
+
+        private LuaStatement CompletePostfixStatement(LuaExpression postfix, int line)
+        {
+            if (postfix is LuaMemberCallExpr mcall && Current.Kind != Lua4TokenKind.Assign)
+            {
+                return new LuaMemberCallStmt(mcall, line);
+            }
+
+            if (postfix is LuaMemberAccessExpr macc && Current.Kind == Lua4TokenKind.Assign)
+            {
+                Advance();
+                LuaExpression rhs = ParseExpression();
+                if (Current.Kind == Lua4TokenKind.Comma)
+                {
+                    throw Abort($"unsupported-syntax:multi-assign({macc.FieldName})@line{line}");
+                }
+
+                return new LuaMemberAssignStmt(macc.Target, macc.FieldName, rhs, line);
+            }
+
+            if (postfix is LuaIndexExpr && Current.Kind == Lua4TokenKind.Assign)
+            {
+                throw Abort($"unsupported-syntax:nested-index-assign@line{line}");
+            }
+
+            throw Abort($"unsupported-syntax:postfix-stmt({postfix.GetType().Name})@line{line}");
         }
 
         private LuaCallExpr ParseCallArguments(Lua4Token calleeTok)
@@ -1028,7 +1139,11 @@ public sealed class Lua4AstParser
         private LuaExpression ParsePostfix()
         {
             LuaExpression expr = ParsePrimary();
+            return ParsePostfixContinuation(expr);
+        }
 
+        private LuaExpression ParsePostfixContinuation(LuaExpression expr)
+        {
             while (true)
             {
                 if (Current.Kind == Lua4TokenKind.LBracket)
@@ -1040,10 +1155,35 @@ public sealed class Lua4AstParser
                     continue;
                 }
 
-                if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon)
+                if (Current.Kind == Lua4TokenKind.Dot)
                 {
-                    string baseName = expr is LuaIdentifierExpr id ? id.Name : "expr";
-                    throw Abort($"unsupported-syntax:member-access({baseName})@line{Current.Line}");
+                    int line = Advance().Line;
+                    Lua4Token fieldTok = Expect(Lua4TokenKind.Identifier);
+                    if (Current.Kind == Lua4TokenKind.LParen)
+                    {
+                        List<LuaExpression> args = ParseParenthesizedArgList();
+                        expr = new LuaMemberCallExpr(expr, fieldTok.Text, IsColonCall: false, args, line);
+                    }
+                    else
+                    {
+                        expr = new LuaMemberAccessExpr(expr, fieldTok.Text, line);
+                    }
+
+                    continue;
+                }
+
+                if (Current.Kind == Lua4TokenKind.Colon)
+                {
+                    int line = Advance().Line;
+                    Lua4Token methodTok = Expect(Lua4TokenKind.Identifier);
+                    if (Current.Kind != Lua4TokenKind.LParen)
+                    {
+                        throw Abort($"syntax-error:expected-LParen-after-colon({methodTok.Text})@line{line}");
+                    }
+
+                    List<LuaExpression> args = ParseParenthesizedArgList();
+                    expr = new LuaMemberCallExpr(expr, methodTok.Text, IsColonCall: true, args, line);
+                    continue;
                 }
 
                 if (Current.Kind == Lua4TokenKind.LParen)
@@ -1055,6 +1195,29 @@ public sealed class Lua4AstParser
             }
 
             return expr;
+        }
+
+        private List<LuaExpression> ParseParenthesizedArgList()
+        {
+            Expect(Lua4TokenKind.LParen);
+            var args = new List<LuaExpression>();
+            if (Current.Kind != Lua4TokenKind.RParen)
+            {
+                while (true)
+                {
+                    args.Add(ParseExpression());
+                    if (Current.Kind == Lua4TokenKind.Comma)
+                    {
+                        Advance();
+                        continue;
+                    }
+
+                    break;
+                }
+            }
+
+            Expect(Lua4TokenKind.RParen);
+            return args;
         }
 
         private LuaExpression ParsePrimary()
@@ -1085,7 +1248,7 @@ public sealed class Lua4AstParser
                     Expect(Lua4TokenKind.RParen);
                     return inner;
                 case Lua4TokenKind.LBrace:
-                    return ParseSequentialTableLiteral();
+                    return ParseTableLiteral();
                 case Lua4TokenKind.UpvalueIdentifier:
                     Advance();
                     return new LuaUpvalueExpr(tok.Text, tok.Line);
@@ -1096,21 +1259,39 @@ public sealed class Lua4AstParser
             }
         }
 
-        private LuaTableLiteralExpr ParseSequentialTableLiteral()
+        private LuaExpression ParseTableLiteral()
         {
             Lua4Token braceTok = Expect(Lua4TokenKind.LBrace);
-            var elements = new List<LuaExpression>();
+            var entries = new List<LuaTableFieldEntry>();
+            bool hasKeyed = false;
 
             while (Current.Kind != Lua4TokenKind.RBrace && !IsAtEnd)
             {
-                // Fail closed on keyed table entries: `key = val` or `[key] = val`
-                if (Current.Kind == Lua4TokenKind.LBracket ||
-                    (Current.Kind == Lua4TokenKind.Identifier && Peek(1).Kind == Lua4TokenKind.Assign))
+                int entryLine = Current.Line;
+                if (Current.Kind == Lua4TokenKind.LBracket)
                 {
-                    throw Abort($"unsupported-syntax:keyed-table@line{Current.Line}");
+                    hasKeyed = true;
+                    Advance();
+                    LuaExpression keyExpr = ParseExpression();
+                    Expect(Lua4TokenKind.RBracket);
+                    Expect(Lua4TokenKind.Assign);
+                    LuaExpression valExpr = ParseExpression();
+                    entries.Add(new LuaTableFieldEntry(null, keyExpr, valExpr, entryLine));
+                }
+                else if (Current.Kind == Lua4TokenKind.Identifier && Peek(1).Kind == Lua4TokenKind.Assign)
+                {
+                    hasKeyed = true;
+                    string fieldName = Advance().Text;
+                    Advance(); // '='
+                    LuaExpression valExpr = ParseExpression();
+                    entries.Add(new LuaTableFieldEntry(fieldName, null, valExpr, entryLine));
+                }
+                else
+                {
+                    LuaExpression elemExpr = ParseExpression();
+                    entries.Add(new LuaTableFieldEntry(null, null, elemExpr, entryLine));
                 }
 
-                elements.Add(ParseExpression());
                 if (Current.Kind is Lua4TokenKind.Comma or Lua4TokenKind.Semicolon)
                 {
                     Advance();
@@ -1121,7 +1302,18 @@ public sealed class Lua4AstParser
             }
 
             Expect(Lua4TokenKind.RBrace);
-            return new LuaTableLiteralExpr(elements, braceTok.Line);
+            if (!hasKeyed)
+            {
+                var seq = new List<LuaExpression>(entries.Count);
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    seq.Add(entries[i].Value);
+                }
+
+                return new LuaTableLiteralExpr(seq, braceTok.Line);
+            }
+
+            return new LuaKeyedTableLiteralExpr(entries, braceTok.Line);
         }
 
         private static bool IsIn(Lua4TokenKind kind, Lua4TokenKind[] set)

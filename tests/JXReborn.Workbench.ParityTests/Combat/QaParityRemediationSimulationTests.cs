@@ -259,7 +259,8 @@ public sealed class QaParityRemediationSimulationTests
         Assert.Equal(-30, player.BonusAttackRatingPercent);
         Assert.Equal((baseAttackRating * 70) / 100, player.EffectiveAttackRating);
         Assert.Equal(metalRule.BaseFireResist + 10, player.FireResistPercent);
-        Assert.Contains(sink.Events, e => e.Domain == OutboundNotificationDomain.Combat && e.MethodName == nameof(ICombatOutboundSink.SendResistSync));
+        Assert.Contains(sink.Events, e => e.Domain == OutboundNotificationDomain.Combat && e.MethodName == nameof(ICombatOutboundSink.SendNormalVitalSync));
+        Assert.DoesNotContain(sink.Events, e => e.Domain == OutboundNotificationDomain.Combat && e.MethodName == nameof(ICombatOutboundSink.SendResistSync));
     }
 
     [Fact]

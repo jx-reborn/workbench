@@ -8,4 +8,6 @@ public sealed record PackItemEntry(
     int Level,
     byte GridWidthCells,
     byte GridHeightCells,
-    ushort MaxStackCount);
+    ushort MaxStackCount,
+    string NameUtf8 = "",
+    int RowId = 0);

@@ -377,6 +377,7 @@ public sealed class DifferentialScriptEquivalenceVerifier
 
             case GeneratedScriptKind.Monster when instance is INpcCombatScript combat:
                 combat.OnNpcDeath(ctx);
+                await ctx.DrainInteractiveContinuationsAsync(cancellationToken);
                 break;
 
             case GeneratedScriptKind.Npc when instance is INpcDialogScript npc:

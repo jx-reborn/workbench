@@ -181,7 +181,12 @@ public sealed partial class LuaToCSharpGenerator
                 continue;
             }
 
-            (CompiledLuaScript? validatedScript, IReadOnlyList<string> reasons) = validator.Validate(entry, utf8ScriptPath, kind, linkResult.LinkedProgram);
+            (CompiledLuaScript? validatedScript, IReadOnlyList<string> reasons) = validator.Validate(
+                entry,
+                utf8ScriptPath,
+                kind,
+                linkResult.LinkedProgram,
+                linkResult.IncludedVirtualKeys);
             if (validatedScript is null || reasons.Count > 0)
             {
                 manualQueue.Add(new ManualMigrationQueueItem(
@@ -209,9 +214,33 @@ public sealed partial class LuaToCSharpGenerator
             }
         }
 
+        // Collect exact SHA-256 provenance for every included header across all compiled scripts
+        var manifestByNormPath = new Dictionary<string, ScriptInventoryEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (ScriptInventoryEntry e in manifest.Entries)
+        {
+            if (e.IsExcludedSimBot) continue;
+            manifestByNormPath.TryAdd(LegacyScriptPathNormalizer.NormalizeToUtf8(e.CanonicalScriptPath), e);
+            manifestByNormPath.TryAdd(ToUtf8ScriptPath(e.Utf8DisplayPath), e);
+        }
+
+        var includedHeaderShaByPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (CompiledLuaScript s in dedupedCompiled)
+        {
+            if (s.IncludedVirtualKeys is null) continue;
+            foreach (string vKey in s.IncludedVirtualKeys)
+            {
+                string utf8Hdr = LegacyScriptPathNormalizer.NormalizeToUtf8(vKey);
+                if (manifestByNormPath.TryGetValue(utf8Hdr, out ScriptInventoryEntry? hdrEntry))
+                {
+                    string canonicalUtf8 = ToUtf8ScriptPath(hdrEntry.Utf8DisplayPath);
+                    includedHeaderShaByPath.TryAdd(canonicalUtf8, hdrEntry.Sha256);
+                }
+            }
+        }
+
         string generatedDir = Path.Combine(packRoot, "src", "JXReborn.Packs.TieuDaoTu", "Scripts", "Generated");
         var emitter = new LuaCSharpCodeEmitter(eventItemCodes, itemCatalogIndex);
-        IReadOnlyList<string> writtenFiles = emitter.EmitAll(generatedDir, dedupedCompiled);
+        IReadOnlyList<string> writtenFiles = emitter.EmitAll(generatedDir, dedupedCompiled, includedHeaderShaByPath);
 
         var result = new ScriptGenerationResult
         {

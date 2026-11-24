@@ -362,12 +362,13 @@ public static class LuaParametricPatternMatcher
         }
 
         if (call.Arguments.Count < 2 ||
-            !LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int count) ||
-            count != call.Arguments.Count - 1)
+            !LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int declaredCount) ||
+            declaredCount <= 0)
         {
             return false;
         }
 
+        int count = Math.Min(declaredCount, call.Arguments.Count - 1);
         var ids = new int[count];
         for (int i = 0; i < count; i++)
         {

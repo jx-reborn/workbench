@@ -599,7 +599,7 @@ public sealed partial class QuestDataExporter
     private static List<Dictionary<string, object?>> ExportMapTraps(ILegacyServerSource source)
     {
         var list = new List<Dictionary<string, object?>>();
-        if (!source.TryReadFile(@"script\task\newtask\map_index.lua", out byte[]? rawBytes) || rawBytes is null)
+        if (!source.TryReadServerFile(@"script\task\newtask\map_index.lua", out byte[]? rawBytes) || rawBytes is null)
         {
             return list;
         }

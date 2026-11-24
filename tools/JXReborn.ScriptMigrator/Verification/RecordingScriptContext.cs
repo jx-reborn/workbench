@@ -9,6 +9,7 @@ using JXReborn.Primitives.Items;
 using JXReborn.Primitives.WorldZones;
 using JXReborn.ZoneEngine.Factions;
 using JXReborn.ZoneEngine.Scripting;
+using JXReborn.ZoneEngine.WorldZones;
 
 namespace JXReborn.ScriptMigrator.Verification;
 
@@ -81,9 +82,9 @@ public sealed class RecordingScriptContext :
     public byte Level => _vector.Level;
     public CharacterGender Gender => (CharacterGender)_vector.Gender;
     public ElementSeries Series => (ElementSeries)_vector.Series;
-    public byte CurrentFactionId => _vector.CurrentFactionId;
+    public byte CurrentFactionId => Trace.FinalCurrentFactionId;
     public byte FirstFactionId => _vector.EffectiveFactionId;
-    public byte EffectiveFactionId => _vector.EffectiveFactionId;
+    public byte EffectiveFactionId => Trace.FinalCurrentFactionId != 255 ? Trace.FinalCurrentFactionId : _vector.EffectiveFactionId;
     public ushort FactionJoinCount => _vector.EffectiveFactionId == 255 ? (ushort)0 : (ushort)1;
     public ushort MapId => Trace.FinalMapId;
     public int CurrentMpsX => Trace.FinalMpsX;
@@ -91,6 +92,7 @@ public sealed class RecordingScriptContext :
     public int InventoryMoney => Trace.FinalMoney;
     public int FreeBagCellCount => _vector.FreeBagCells;
     public uint? SourceNpcId => 20001u;
+    public int? SourceNpcTemplateId => 0;
     public string? SourceNpcNameUtf8 => "NPC";
     public string? SourceNpcScriptPath { get; }
     public byte CurrentFightMode => Trace.FinalFightMode;
@@ -116,6 +118,11 @@ public sealed class RecordingScriptContext :
     public uint TargetNpcId => 0u;
 
     public int SlainNpcTemplateId => 1;
+    public short SlainNpcLevel => 60;
+    public bool IsSlainNpcSpecial => false;
+    public int SlainNpcParam1 => 0;
+    public int SlainNpcMpsX => Trace.FinalMpsX;
+    public int SlainNpcMpsY => Trace.FinalMpsY;
     public string? SlainNpcScriptPath { get; }
 
     public int Repute => Trace.FinalRepute;
@@ -248,9 +255,18 @@ public sealed class RecordingScriptContext :
     public void Describe(string richHeaderAndPromptUtf8, params ReadOnlySpan<DialogOption> options) =>
         Say(richHeaderAndPromptUtf8, options);
 
+    public void Prise(string promptUtf8, params ReadOnlySpan<PriseDialogOption> options)
+    {
+        PriseDialogOption[] copied = options.ToArray();
+        DialogOption[] mapped = copied.Select(static o => new DialogOption(o.TextWithIconUtf8, o.Callback)).ToArray();
+        Say(promptUtf8, mapped);
+    }
+
+    public void SendTaskTrace() => Trace.Events.Add("TASK_TRACE");
+
     public void Talk(IReadOnlyList<string> pagesUtf8, Func<IScriptDialogContext, ValueTask>? onCompleted = null)
     {
-        Trace.Events.Add(ScriptEffectTrace.FormatTalkEvent(pagesUtf8));
+        Trace.Events.Add(Trace.PrefixForActivePlayer(ScriptEffectTrace.FormatTalkEvent(pagesUtf8)));
         _pendingTalkContinuation = onCompleted;
     }
 
@@ -258,10 +274,10 @@ public sealed class RecordingScriptContext :
         Talk(stringIds.Select(static id => $"STR_ID:{id}").ToArray(), onCompleted);
 
     public void SendSystemMessage(string messageUtf8) =>
-        Trace.Events.Add($"MSG(\"{ScriptEffectTrace.EscapeEventText(messageUtf8)}\")");
+        Trace.Events.Add(Trace.PrefixForActivePlayer($"MSG(\"{ScriptEffectTrace.EscapeEventText(messageUtf8)}\")"));
 
     public void AddNote(string noteUtf8) =>
-        Trace.Events.Add($"NOTE(\"{ScriptEffectTrace.EscapeEventText(noteUtf8)}\")");
+        Trace.Events.Add(Trace.PrefixForActivePlayer($"NOTE(\"{ScriptEffectTrace.EscapeEventText(noteUtf8)}\")"));
 
     public void BroadcastToMap(string messageUtf8) =>
         Trace.Events.Add($"MAP_MSG(\"{ScriptEffectTrace.EscapeEventText(messageUtf8)}\")");
@@ -303,6 +319,52 @@ public sealed class RecordingScriptContext :
         }
     }
 
+    public void AddSkillState(int skillId, int level, int stateType, int durationFrames, bool noClearOnDeath)
+    {
+        if (skillId > 0)
+        {
+            Trace.SkillStates.Add((skillId, level, stateType, durationFrames));
+            if (noClearOnDeath)
+            {
+                Trace.Events.Add($"SKILL_STATE_NOCLEAR({skillId},{level},{stateType},{durationFrames})");
+            }
+        }
+    }
+
+    public void RemoveSkillState(int skillId) =>
+        Trace.Events.Add($"REMOVE_SKILL_STATE({skillId})");
+
+    public void AddDirectSkillExp(int skillId, int expDelta)
+    {
+        if (skillId > 0 && expDelta != 0)
+        {
+            Trace.Events.Add($"SKILL_EXP({skillId},{expDelta})");
+        }
+    }
+
+    public bool TrySpawnDynamicNpcOnMap(
+        ushort targetMapId,
+        int templateId,
+        short level,
+        int mpsX,
+        int mpsY,
+        string? customNameUtf8 = null,
+        bool isBoss = false,
+        string? scriptPath = null,
+        string? scriptCode = null,
+        int scriptParam1 = 0,
+        int expireFrames = 0)
+    {
+        Trace.Events.Add($"SPAWN_NPC({targetMapId},{templateId},{level},{mpsX},{mpsY},{isBoss},{scriptParam1},{expireFrames})");
+        return true;
+    }
+
+    public bool TryDropItemAtSlainNpc(string itemCode, int stackCount = 1)
+    {
+        Trace.Events.Add($"DROP_AT_SLAIN({itemCode},{stackCount})");
+        return true;
+    }
+
     public void OpenDiceGame(int betMoney) => Trace.Events.Add($"DICE({betMoney})");
 
     public void ShowLadder(ReadOnlySpan<int> ladderIds) =>
@@ -327,13 +389,7 @@ public sealed class RecordingScriptContext :
         }
     }
 
-    public void GrantExperience(long amountExp)
-    {
-        if (amountExp > 0)
-        {
-            Trace.ExpGranted += amountExp;
-        }
-    }
+    public void GrantExperience(long amountExp) => Trace.AddExperienceForActivePlayer(amountExp);
 
     public bool CanFitBagItem(byte gridWidthCells, byte gridHeightCells) => _vector.FreeBagCells > 0;
 
@@ -432,6 +488,18 @@ public sealed class RecordingScriptContext :
 
     public void SetPkMode(PlayerPkMode mode) => Trace.FinalPkMode = (byte)mode;
 
+    public bool IsPkSwitchForbidden
+    {
+        get => Trace.IsPkSwitchForbidden;
+        set => Trace.IsPkSwitchForbidden = value;
+    }
+
+    public bool IsDeathPunishEnabled
+    {
+        get => !Trace.IsDeathPunishDisabled;
+        set => Trace.IsDeathPunishDisabled = !value;
+    }
+
     public sbyte PkValue => Trace.FinalPkValue;
 
     public void SetPkValue(sbyte pkValue) => Trace.FinalPkValue = (sbyte)Math.Clamp((int)pkValue, 0, 10);
@@ -447,8 +515,76 @@ public sealed class RecordingScriptContext :
             Trace.CurrentRevivalMapId = revivalMapId;
             Trace.CurrentRevivalPointId = revivalPointId;
             Trace.RevivalPoint = (revivalMapId, revivalPointId);
+            Trace.TempDeathRevival = null;
         }
     }
+
+    public void SetTemporaryDeathRevivalPosition(ushort mapId, int mpsX, int mpsY) =>
+        Trace.TempDeathRevival = (mapId, mpsX, mpsY);
+
+    public void SetTemporaryDeathRevivalByPointId(int revivePointId)
+    {
+        if (RevivalPositionCatalog.TryGetCoordinates(Trace.FinalMapId, revivePointId, out int rx, out int ry))
+        {
+            Trace.TempDeathRevival = (Trace.FinalMapId, rx, ry);
+        }
+        else
+        {
+            Trace.TempDeathRevival = (57, 50976, 102208);
+        }
+    }
+
+    public (ushort MapId, int MpsX, int MpsY) ResolveRevivalPosition(ushort mapId, int revivePointId) =>
+        RevivalPositionCatalog.TryGetCoordinates(mapId, revivePointId, out int rx, out int ry)
+            ? (mapId, rx, ry)
+            : (mapId, 0, 0);
+
+    public bool UseReviveIdOnLogin
+    {
+        get => Trace.UseReviveIdOnLogin;
+        set => Trace.UseReviveIdOnLogin = value;
+    }
+
+    public bool IsTownPortalDisabled
+    {
+        get => Trace.IsTownPortalDisabled;
+        set => Trace.IsTownPortalDisabled = value;
+    }
+
+    public int ActiveScriptTimerId => Trace.ActiveScriptTimerId;
+
+    public void SetScriptTimer(int durationFrames, int timerId)
+    {
+        if (durationFrames <= 0 || timerId <= 0)
+        {
+            StopScriptTimer();
+            return;
+        }
+
+        Trace.ActiveScriptTimerId = timerId;
+        Trace.Events.Add($"SET_TIMER({durationFrames},{timerId})");
+    }
+
+    public void StopScriptTimer()
+    {
+        Trace.ActiveScriptTimerId = 0;
+        Trace.Events.Add("STOP_TIMER");
+    }
+
+    public int CurrentPlayerIndex
+    {
+        get => Trace.CurrentPlayerIndex;
+        set => Trace.SwitchActivePlayer(value);
+    }
+
+    public bool IsPartyCaptain => Trace.IsCurrentPlayerCaptain;
+
+    public int GetTeamSize() => Trace.TeamSize;
+
+    public int GetTeamMemberIndex(int oneBasedMemberOrdinal) =>
+        Trace.TeamSize > 0 && (uint)(oneBasedMemberOrdinal - 1) < (uint)Trace.TeamSize
+            ? oneBasedMemberOrdinal
+            : 0;
 
     public void UnlockStation(ushort stationId)
     {
@@ -497,6 +633,18 @@ public sealed class RecordingScriptContext :
 
     public void OpenShop(int shopId, byte currencyType = 0, int scalePercent = 100) =>
         Trace.Events.Add($"OPEN_SHOP({shopId},{currencyType},{scalePercent})");
+
+    public FactionProgressionResult TryJoinFaction(byte factionId)
+    {
+        Trace.FinalCurrentFactionId = factionId;
+        return FactionProgressionResult.Success;
+    }
+
+    public FactionProgressionResult TryGraduateFaction()
+    {
+        Trace.FinalCurrentFactionId = 255;
+        return FactionProgressionResult.Success;
+    }
 
     public void OpenStoreBox() => Trace.OpenedStoreBox = true;
 }

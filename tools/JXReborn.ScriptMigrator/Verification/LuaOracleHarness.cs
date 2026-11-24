@@ -7,17 +7,28 @@ using JXReborn.LegacyImporter.Sources;
 using JXReborn.Packs.TieuDaoTu.Scripts.Generated;
 using JXReborn.ScriptMigrator.Generators;
 using JXReborn.ScriptMigrator.Models;
+using JXReborn.ZoneEngine.WorldZones;
 
 namespace JXReborn.ScriptMigrator.Verification;
 
 /// <summary>
 /// Executes raw legacy Lua 4.0 scripts inside <see cref="Lua4Interpreter"/> with full gameplay C-API
-/// host bindings and interactive <c>Say</c>/<c>Describe</c>/<c>Talk</c>/<c>AskClientForNumber</c>
-/// callback chaining (including <c>#fn(arg1, arg2)</c> parameterized callbacks) to produce a
+/// host bindings, <c>tbAwardTemplet</c> / <c>DailogClass</c> / <c>CreateNewSayEx</c> framework support,
+/// party <c>PlayerIndex</c> context switching, and interactive callback chaining to produce a
 /// ground-truth <see cref="ScriptEffectTrace"/>.
 /// </summary>
 public sealed class LuaOracleHarness
 {
+    private static readonly string[] AwardTypeStartupScripts =
+    [
+        @"\script\lib\awardtype\simple.lua",
+        @"\script\lib\awardtype\exp.lua",
+        @"\script\lib\awardtype\jxb.lua",
+        @"\script\lib\awardtype\repute.lua",
+        @"\script\lib\awardtype\item.lua",
+        @"\script\lib\awardtype\fun.lua",
+    ];
+
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
     private readonly ILegacyServerSource _source;
     private readonly IReadOnlyDictionary<int, string> _eventItemCodeByDetailId;
@@ -93,10 +104,43 @@ public sealed class LuaOracleHarness
             cbs => pendingOptionCallbacks = cbs,
             np => pendingNumberPrompt = np);
 
+        // Match KLuaScriptSet::LoadScriptByRelPath (`KLua_2_2_LoggingAndScript.cpp`): `Include` loads each header once per VM
+        var includedOnce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (_source.TryResolveServerFile(scriptVirtualOrDiskKey, out string? entryResolvedKey) && !string.IsNullOrEmpty(entryResolvedKey))
+        {
+            includedOnce.Add(entryResolvedKey);
+        }
+
+        interp.SetGlobal("Include", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length > 0 && a[0].IsString && !string.IsNullOrWhiteSpace(a[0].Text))
+            {
+                byte[] rawPath = Encoding.Latin1.GetBytes(a[0].Text!);
+                if (_source.TryResolveServerFile(rawPath, out string? resolvedKey) &&
+                    !string.IsNullOrEmpty(resolvedKey) &&
+                    includedOnce.Add(resolvedKey))
+                {
+                    _ = interp.ExecuteFile(resolvedKey);
+                }
+            }
+
+            return [Lua4Value.Nil];
+        }));
+
         interp.ResetStepBudget(500_000);
         if (!interp.ExecuteFile(scriptVirtualOrDiskKey))
         {
             throw new InvalidOperationException($"LuaOracleHarness could not load legacy script '{scriptVirtualOrDiskKey}'.");
+        }
+
+        // In legacy server1, autoexec.lua registers awardtype/*.lua into tbAwardTemplet at startup.
+        if (interp.GetGlobal("tbAwardTemplet").IsTable)
+        {
+            foreach (string awardTypeScript in AwardTypeStartupScripts)
+            {
+                interp.ResetStepBudget(500_000);
+                _ = interp.ExecuteFile(awardTypeScript);
+            }
         }
 
         string entryName = kind == GeneratedScriptKind.Monster ? "OnDeath" : "main";
@@ -205,8 +249,192 @@ public sealed class LuaOracleHarness
         string StrArg(Lua4Value[] a, int i) =>
             i < a.Length ? DecodeRuntimeLuaString(a[i].AsLuaString()) : string.Empty;
 
+        static Lua4Value ToUtf8BackedLuaString(string utf8) =>
+            Lua4Value.FromString(Encoding.Latin1.GetString(Encoding.UTF8.GetBytes(utf8)));
+
+        void SyncActivePlayerFromLua()
+        {
+            int pi = (int)Math.Truncate(interp.GetGlobal("PlayerIndex").AsNumberOrDefault(trace.InitiatorPartySlot));
+            trace.SwitchActivePlayer(pi);
+        }
+
+        interp.SetGlobal("IL", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(1)]));
         interp.SetGlobal("SubWorld", Lua4Value.FromNumber(trace.FinalMapId));
-        interp.SetGlobal("PlayerIndex", Lua4Value.FromNumber(1));
+        interp.SetGlobal("PlayerIndex", Lua4Value.FromNumber(trace.InitiatorPartySlot));
+
+        // Lua 4.0 `call(fn, argsTable[, mode])` & `CallPlayerFunction(playerIdx, fn, ...)`
+        interp.SetGlobal("call", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length >= 1 && a[0].IsFunction && a[0].Function is not null)
+            {
+                int n = a.Length >= 2 && a[1].IsTable ? a[1].GetTableN() : 0;
+                var unpacked = new Lua4Value[n];
+                for (int k = 1; k <= n; k++)
+                {
+                    unpacked[k - 1] = a[1].GetTableEntry(Lua4Value.FromNumber(k));
+                }
+
+                return a[0].Function!(unpacked);
+            }
+
+            return [Lua4Value.Nil];
+        }));
+
+        interp.SetGlobal("CallPlayerFunction", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length >= 2 && a[1].IsFunction && a[1].Function is not null)
+            {
+                Lua4Value prevPi = interp.GetGlobal("PlayerIndex");
+                interp.SetGlobal("PlayerIndex", a[0]);
+                SyncActivePlayerFromLua();
+                try
+                {
+                    var callArgs = new Lua4Value[a.Length - 2];
+                    for (int i = 2; i < a.Length; i++)
+                    {
+                        callArgs[i - 2] = a[i];
+                    }
+
+                    return a[1].Function!(callArgs);
+                }
+                finally
+                {
+                    interp.SetGlobal("PlayerIndex", prevPi);
+                    SyncActivePlayerFromLua();
+                }
+            }
+
+            return [Lua4Value.Nil];
+        }));
+
+        interp.SetGlobal("curpack", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("usepack", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0)]));
+
+        // String buffer helpers used by `task_string.lua` (`SetTaskSayColor`) + `strfind` / `gsub`
+        string stringScratchBuffer = string.Empty;
+        interp.SetGlobal("PushString", Lua4Value.FromFunction(a =>
+        {
+            stringScratchBuffer = a.Length > 0 ? a[0].AsLuaString() : string.Empty;
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("AppendString", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length > 0)
+            {
+                stringScratchBuffer += a[0].AsLuaString();
+            }
+
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("ReplaceString", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length >= 2)
+            {
+                string from = a[0].AsLuaString();
+                string to = a[1].AsLuaString();
+                if (from.Length > 0)
+                {
+                    stringScratchBuffer = stringScratchBuffer.Replace(from, to, StringComparison.Ordinal);
+                }
+            }
+
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("PopString", Lua4Value.FromFunction(_ => [Lua4Value.FromString(stringScratchBuffer)]));
+
+        interp.SetGlobal("strfind", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length < 2)
+            {
+                return [Lua4Value.Nil];
+            }
+
+            string s = a[0].AsLuaString();
+            string pat = a[1].AsLuaString();
+            int init0 = Math.Max(0, IntArg(a, 2, 1) - 1);
+            if (init0 >= s.Length)
+            {
+                return [Lua4Value.Nil];
+            }
+
+            if (pat == "<lua (.-)/>")
+            {
+                int luaStart = s.IndexOf("<lua ", init0, StringComparison.Ordinal);
+                if (luaStart < 0)
+                {
+                    return [Lua4Value.Nil];
+                }
+
+                int luaEnd = s.IndexOf("/>", luaStart + 5, StringComparison.Ordinal);
+                if (luaEnd < 0)
+                {
+                    return [Lua4Value.Nil];
+                }
+
+                return
+                [
+                    Lua4Value.FromNumber(luaStart + 1),
+                    Lua4Value.FromNumber(luaEnd + 2),
+                    Lua4Value.FromString(s[(luaStart + 5)..luaEnd]),
+                ];
+            }
+
+            int found = s.IndexOf(pat, init0, StringComparison.Ordinal);
+            return found >= 0
+                ? [Lua4Value.FromNumber(found + 1), Lua4Value.FromNumber(found + pat.Length)]
+                : [Lua4Value.Nil];
+        }));
+
+        interp.SetGlobal("gsub", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length < 3)
+            {
+                return a.Length > 0 ? [a[0]] : [Lua4Value.FromString(string.Empty)];
+            }
+
+            string s = a[0].AsLuaString();
+            string from = a[1].AsLuaString();
+            string to = a[2].AsLuaString();
+            return [Lua4Value.FromString(from.Length > 0 ? s.Replace(from, to, StringComparison.Ordinal) : s)];
+        }));
+
+        interp.SetGlobal("format", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length == 0)
+            {
+                return [Lua4Value.FromString(string.Empty)];
+            }
+
+            string fmtUtf8 = DecodeRuntimeLuaString(a[0].AsLuaString());
+            if (a.Length == 1)
+            {
+                return [ToUtf8BackedLuaString(fmtUtf8)];
+            }
+
+            var fmtArgs = new object?[a.Length - 1];
+            for (int i = 1; i < a.Length; i++)
+            {
+                Lua4Value v = a[i];
+                fmtArgs[i - 1] = v.IsNil
+                    ? null
+                    : v.IsNumber
+                        ? v.AsNumberOrDefault(0)
+                        : DecodeRuntimeLuaString(v.AsLuaString());
+            }
+
+            return [ToUtf8BackedLuaString(GeneratedLuaRuntime.LuaFormat(fmtUtf8, fmtArgs))];
+        }));
+
+        // Partner & NPC link helpers (`task_string.lua`) + benign log/tabfile stubs
+        interp.SetGlobal("PARTNER_GetCurPartner", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0), Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("PARTNER_GetSettingIdx", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("PARTNER_GetName", Lua4Value.FromFunction(_ => [Lua4Value.FromString(string.Empty)]));
+        interp.SetGlobal("GetNpcSettingIdx", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("GetTongName", Lua4Value.FromFunction(_ => [Lua4Value.FromString(string.Empty), Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("GetAccount", Lua4Value.FromFunction(_ => [Lua4Value.FromString(string.Empty)]));
+        interp.SetGlobal("TabFile_Load", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("TabFile_GetRowCount", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("TabFile_GetCell", Lua4Value.FromFunction(_ => [Lua4Value.FromString(string.Empty)]));
 
         interp.SetGlobal("random", Lua4Value.FromFunction(a =>
         {
@@ -226,7 +454,6 @@ public sealed class LuaOracleHarness
             return [Lua4Value.FromNumber(max2 <= min ? min : rng.Next(min, max2 + 1))];
         }));
 
-        // Deterministic date / time matching GeneratedLuaRuntime
         Func<Lua4Value[], Lua4Value[]> dateFn = a =>
         {
             string? fmt = a.Length > 0 && !a[0].IsNil ? a[0].AsLuaString() : null;
@@ -241,7 +468,7 @@ public sealed class LuaOracleHarness
             return [Lua4Value.FromNumber(secs)];
         }));
 
-        // Getters
+        // Getters & Party APIs
         interp.SetGlobal("GetLevel", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(vector.Level)]));
         interp.SetGlobal("GetSex", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(vector.Gender)]));
         interp.SetGlobal("GetSeries", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(vector.Series)]));
@@ -249,16 +476,55 @@ public sealed class LuaOracleHarness
         interp.SetGlobal("GetRepute", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.FinalRepute)]));
         interp.SetGlobal("GetFightState", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.FinalFightMode)]));
         interp.SetGlobal("CalcFreeItemCellCount", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(vector.FreeBagCells)]));
-        interp.SetGlobal("GetName", Lua4Value.FromFunction(_ => [Lua4Value.FromString(vector.RoleName)]));
-        interp.SetGlobal("GetFaction", Lua4Value.FromFunction(_ => [Lua4Value.FromString(GeneratedLuaRuntime.GetFactionName(vector.CurrentFactionId))]));
-        interp.SetGlobal("GetLastAddFaction", Lua4Value.FromFunction(_ => [Lua4Value.FromString(GeneratedLuaRuntime.GetFactionName(vector.EffectiveFactionId))]));
+        interp.SetGlobal("CountFreeRoomByWH", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(vector.FreeBagCells > 0 ? 1 : 0)]));
+        interp.SetGlobal("GetName", Lua4Value.FromFunction(_ => [ToUtf8BackedLuaString(vector.RoleName)]));
+        interp.SetGlobal("GetFaction", Lua4Value.FromFunction(_ =>
+            [Lua4Value.FromString(GeneratedLuaRuntime.GetFactionName(trace.FinalCurrentFactionId))]));
+        interp.SetGlobal("GetLastAddFaction", Lua4Value.FromFunction(_ =>
+        {
+            byte eff = trace.FinalCurrentFactionId != 255 ? trace.FinalCurrentFactionId : vector.EffectiveFactionId;
+            return [Lua4Value.FromString(GeneratedLuaRuntime.GetFactionName(eff))];
+        }));
         interp.SetGlobal("GetLastFactionNumber", Lua4Value.FromFunction(_ =>
-            [Lua4Value.FromNumber(vector.EffectiveFactionId == 255 ? -1 : vector.EffectiveFactionId)]));
+        {
+            byte eff = trace.FinalCurrentFactionId != 255 ? trace.FinalCurrentFactionId : vector.EffectiveFactionId;
+            return [Lua4Value.FromNumber(eff == 255 ? -1 : eff)];
+        }));
+        interp.SetGlobal("SetFaction", Lua4Value.FromFunction(a =>
+        {
+            string fac = StrArg(a, 0);
+            if (string.IsNullOrEmpty(fac))
+            {
+                trace.FinalCurrentFactionId = 255;
+                return [Lua4Value.FromNumber(1)];
+            }
+
+            if (TryMapFactionNameToId(fac, out byte fid))
+            {
+                trace.FinalCurrentFactionId = fid;
+                return [Lua4Value.FromNumber(1)];
+            }
+
+            return [Lua4Value.FromNumber(0)];
+        }));
         interp.SetGlobal("GetLastDiagNpc", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(20001)]));
         interp.SetGlobal("GetNpcName", Lua4Value.FromFunction(_ => [Lua4Value.FromString("NPC")]));
         interp.SetGlobal("NpcName2Replace", Lua4Value.FromFunction(a => [a.Length > 0 ? a[0] : Lua4Value.FromString(string.Empty)]));
 
-        // Camp, PK, Rank, WorldPos, Revival
+        interp.SetGlobal("GetTeamSize", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.TeamSize)]));
+        interp.SetGlobal("GetTeamMember", Lua4Value.FromFunction(a =>
+        {
+            int ord = IntArg(a, 0);
+            int slot = trace.TeamSize > 0 && (uint)(ord - 1) < (uint)trace.TeamSize ? ord : 0;
+            return [Lua4Value.FromNumber(slot)];
+        }));
+        interp.SetGlobal("IsCaptain", Lua4Value.FromFunction(_ =>
+        {
+            SyncActivePlayerFromLua();
+            return [Lua4Value.FromNumber(trace.IsCurrentPlayerCaptain ? 1 : 0)];
+        }));
+
+        // Camp, PK, Punish, Rank, Timer, WorldPos, Revival
         interp.SetGlobal("GetCamp", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.FinalBaseCamp)]));
         interp.SetGlobal("SetCamp", Lua4Value.FromFunction(a =>
         {
@@ -282,6 +548,60 @@ public sealed class LuaOracleHarness
             trace.FinalPkValue = (sbyte)Math.Clamp(IntArg(a, 0), 0, 10);
             return [Lua4Value.Nil];
         }));
+        interp.SetGlobal("GetPKFlag", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.FinalPkMode)]));
+        interp.SetGlobal("SetPKFlag", Lua4Value.FromFunction(a =>
+        {
+            trace.FinalPkMode = (byte)IntArg(a, 0);
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("GetForbidChangePK", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.IsPkSwitchForbidden ? 1 : 0)]));
+        interp.SetGlobal("ForbidChangePK", Lua4Value.FromFunction(a =>
+        {
+            trace.IsPkSwitchForbidden = IntArg(a, 0) == 1;
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("GetPunish", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.IsDeathPunishDisabled ? 0 : 1)]));
+        interp.SetGlobal("SetPunish", Lua4Value.FromFunction(a =>
+        {
+            trace.IsDeathPunishDisabled = IntArg(a, 0) == 0;
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("GetLogoutRV", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.UseReviveIdOnLogin ? 1 : 0)]));
+        interp.SetGlobal("SetLogoutRV", Lua4Value.FromFunction(a =>
+        {
+            trace.UseReviveIdOnLogin = IntArg(a, 0) != 0;
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("IsDisabledUseTownP", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.IsTownPortalDisabled ? 1 : 0)]));
+        interp.SetGlobal("DisabledUseTownP", Lua4Value.FromFunction(a =>
+        {
+            trace.IsTownPortalDisabled = IntArg(a, 0) != 0;
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("GetTimerId", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.ActiveScriptTimerId)]));
+        interp.SetGlobal("SetTimer", Lua4Value.FromFunction(a =>
+        {
+            int frames = IntArg(a, 0);
+            int tid = IntArg(a, 1);
+            if (frames <= 0 || tid <= 0)
+            {
+                trace.ActiveScriptTimerId = 0;
+                trace.Events.Add("STOP_TIMER");
+            }
+            else
+            {
+                trace.ActiveScriptTimerId = tid;
+                trace.Events.Add($"SET_TIMER({frames},{tid})");
+            }
+
+            return [Lua4Value.FromNumber(1)];
+        }));
+        interp.SetGlobal("StopTimer", Lua4Value.FromFunction(_ =>
+        {
+            trace.ActiveScriptTimerId = 0;
+            trace.Events.Add("STOP_TIMER");
+            return [Lua4Value.Nil];
+        }));
         interp.SetGlobal("GetRank", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(trace.FinalRankId)]));
         interp.SetGlobal("SetRank", Lua4Value.FromFunction(a =>
         {
@@ -299,19 +619,44 @@ public sealed class LuaOracleHarness
             Lua4Value.FromNumber(trace.CurrentRevivalMapId),
             Lua4Value.FromNumber(trace.CurrentRevivalPointId),
         ]));
+        interp.SetGlobal("RevID2WXY", Lua4Value.FromFunction(a =>
+        {
+            ushort mapId = (ushort)IntArg(a, 0);
+            int revId = IntArg(a, 1);
+            if (RevivalPositionCatalog.TryGetCoordinates(mapId, revId, out int rx, out int ry))
+            {
+                return [Lua4Value.FromNumber(mapId), Lua4Value.FromNumber(rx), Lua4Value.FromNumber(ry)];
+            }
+
+            return [Lua4Value.FromNumber(mapId), Lua4Value.FromNumber(0), Lua4Value.FromNumber(0)];
+        }));
 
         // Tasks & Bit/Byte helpers
-        interp.SetGlobal("GetTask", Lua4Value.FromFunction(a => [Lua4Value.FromNumber(trace.GetTaskValue((ushort)IntArg(a, 0)))]));
+        interp.SetGlobal("GetTask", Lua4Value.FromFunction(a =>
+        {
+            SyncActivePlayerFromLua();
+            return [Lua4Value.FromNumber(trace.GetTaskValue((ushort)IntArg(a, 0)))];
+        }));
         interp.SetGlobal("SetTask", Lua4Value.FromFunction(a =>
         {
+            SyncActivePlayerFromLua();
             trace.SetTaskValue((ushort)IntArg(a, 0), IntArg(a, 1));
             return [Lua4Value.Nil];
         }));
         interp.SetGlobal("SyncTaskValue", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
         interp.SetGlobal("WriteLog", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
-        interp.SetGlobal("GetTaskTemp", Lua4Value.FromFunction(a => [Lua4Value.FromNumber(trace.GetTempTaskValue((ushort)IntArg(a, 0)))]));
+        interp.SetGlobal("WriteGoldLog", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("UseSilver", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("SaveNow", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("LG_ApplyDoScript", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("GetTaskTemp", Lua4Value.FromFunction(a =>
+        {
+            SyncActivePlayerFromLua();
+            return [Lua4Value.FromNumber(trace.GetTempTaskValue((ushort)IntArg(a, 0)))];
+        }));
         interp.SetGlobal("SetTaskTemp", Lua4Value.FromFunction(a =>
         {
+            SyncActivePlayerFromLua();
             trace.SetTempTaskValue((ushort)IntArg(a, 0), IntArg(a, 1));
             return [Lua4Value.Nil];
         }));
@@ -348,15 +693,63 @@ public sealed class LuaOracleHarness
 
             return [Lua4Value.Nil];
         }));
-        interp.SetGlobal("AddOwnExp", Lua4Value.FromFunction(a =>
+        Func<Lua4Value[], Lua4Value[]> grantExpFn = a =>
         {
-            int exp = IntArg(a, 0);
-            if (exp > 0)
+            SyncActivePlayerFromLua();
+            long exp = a.Length > 0 ? (long)Math.Truncate(a[0].AsNumberOrDefault(0)) : 0L;
+            trace.AddExperienceForActivePlayer(exp);
+            return [Lua4Value.Nil];
+        };
+        interp.SetGlobal("AddOwnExp", Lua4Value.FromFunction(grantExpFn));
+        interp.SetGlobal("tl_addPlayerExp", Lua4Value.FromFunction(grantExpFn));
+        interp.SetGlobal("Add120SkillExp", Lua4Value.FromFunction(a =>
+        {
+            const ushort TaskIdActive120Skill = 2463;
+            const ushort TaskIdToday120Exp = 2464;
+            const ushort TaskIdLast120Date = 2465;
+            const int Max120SkillExpPerDay = 33_000_000;
+
+            SyncActivePlayerFromLua();
+            int addExp = IntArg(a, 0);
+            if (addExp == 0)
             {
-                trace.ExpGranted += exp;
+                return [Lua4Value.FromNumber(0)];
             }
 
-            return [Lua4Value.Nil];
+            int skillId = trace.GetTaskValue(TaskIdActive120Skill);
+            if ((uint)(skillId - 1) >= 1999u)
+            {
+                return [Lua4Value.FromNumber(0)];
+            }
+
+            int lastDate = trace.GetTaskValue(TaskIdLast120Date);
+            int todayAdd = trace.GetTaskValue(TaskIdToday120Exp);
+            DateTime utc = simTime.Kind == DateTimeKind.Utc ? simTime : DateTime.SpecifyKind(simTime, DateTimeKind.Utc);
+            int curDate = (int)((uint)unchecked((int)new DateTimeOffset(utc).ToUnixTimeSeconds()) / 86400u);
+            if (lastDate != curDate)
+            {
+                todayAdd = 0;
+                trace.SetTaskValue(TaskIdLast120Date, curDate);
+                trace.SetTaskValue(TaskIdToday120Exp, 0);
+            }
+
+            if (addExp > 0)
+            {
+                if ((uint)Max120SkillExpPerDay <= (uint)todayAdd)
+                {
+                    return [Lua4Value.FromNumber(0)];
+                }
+
+                if (Max120SkillExpPerDay - todayAdd < addExp)
+                {
+                    addExp = Max120SkillExpPerDay - todayAdd;
+                }
+
+                trace.SetTaskValue(TaskIdToday120Exp, addExp + todayAdd);
+            }
+
+            trace.Events.Add($"SKILL_EXP({skillId},{addExp})");
+            return [Lua4Value.FromNumber(1)];
         }));
         interp.SetGlobal("AddRepute", Lua4Value.FromFunction(a =>
         {
@@ -391,16 +784,35 @@ public sealed class LuaOracleHarness
             return [Lua4Value.Nil];
         }));
 
-        bool TryResolveEventCode(int eid, out string code)
+        bool TryResolveEventArg(Lua4Value[] a, out string code)
         {
-            if (_itemCatalogIndex is not null && _itemCatalogIndex.TryResolveEventItem(eid, out code))
+            if (a.Length == 0)
             {
-                return true;
+                code = string.Empty;
+                return false;
             }
 
-            if (_eventItemCodeByDetailId.TryGetValue(eid, out string? fallback))
+            if (a[0].Kind == 1) // number
             {
-                code = fallback;
+                int eid = IntArg(a, 0);
+                if (_itemCatalogIndex is not null && _itemCatalogIndex.TryResolveEventItem(eid, out code))
+                {
+                    return true;
+                }
+
+                if (_eventItemCodeByDetailId.TryGetValue(eid, out string? fallback))
+                {
+                    code = fallback;
+                    return true;
+                }
+
+                code = string.Empty;
+                return false;
+            }
+
+            string name = StrArg(a, 0);
+            if (_itemCatalogIndex is not null && _itemCatalogIndex.TryResolveEventItemByName(name, out _, out code))
+            {
                 return true;
             }
 
@@ -438,14 +850,19 @@ public sealed class LuaOracleHarness
 
         interp.SetGlobal("HaveItem", Lua4Value.FromFunction(a =>
         {
-            int eid = IntArg(a, 0);
-            bool has = TryResolveEventCode(eid, out string code) && bagItems.GetValueOrDefault(code, 0) >= 1;
+            bool has = TryResolveEventArg(a, out string code) && bagItems.GetValueOrDefault(code, 0) >= 1;
             return [Lua4Value.FromNumber(has ? 1 : 0)];
         }));
+        Func<Lua4Value[], Lua4Value[]> getItemCountFn = a =>
+        {
+            int count = TryResolveEventArg(a, out string code) ? bagItems.GetValueOrDefault(code, 0) : 0;
+            return [Lua4Value.FromNumber(count)];
+        };
+        interp.SetGlobal("GetItemCount", Lua4Value.FromFunction(getItemCountFn));
+        interp.SetGlobal("GetItemCountEx", Lua4Value.FromFunction(getItemCountFn));
         interp.SetGlobal("AddEventItem", Lua4Value.FromFunction(a =>
         {
-            int eid = IntArg(a, 0);
-            if (TryResolveEventCode(eid, out string code))
+            if (TryResolveEventArg(a, out string code))
             {
                 GrantBagCode(code, 1, isEquip: false);
             }
@@ -454,14 +871,101 @@ public sealed class LuaOracleHarness
         }));
         interp.SetGlobal("DelItem", Lua4Value.FromFunction(a =>
         {
-            int eid = IntArg(a, 0);
-            if (TryResolveEventCode(eid, out string code))
+            if (TryResolveEventArg(a, out string code))
             {
                 _ = ConsumeBagCode(code, 1);
             }
 
             return [Lua4Value.Nil];
         }));
+        interp.SetGlobal("AddGoldItem", Lua4Value.FromFunction(a =>
+        {
+            int rowId = IntArg(a, 1);
+            if (_itemCatalogIndex is not null && _itemCatalogIndex.TryResolveGoldEquipByRowId(rowId, out PackItemEntry gold))
+            {
+                GrantBagCode(gold.Code, 1, isEquip: true);
+                return [Lua4Value.FromNumber(1)];
+            }
+
+            return [Lua4Value.FromNumber(0)];
+        }));
+        interp.SetGlobal("IsMyItem", Lua4Value.FromFunction(a => [Lua4Value.FromNumber(IntArg(a, 0) == 40001 ? 1 : 0)]));
+        interp.SetGlobal("RemoveItemByIndex", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(1)]));
+
+        // `awardtype/item.lua` NewItemEx & runtime item-handle host bindings
+        var pendingCreatedItems = new Dictionary<int, (string Code, string NameUtf8, ushort MaxStack, int StackCount, bool IsEquip)>();
+        int nextCreatedItemIdx = 50001;
+        interp.SetGlobal("NewItemEx", Lua4Value.FromFunction(a =>
+        {
+            int quality = IntArg(a, 2);
+            int g = IntArg(a, 3);
+            int d = IntArg(a, 4);
+            int p = IntArg(a, 5);
+            int lv = IntArg(a, 6, 1);
+
+            if (quality == 1)
+            {
+                // In `awardtype/item.lua:191`, `nRow = 1` was subtracted from `tbProp[2]`
+                if (_itemCatalogIndex is not null && _itemCatalogIndex.TryResolveGoldEquipByRowId(d + 1, out PackItemEntry gold))
+                {
+                    int idx = nextCreatedItemIdx++;
+                    pendingCreatedItems[idx] = (gold.Code, gold.NameUtf8, 1, 1, IsEquip: true);
+                    return [Lua4Value.FromNumber(idx)];
+                }
+
+                return [Lua4Value.FromNumber(-1)];
+            }
+
+            if (_itemCatalogIndex is not null && _itemCatalogIndex.TryResolveByGdpl(g, d, p, lv, out PackItemEntry item))
+            {
+                int idx = nextCreatedItemIdx++;
+                pendingCreatedItems[idx] = (item.Code, item.NameUtf8, g == 0 ? (ushort)1 : item.MaxStackCount, 1, IsEquip: g == 0);
+                return [Lua4Value.FromNumber(idx)];
+            }
+
+            return [Lua4Value.FromNumber(-1)];
+        }));
+        interp.SetGlobal("IsItemStackable", Lua4Value.FromFunction(a =>
+            pendingCreatedItems.TryGetValue(IntArg(a, 0), out var it) && it.MaxStack > 1
+                ? [Lua4Value.FromNumber(1)]
+                : [Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("GetItemStackCount", Lua4Value.FromFunction(a =>
+            pendingCreatedItems.TryGetValue(IntArg(a, 0), out var it)
+                ? [Lua4Value.FromNumber(it.StackCount)]
+                : [Lua4Value.FromNumber(1)]));
+        interp.SetGlobal("GetItemMaxStackCount", Lua4Value.FromFunction(a =>
+            pendingCreatedItems.TryGetValue(IntArg(a, 0), out var it)
+                ? [Lua4Value.FromNumber(it.MaxStack)]
+                : [Lua4Value.FromNumber(1)]));
+        interp.SetGlobal("SetItemStackCount", Lua4Value.FromFunction(a =>
+        {
+            int idx = IntArg(a, 0);
+            if (pendingCreatedItems.TryGetValue(idx, out var it))
+            {
+                pendingCreatedItems[idx] = it with { StackCount = Math.Max(1, IntArg(a, 1, 1)) };
+            }
+
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("GetItemName", Lua4Value.FromFunction(a =>
+            pendingCreatedItems.TryGetValue(IntArg(a, 0), out var it)
+                ? [ToUtf8BackedLuaString(it.NameUtf8)]
+                : [Lua4Value.FromString(string.Empty)]));
+        interp.SetGlobal("AddItemByIndex", Lua4Value.FromFunction(a =>
+        {
+            if (pendingCreatedItems.TryGetValue(IntArg(a, 0), out var it))
+            {
+                GrantBagCode(it.Code, it.StackCount, it.IsEquip);
+            }
+
+            return [Lua4Value.FromNumber(1)];
+        }));
+        interp.SetGlobal("ITEM_SetExpiredTime", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("ITEM_SetExpiredTime2", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("ITEM_SetLeftUsageTime", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("SetItemBindState", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("SetCurDurability", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
+        interp.SetGlobal("SetMaxDurability", Lua4Value.FromFunction(_ => [Lua4Value.Nil]));
 
         Func<Lua4Value[], Lua4Value[]> addItemFn = a =>
         {
@@ -604,6 +1108,28 @@ public sealed class LuaOracleHarness
                 trace.CurrentRevivalMapId = mapId;
                 trace.CurrentRevivalPointId = revId;
                 trace.RevivalPoint = (mapId, revId);
+                trace.TempDeathRevival = null;
+            }
+
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("SetTempRevPos", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length == 1)
+            {
+                int revId = IntArg(a, 0);
+                if (RevivalPositionCatalog.TryGetCoordinates(trace.FinalMapId, revId, out int rx, out int ry))
+                {
+                    trace.TempDeathRevival = (trace.FinalMapId, rx, ry);
+                }
+                else
+                {
+                    trace.TempDeathRevival = (57, 50976, 102208);
+                }
+            }
+            else if (a.Length >= 3)
+            {
+                trace.TempDeathRevival = ((ushort)IntArg(a, 0), IntArg(a, 1), IntArg(a, 2));
             }
 
             return [Lua4Value.Nil];
@@ -611,6 +1137,12 @@ public sealed class LuaOracleHarness
         interp.SetGlobal("OpenBox", Lua4Value.FromFunction(_ =>
         {
             trace.OpenedStoreBox = true;
+            return [Lua4Value.Nil];
+        }));
+        interp.SetGlobal("CheckStoreBoxState", Lua4Value.FromFunction(_ => [Lua4Value.FromNumber(0)]));
+        interp.SetGlobal("OpenStoreBox", Lua4Value.FromFunction(a =>
+        {
+            trace.Events.Add($"UNLOCK_BOX({(byte)IntArg(a, 0)})");
             return [Lua4Value.Nil];
         }));
         interp.SetGlobal("Sale", Lua4Value.FromFunction(a =>
@@ -623,10 +1155,17 @@ public sealed class LuaOracleHarness
         }));
         interp.SetGlobal("ShowLadder", Lua4Value.FromFunction(a =>
         {
-            var ids = new List<int>(Math.Max(0, a.Length - 1));
-            for (int i = 1; i < a.Length; i++)
+            if (a.Length < 2)
             {
-                ids.Add(IntArg(a, i));
+                return [Lua4Value.Nil];
+            }
+
+            int declared = Math.Max(0, IntArg(a, 0));
+            int count = Math.Min(declared, a.Length - 1);
+            var ids = new List<int>(count);
+            for (int i = 0; i < count; i++)
+            {
+                ids.Add(IntArg(a, i + 1));
             }
 
             trace.Events.Add($"LADDER([{string.Join(",", ids)}])");
@@ -634,12 +1173,14 @@ public sealed class LuaOracleHarness
         }));
         interp.SetGlobal("Msg2Player", Lua4Value.FromFunction(a =>
         {
-            trace.Events.Add($"MSG(\"{ScriptEffectTrace.EscapeEventText(StrArg(a, 0))}\")");
+            SyncActivePlayerFromLua();
+            trace.Events.Add(trace.PrefixForActivePlayer($"MSG(\"{ScriptEffectTrace.EscapeEventText(StrArg(a, 0))}\")"));
             return [Lua4Value.Nil];
         }));
         interp.SetGlobal("AddNote", Lua4Value.FromFunction(a =>
         {
-            trace.Events.Add($"NOTE(\"{ScriptEffectTrace.EscapeEventText(StrArg(a, 0))}\")");
+            SyncActivePlayerFromLua();
+            trace.Events.Add(trace.PrefixForActivePlayer($"NOTE(\"{ScriptEffectTrace.EscapeEventText(StrArg(a, 0))}\")"));
             return [Lua4Value.Nil];
         }));
         Func<Lua4Value[], Lua4Value[]> newsFn = a =>
@@ -667,22 +1208,35 @@ public sealed class LuaOracleHarness
         }));
         interp.SetGlobal("Talk", Lua4Value.FromFunction(a =>
         {
-            string cb = a.Length >= 2 ? a[1].AsLuaString().Trim() : string.Empty;
-            var pages = new List<string>(Math.Max(0, a.Length - 2));
-            for (int i = 2; i < a.Length; i++)
+            // Binary Ground Truth (`LuaTalkUI` @ KLua_2_1_UIAndDialog.cpp:25): `if (2 < lua_gettop(L))`
+            if (a.Length < 3)
             {
-                pages.Add(StrArg(a, i));
+                return [Lua4Value.Nil];
             }
 
-            trace.Events.Add(ScriptEffectTrace.FormatTalkEvent(pages));
+            SyncActivePlayerFromLua();
+            string cb = a[1].AsLuaString().Trim();
+            var pages = new List<string>(a.Length - 2);
+            bool byStringId = a[2].Kind == 1;
+            for (int i = 2; i < a.Length; i++)
+            {
+                pages.Add(byStringId ? $"STR_ID:{IntArg(a, i)}" : StrArg(a, i));
+            }
+
+            trace.Events.Add(trace.PrefixForActivePlayer(ScriptEffectTrace.FormatTalkEvent(pages)));
             setTalkCallback(string.IsNullOrEmpty(cb) ? null : cb);
             return [Lua4Value.Nil];
         }));
 
         Func<Lua4Value[], Lua4Value[]> sayOrDescribeFn = a =>
         {
-            string prompt = StrArg(a, 0);
-            int declaredCount = a.Length >= 2 ? IntArg(a, 1) : 0;
+            if (a.Length < 1)
+            {
+                return [Lua4Value.Nil];
+            }
+
+            string prompt = a[0].Kind == 1 ? $"STR_ID:{IntArg(a, 0)}" : StrArg(a, 0);
+            int declaredCount = a.Length >= 2 && a[1].Kind == 1 ? IntArg(a, 1) : 0;
             if (a.Length <= 2 || declaredCount <= 0)
             {
                 trace.Events.Add(ScriptEffectTrace.FormatSayEvent(prompt, []));
@@ -887,5 +1441,25 @@ public sealed class LuaOracleHarness
         {
             return false;
         }
+    }
+
+    private static bool TryMapFactionNameToId(string? factionName, out byte factionId)
+    {
+        factionId = (factionName?.Trim().ToLowerInvariant()) switch
+        {
+            "shaolin" => 0,
+            "tianwang" => 1,
+            "tangmen" => 2,
+            "wudu" => 3,
+            "emei" => 4,
+            "cuiyan" => 5,
+            "gaibang" => 6,
+            "tianren" => 7,
+            "wudang" => 8,
+            "kunlun" => 9,
+            "huashan" => 10,
+            _ => 255,
+        };
+        return factionId != 255;
     }
 }

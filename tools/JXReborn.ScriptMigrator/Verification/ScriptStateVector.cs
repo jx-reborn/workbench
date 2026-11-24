@@ -38,4 +38,8 @@ public sealed record ScriptStateVector(
     IReadOnlySet<string>? OwnedItemCodes = null,
     IReadOnlyDictionary<int, int>? LearnedSkills = null,
     IReadOnlyList<int>? DialogChoices = null,
-    IReadOnlyList<int>? NumberInputs = null);
+    IReadOnlyList<int>? NumberInputs = null,
+    int TeamSize = 0,
+    int InitiatorPartySlot = 1,
+    int ActiveTimerId = 0,
+    IReadOnlyDictionary<ushort, int>? TeammateTasks = null);
