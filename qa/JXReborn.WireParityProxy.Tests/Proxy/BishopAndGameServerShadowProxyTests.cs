@@ -448,4 +448,287 @@ public sealed class BishopAndGameServerShadowProxyTests
         Assert.Equal(primaryGuid, receivedNotify.GetTicketGuid());
         Assert.Empty(findings);
     }
+
+    [Fact]
+    public async Task GameServerShadowProxy_WhenPassiveProbeArrivesMidDialogWindowWithUnhydratedPrimaryNpc_ShouldCoalesceWindowAndSuppressCacheMiss()
+    {
+        // Ground truth: Map 53 mui2-final Step 247/248 & Step 66:
+        // 1) game.exe sends c2s_dialognpc (0x6E), then 5ms later sends passive c2s_requestnpc (0x49) for unhydrated NpcId=112896;
+        // 2) Primary replies 0x63 at +10ms while Shadow replies 0x63 at +55ms (next 18-Hz tick).
+        // Proxy must NOT chop the 0x6E window on passive 0x49 and must NOT emit C2S.EntityTranslation for unhydrated Primary cache-miss probe.
+        LegacyKeyTable keyTable = LegacyKeyTable.CreateSynthetic();
+        Guid primaryGuid = Guid.NewGuid();
+        Guid shadowGuid = Guid.NewGuid();
+
+        using var primaryGsListener = new TcpListener(IPAddress.Loopback, 0);
+        using var shadowGsListener = new TcpListener(IPAddress.Loopback, 0);
+        primaryGsListener.Start();
+        shadowGsListener.Start();
+
+        var handoffMap = new HandoffTicketMap();
+        handoffMap.Register(new HandoffTicketEntry(
+            PrimaryGuid: primaryGuid,
+            PrimaryGsHost: "127.0.0.1",
+            PrimaryGsPort: (ushort)((IPEndPoint)primaryGsListener.LocalEndpoint).Port,
+            ShadowGuid: shadowGuid,
+            ShadowGsHost: "127.0.0.1",
+            ShadowGsPort: (ushort)((IPEndPoint)shadowGsListener.LocalEndpoint).Port,
+            RoleName: "WindowCoalesceHero",
+            CreatedAtUtc: DateTimeOffset.UtcNow));
+
+        var options = new WireParityProxyOptions
+        {
+            BindHost = "127.0.0.1",
+            BishopListenPort = 0,
+            GameServerListenPort = 0,
+            AllowSyntheticKeyTableFallback = true,
+            ActionWindowMs = 140
+        };
+
+        await using var gsProxy = new GameServerShadowProxy(options, keyTable, handoffMap);
+        gsProxy.Start();
+
+        byte[] dialogReply = ScriptActionS2CPacket.CreateTalkPayload(
+            ["Bên ngoài loạn lạc, xem ngươi trói gà không chặt! Ra ngoài thôn ta e không giữ được mạng đâu!"],
+            expectCompletionCallback: false);
+
+        static async Task SendValidWorldBootstrapAsync(JxWireConnection conn, uint selfNpcId, uint boatmanId)
+        {
+            byte[] syncWorld = new byte[34];
+            syncWorld[0] = ProtocolOpcodes.s2c_syncworld;
+            BinaryPrimitives.WriteInt32LittleEndian(syncWorld.AsSpan(1, 4), 53);
+            byte[] selfNpc = new SyncNpcFullS2CPacket(0, ElementSeries.Metal, 128, 93543, 1, 0, 49389, 0, 0, EntityKind.Player, selfNpcId, -1, 0xFFFF, 1, 0, "WindowCoalesceHero").ToPayloadBytes();
+            byte[] curPlayer = new byte[Marshal.SizeOf<SyncCurPlayerS2CPacket>()];
+            var curPkt = new SyncCurPlayerS2CPacket { ProtocolType = ProtocolOpcodes.s2c_synccurplayer, Id = selfNpcId, Level = 1, LifeMax = 204, StaminaMax = 50, Kind = (byte)EntityKind.Player, ManaMax = 16 };
+            MemoryMarshal.Write(curPlayer, in curPkt);
+            byte[] npcFull = new SyncNpcFullS2CPacket(6, ElementSeries.Metal, 128, 93543, 1, 0, 49389, 0, 0, EntityKind.DialogNpc, boatmanId, -1, 396, 1, 0, "Thuyền Phu").ToPayloadBytes();
+            byte[] syncEnd = [ProtocolOpcodes.s2c_syncend];
+            await conn.WriteEncryptedFrameAsync(syncWorld, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(selfNpc, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(curPlayer, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(npcFull, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(syncEnd, CancellationToken.None);
+        }
+
+        Task primaryTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await primaryGsListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("primary-gs", tcp, keyTable, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // logiclogin
+            await SendValidWorldBootstrapAsync(conn, 1001u, 16986u);
+
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // c2s_syncend
+            JxWireFrame? dlgC2s = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x6E
+            Assert.NotNull(dlgC2s);
+            Assert.Equal(ProtocolOpcodes.c2s_dialognpc, dlgC2s.Opcode);
+            await conn.WriteEncryptedFrameAsync(dialogReply, CancellationToken.None);
+
+            JxWireFrame? probeC2s = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x49 cache-miss probe still reaches Primary
+            Assert.NotNull(probeC2s);
+            Assert.Equal(ProtocolOpcodes.c2s_requestnpc, probeC2s.Opcode);
+
+            while (await conn.ReadDecryptedFrameAsync(CancellationToken.None) is not null) { }
+        });
+
+        Task shadowTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await shadowGsListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("shadow-gs", tcp, keyTable, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // logiclogin
+            await SendValidWorldBootstrapAsync(conn, 2002u, 42u);
+
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // c2s_syncend
+            JxWireFrame? dlgC2s = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x6E rewritten to 42u
+            Assert.NotNull(dlgC2s);
+            Assert.Equal(ProtocolOpcodes.c2s_dialognpc, dlgC2s.Opcode);
+            Assert.Equal(42u, BinaryPrimitives.ReadUInt32LittleEndian(dlgC2s.DecryptedPayload.AsSpan(1, 4)));
+
+            await Task.Delay(55); // Simulate next 18-Hz tick on Shadow
+            await conn.WriteEncryptedFrameAsync(dialogReply, CancellationToken.None);
+
+            while (await conn.ReadDecryptedFrameAsync(CancellationToken.None) is not null) { }
+        });
+
+        await using (JxWireConnection clientGs = await JxWireConnection.ConnectUpstreamAsync("client-gs", "127.0.0.1", gsProxy.BoundPort, keyTable, CancellationToken.None))
+        {
+            byte[] logicLogin = new byte[17];
+            logicLogin[0] = ProtocolOpcodes.c2s_logiclogin;
+            primaryGuid.TryWriteBytes(logicLogin.AsSpan(1, 16));
+            await clientGs.WriteEncryptedFrameAsync(logicLogin, CancellationToken.None);
+
+            for (int i = 0; i < 5; i++)
+            {
+                _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            }
+
+            byte[] c2sSyncEnd = new byte[9];
+            c2sSyncEnd[0] = ProtocolOpcodes.c2s_syncend;
+            await clientGs.WriteEncryptedFrameAsync(c2sSyncEnd, CancellationToken.None);
+            await Task.Delay(160); // Let syncend window finish cleanly
+
+            byte[] clickBoatman = new byte[9];
+            clickBoatman[0] = ProtocolOpcodes.c2s_dialognpc;
+            BinaryPrimitives.WriteUInt32LittleEndian(clickBoatman.AsSpan(1, 4), 16986u);
+            await clientGs.WriteEncryptedFrameAsync(clickBoatman, CancellationToken.None);
+
+            await Task.Delay(5); // Immediate background cache-miss probe from game.exe for unhydrated NpcId=112896!
+            byte[] probeNpc = new byte[5];
+            probeNpc[0] = ProtocolOpcodes.c2s_requestnpc;
+            BinaryPrimitives.WriteUInt32LittleEndian(probeNpc.AsSpan(1, 4), 112896u);
+            await clientGs.WriteEncryptedFrameAsync(probeNpc, CancellationToken.None);
+
+            _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None); // 0x63 dialogReply
+            await Task.Delay(180); // Wait for 0x6E coalesced window to complete
+        }
+
+        await Task.WhenAll(primaryTask, shadowTask).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(gsProxy.LatestSession);
+        IReadOnlyList<JXReborn.DualParityServer.Diffing.ParityFinding> allFindings = gsProxy.LatestSession.DiffCoordinator.GetFindings();
+        Assert.DoesNotContain(allFindings, static f => f.Severity == JXReborn.DualParityServer.Diffing.FindingSeverity.Critical);
+    }
+
+    [Fact]
+    public async Task GameServerShadowProxy_OnDuplicate0x72ClickAnd0x82InputSubmit_ShouldCoalesceClickAndOpenDedicated0x82Window()
+    {
+        // Ground truth: Map 53 mui3-zero-crit Step 15 (duplicate 0x72 72650062006D040000 10ms apart)
+        // and Step 110 (0x82 c2s_citywarextend AskClientForNumber input submit must open its own window).
+        LegacyKeyTable keyTable = LegacyKeyTable.CreateSynthetic();
+        Guid primaryGuid = Guid.NewGuid();
+        Guid shadowGuid = Guid.NewGuid();
+
+        using var primaryGsListener = new TcpListener(IPAddress.Loopback, 0);
+        using var shadowGsListener = new TcpListener(IPAddress.Loopback, 0);
+        primaryGsListener.Start();
+        shadowGsListener.Start();
+
+        var handoffMap = new HandoffTicketMap();
+        handoffMap.Register(new HandoffTicketEntry(
+            PrimaryGuid: primaryGuid,
+            PrimaryGsHost: "127.0.0.1",
+            PrimaryGsPort: (ushort)((IPEndPoint)primaryGsListener.LocalEndpoint).Port,
+            ShadowGuid: shadowGuid,
+            ShadowGsHost: "127.0.0.1",
+            ShadowGsPort: (ushort)((IPEndPoint)shadowGsListener.LocalEndpoint).Port,
+            RoleName: "DupClickAnd0x82Hero",
+            CreatedAtUtc: DateTimeOffset.UtcNow));
+
+        var options = new WireParityProxyOptions
+        {
+            BindHost = "127.0.0.1",
+            BishopListenPort = 0,
+            GameServerListenPort = 0,
+            AllowSyntheticKeyTableFallback = true,
+            ActionWindowMs = 150
+        };
+
+        await using var gsProxy = new GameServerShadowProxy(options, keyTable, handoffMap);
+        gsProxy.Start();
+
+        byte[] signboardReply = ScriptActionS2CPacket.CreateSayPayload("Nha môn thông cáo", []);
+
+        static async Task SendBootstrapWithNoticeBoardAsync(JxWireConnection conn, uint selfNpcId, int objId)
+        {
+            SyncWorldS2CPacket sw = SyncWorldS2CPacket.Create(53, 52003, 101307, 100, "Ba Lang Huyen");
+            byte[] syncWorld = new byte[SyncWorldS2CPacket.Size];
+            MemoryMarshal.Write(syncWorld, in sw);
+            byte[] selfNpc = new SyncNpcFullS2CPacket(0, ElementSeries.Metal, 128, 101307, 1, 0, 52003, 0, 0, EntityKind.Player, selfNpcId, -1, 0xFFFF, 1, 0, "DupClickAnd0x82Hero").ToPayloadBytes();
+            byte[] curPlayer = new byte[Marshal.SizeOf<SyncCurPlayerS2CPacket>()];
+            var curPkt = new SyncCurPlayerS2CPacket { ProtocolType = ProtocolOpcodes.s2c_synccurplayer, Id = selfNpcId, Level = 1, LifeMax = 204, StaminaMax = 50, Kind = (byte)EntityKind.Player, ManaMax = 16 };
+            MemoryMarshal.Write(curPlayer, in curPkt);
+            byte[] objAdd = ObjAddS2CPacket.CreatePayloadBytes(1, objId, 4, 52083, 101248, 0, 0, 0, 0, 0, 0, 0, 0, string.Empty);
+            byte[] syncEnd = [ProtocolOpcodes.s2c_syncend];
+            await conn.WriteEncryptedFrameAsync(syncWorld, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(selfNpc, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(curPlayer, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(objAdd, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(syncEnd, CancellationToken.None);
+        }
+
+        Task primaryTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await primaryGsListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("primary-gs", tcp, keyTable, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None);
+            await SendBootstrapWithNoticeBoardAsync(conn, 1001u, 1133);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x43
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0xA7 post-syncend
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x72 #1
+            await conn.WriteEncryptedFrameAsync(signboardReply, CancellationToken.None); // immediate Primary reply!
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x72 #2 (10ms later)
+            await conn.WriteEncryptedFrameAsync(signboardReply, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x5F menu
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x82 input number
+            await Task.Delay(60); // Primary teleports 60ms after 0x82!
+            SyncNpcPosS2CPacket pos = SyncNpcPosS2CPacket.Create(1001u, 53376, 95424);
+            byte[] posBytes = new byte[SyncNpcPosS2CPacket.Size];
+            MemoryMarshal.Write(posBytes, in pos);
+            await conn.WriteEncryptedFrameAsync(posBytes, CancellationToken.None);
+            while (await conn.ReadDecryptedFrameAsync(CancellationToken.None) is not null) { }
+        });
+
+        Task shadowTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await shadowGsListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("shadow-gs", tcp, keyTable, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None);
+            await SendBootstrapWithNoticeBoardAsync(conn, 2002u, 6);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x43
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0xA7 post-syncend
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x72 #1
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x72 #2 arrives before 18-Hz tick!
+            await Task.Delay(45);
+            await conn.WriteEncryptedFrameAsync(signboardReply, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x5F menu
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x82 input number
+            await Task.Delay(10); // Shadow teleports in 10ms!
+            SyncNpcPosS2CPacket pos = SyncNpcPosS2CPacket.Create(2002u, 53376, 95424);
+            byte[] posBytes = new byte[SyncNpcPosS2CPacket.Size];
+            MemoryMarshal.Write(posBytes, in pos);
+            await conn.WriteEncryptedFrameAsync(posBytes, CancellationToken.None);
+            while (await conn.ReadDecryptedFrameAsync(CancellationToken.None) is not null) { }
+        });
+
+        await using (JxWireConnection clientGs = await JxWireConnection.ConnectUpstreamAsync("client-gs", "127.0.0.1", gsProxy.BoundPort, keyTable, CancellationToken.None))
+        {
+            byte[] logicLogin = new byte[17];
+            logicLogin[0] = ProtocolOpcodes.c2s_logiclogin;
+            primaryGuid.TryWriteBytes(logicLogin.AsSpan(1, 16));
+            await clientGs.WriteEncryptedFrameAsync(logicLogin, CancellationToken.None);
+            for (int i = 0; i < 5; i++)
+            {
+                _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            }
+
+            await clientGs.WriteEncryptedFrameAsync(new byte[9] { ProtocolOpcodes.c2s_syncend, 0, 0, 0, 0, 0, 0, 0, 0 }, CancellationToken.None);
+            await Task.Delay(5);
+            await clientGs.WriteEncryptedFrameAsync(new byte[] { 0xA7, 0, 0, 0, 0 }, CancellationToken.None);
+            await Task.Delay(170);
+
+            byte[] clickBoard = Convert.FromHexString("72650062006D040000");
+            await clientGs.WriteEncryptedFrameAsync(clickBoard, CancellationToken.None);
+            await Task.Delay(10); // Duplicate 0x72 from game.exe AI frame before Shadow's 18-Hz tick!
+            await clientGs.WriteEncryptedFrameAsync(clickBoard, CancellationToken.None);
+            _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            await Task.Delay(180);
+
+            // Simulate 0x5F followed 125ms later by 0x82 input submit (previously 0x82 failed to open its own window and split Primary vs Shadow teleport!)
+            byte[] select5F = new byte[17];
+            select5F[0] = ProtocolOpcodes.c2s_playerselui;
+            await clientGs.WriteEncryptedFrameAsync(select5F, CancellationToken.None);
+            await Task.Delay(125);
+            byte[] submit82 = new byte[12];
+            submit82[0] = ProtocolOpcodes.c2s_citywarextend;
+            await clientGs.WriteEncryptedFrameAsync(submit82, CancellationToken.None);
+            _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            await Task.Delay(180);
+        }
+
+        await Task.WhenAll(primaryTask, shadowTask).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(gsProxy.LatestSession);
+        IReadOnlyList<JXReborn.DualParityServer.Diffing.ParityFinding> findings = gsProxy.LatestSession.DiffCoordinator.GetFindings();
+        Assert.DoesNotContain(findings, static f => f.Severity == JXReborn.DualParityServer.Diffing.FindingSeverity.Critical);
+    }
 }

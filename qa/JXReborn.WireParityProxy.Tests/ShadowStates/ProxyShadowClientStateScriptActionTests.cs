@@ -1,4 +1,6 @@
+using System.Runtime.InteropServices;
 using JXReborn.Adapter.Legacy.Packets;
+using JXReborn.Primitives.Characters;
 using JXReborn.Primitives.Encodings;
 using JXReborn.WireParityProxy.ShadowStates;
 using Xunit;
@@ -106,5 +108,91 @@ public sealed class ProxyShadowClientStateScriptActionTests
         Assert.True(state.Dialog.IsTalk);
         string resolvedTalk11260 = Tcvn3Encoding.DecodeNullTerminated(Convert.FromHexString(state.Dialog.PromptTcvn3Hex));
         Assert.Contains("Khuyên tai đã gói lại rồi! Xin giữ lấy!", resolvedTalk11260, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ApplyS2c_OnSyncPos0xC5NpcWalk0x50AndNpcRun0x51_ShouldUpdateSelfAndNpcCoordinatesForAccurateTranslation()
+    {
+        // Ground truth: Map 53 mui2-final Steps 167, 222, 280, 381 where intra-map teleport emits s2c_syncpos (0xC5, 17B)
+        // and running to signboards emits s2c_npcrun (0x51, 13B) / s2c_npcwalk (0x50, 13B).
+        var state = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        byte[] selfSync = new SyncNpcFullS2CPacket(
+            Camp: 0,
+            Series: ElementSeries.Metal,
+            LifePercent: 128,
+            MapMpsY: 101696,
+            DoingState: 1,
+            StateInfo: 0,
+            MapMpsX: 52032,
+            MenuState: 0,
+            GoldType: 0,
+            Kind: EntityKind.Player,
+            NpcId: 777u,
+            MasterId: -1,
+            TemplateId: 0,
+            Level: 1,
+            RankFfId: 0,
+            NameUnicode: "PosTester").ToPayloadBytes();
+        state.ApplyS2c(selfSync, now);
+
+        byte[] monsterSync = new SyncNpcFullS2CPacket(
+            Camp: 5,
+            Series: ElementSeries.Wood,
+            LifePercent: 128,
+            MapMpsY: 95000,
+            DoingState: 1,
+            StateInfo: 0,
+            MapMpsX: 48000,
+            MenuState: 0,
+            GoldType: 0,
+            Kind: EntityKind.Monster,
+            NpcId: 888u,
+            MasterId: -1,
+            TemplateId: 42,
+            Level: 3,
+            RankFfId: 0,
+            NameUnicode: "HuouDom").ToPayloadBytes();
+        state.ApplyS2c(monsterSync, now);
+
+        // 1. 0xC5 SyncNpcPosS2CPacket (17B) on intra-map gm_teleport to Yangtze Wharf (49472, 93696)
+        SyncNpcPosS2CPacket syncPos = SyncNpcPosS2CPacket.Create(npcId: 777u, mapMpsX: 49472, mapMpsY: 93696);
+        byte[] syncPosBytes = new byte[SyncNpcPosS2CPacket.Size];
+        MemoryMarshal.Write(syncPosBytes, in syncPos);
+        state.ApplyS2c(syncPosBytes, now);
+        Assert.Equal(49472, state.MpsX);
+        Assert.Equal(93696, state.MpsY);
+
+        // 2. 0x51 NpcRunS2CPacket (13B) on SelfNpcId (777u) MUST NOT jump self ahead to DestMpsX/DestMpsY (Steps 467/499 drift=671 ground truth),
+        // because legacy-linux only updates self position via 0x4E/0xC5 while reborn-server echoes 0x50/0x51 to self.
+        byte[] runBytes = new byte[NpcRunS2CPacket.PayloadSize];
+        new NpcRunS2CPacket(NpcId: 777u, DestMpsX: 52083, DestMpsY: 101248).WritePayload(runBytes);
+        state.ApplyS2c(runBytes, now);
+        Assert.Equal(49472, state.MpsX);
+        Assert.Equal(93696, state.MpsY);
+
+        // 3. 0x50 NpcWalkS2CPacket (13B) when non-self monster (888u) patrols to (48374, 95026) DOES update NPC position
+        byte[] walkBytes = new byte[NpcWalkS2CPacket.PayloadSize];
+        new NpcWalkS2CPacket(NpcId: 888u, DestMpsX: 48374, DestMpsY: 95026).WritePayload(walkBytes);
+        state.ApplyS2c(walkBytes, now);
+        Assert.Equal(48374, state.SnapshotNpcs()[888u].MpsX);
+        Assert.Equal(95026, state.SnapshotNpcs()[888u].MpsY);
+
+        // 4. 0-option signboard Say("Ba Lăng huyện<---->Miêu Lĩnh", []) closes locally when player sends c2s_npcwalk (0x4B) (Step 222 ground truth)
+        byte[] signboardSay = ScriptActionS2CPacket.CreateSayPayload("Ba Lăng huyện<---->Miêu Lĩnh", []);
+        state.ApplyS2c(signboardSay, now);
+        Assert.True(state.Dialog.IsOpen);
+        state.RecordOutboundC2s([ProtocolOpcodes.c2s_npcwalk, 0, 0, 0, 0, 0, 0, 0, 0], now);
+        Assert.False(state.Dialog.IsOpen);
+
+        // 5. Cross-map s2c_syncworld (0x49, Map 199, Region (102,90)) immediately moves Mps out of Map 53 coords (Step 1063 ground truth)
+        SyncWorldS2CPacket world199 = SyncWorldS2CPacket.Create(199, 52608, 92992, 100, "Vu Lang Dong");
+        byte[] world199Bytes = new byte[SyncWorldS2CPacket.Size];
+        MemoryMarshal.Write(world199Bytes, in world199);
+        state.ApplyS2c(world199Bytes, now);
+        Assert.Equal(199, state.MapId);
+        Assert.InRange(state.MpsX, 52224, 52736);
+        Assert.InRange(state.MpsY, 92160, 93184);
     }
 }

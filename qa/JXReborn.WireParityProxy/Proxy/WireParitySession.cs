@@ -1,3 +1,4 @@
+using JXReborn.DualParityServer.Diffing;
 using JXReborn.WireParityProxy.Configuration;
 using JXReborn.WireParityProxy.Diffing;
 using JXReborn.WireParityProxy.ShadowStates;
@@ -15,7 +16,7 @@ public sealed class WireParitySession
     private long _primaryS2cFrames;
     private long _shadowS2cFrames;
 
-    public WireParitySession(string roleName, WireParityProxyOptions options)
+    public WireParitySession(string roleName, WireParityProxyOptions options, SemanticDiffEngine? sharedSemanticDiff = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         SessionId = $"wpp-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
@@ -26,7 +27,7 @@ public sealed class WireParitySession
         Translator = new EntityIdTranslator(PrimaryState, ShadowState);
         Rewriter = new C2sPacketRewriter(Translator);
         ProtocolGate = new ProtocolSafetyGate();
-        DiffCoordinator = new WireParityDiffCoordinator(options);
+        DiffCoordinator = new WireParityDiffCoordinator(options, sharedSemanticDiff);
     }
 
     public string SessionId { get; }

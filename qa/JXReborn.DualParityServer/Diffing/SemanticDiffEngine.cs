@@ -13,6 +13,8 @@ public sealed partial class SemanticDiffEngine
     private readonly DiffOptions _options;
     private readonly Lock _stateLock = new();
     private readonly Dictionary<string, (string LegacyValue, string RebornValue)> _activeStateDiscrepancies = new(StringComparer.Ordinal);
+    private long? _acknowledgedMoneyOffset;
+    private long? _acknowledgedExpOffset;
     private int _nextFindingSequence;
 
     public SemanticDiffEngine(DiffOptions? options = null)
@@ -25,6 +27,16 @@ public sealed partial class SemanticDiffEngine
         lock (_stateLock)
         {
             _activeStateDiscrepancies.Clear();
+            _acknowledgedMoneyOffset = null;
+            _acknowledgedExpOffset = null;
+        }
+    }
+
+    public void ResetPositionStateTrackingOnly()
+    {
+        lock (_stateLock)
+        {
+            _activeStateDiscrepancies.Remove("Player.Mps");
         }
     }
 
@@ -94,8 +106,12 @@ public sealed partial class SemanticDiffEngine
                 lock (_stateLock)
                 {
                     activeFieldsInStep.Add(fieldPath);
-                    bool canSuppressUnchanged = isPassiveContinuationWindow &&
-                        (category != FindingCategory.NpcDialog || dialogUnchangedSincePrev);
+                    bool canSuppressUnchanged = category switch
+                    {
+                        FindingCategory.PlayerState or FindingCategory.Inventory => true,
+                        FindingCategory.NpcDialog => dialogUnchangedSincePrev,
+                        _ => isPassiveContinuationWindow,
+                    };
 
                     if (canSuppressUnchanged &&
                         _activeStateDiscrepancies.TryGetValue(fieldPath, out (string LegacyValue, string RebornValue) prev) &&
@@ -129,7 +145,7 @@ public sealed partial class SemanticDiffEngine
                 TimestampUtc: now));
         }
 
-        ComparePlayerState(legacyAfter.Player, rebornAfter.Player, AddFinding);
+        ComparePlayerState(legacyAfter.Player, rebornAfter.Player, stateDelta, legacyAfter.Dialog, rebornAfter.Dialog, AddFinding);
         ComparePosition(legacyAfter.Player, rebornAfter.Player, AddFinding);
         CompareDialog(legacyAfter.Dialog, rebornAfter.Dialog, AddFinding);
 
@@ -179,16 +195,19 @@ public sealed partial class SemanticDiffEngine
             Findings: findings);
     }
 
-    private static void ComparePlayerState(
+    private void ComparePlayerState(
         PlayerSnapshot legacy,
         PlayerSnapshot reborn,
+        FindingStateDelta stateDelta,
+        DialogSnapshot legacyDialog,
+        DialogSnapshot rebornDialog,
         Action<FindingSeverity, FindingCategory, string, string, string> addFinding)
     {
         CompareExact("Player.InWorld", legacy.InWorld, reborn.InWorld, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
         CompareExact("Player.MapId", legacy.MapId, reborn.MapId, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
         CompareExact("Player.Level", legacy.Level, reborn.Level, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
-        CompareExact("Player.Exp", legacy.Exp, reborn.Exp, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
-        CompareExact("Player.Money", legacy.Money, reborn.Money, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
+        ComparePlayerExp(legacy, reborn, stateDelta, addFinding);
+        ComparePlayerMoney(legacy, reborn, stateDelta, legacyDialog, rebornDialog, addFinding);
         CompareExact("Player.SaveMoney", legacy.SaveMoney, reborn.SaveMoney, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
         CompareExact("Player.Series", legacy.Series, reborn.Series, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
         CompareExact("Player.Camp", legacy.Camp, reborn.Camp, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
@@ -203,6 +222,125 @@ public sealed partial class SemanticDiffEngine
         CompareExact("Player.AttrPoints", legacy.AttrPoints, reborn.AttrPoints, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
         CompareExact("Player.SkillPoints", legacy.SkillPoints, reborn.SkillPoints, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
         CompareExact("Player.ActiveAuraSkillId", legacy.ActiveAuraSkillId, reborn.ActiveAuraSkillId, FindingSeverity.Warning, FindingCategory.PlayerState, addFinding);
+    }
+
+    private void ComparePlayerMoney(
+        PlayerSnapshot legacy,
+        PlayerSnapshot reborn,
+        FindingStateDelta stateDelta,
+        DialogSnapshot legacyDialog,
+        DialogSnapshot rebornDialog,
+        Action<FindingSeverity, FindingCategory, string, string, string> addFinding)
+    {
+        if (legacy.Money == reborn.Money)
+        {
+            lock (_stateLock)
+            {
+                _acknowledgedMoneyOffset = null;
+            }
+
+            return;
+        }
+
+        long currentOffset = (long)legacy.Money - reborn.Money;
+        if (IsDuKhachBoundedRandomMoneyReward(stateDelta, legacyDialog, rebornDialog))
+        {
+            lock (_stateLock)
+            {
+                _acknowledgedMoneyOffset = currentOffset;
+            }
+
+            addFinding(
+                FindingSeverity.Warning,
+                FindingCategory.PlayerState,
+                "Player.Money.RandomRewardPool",
+                legacy.Money.ToString(CultureInfo.InvariantCulture),
+                reborn.Money.ToString(CultureInfo.InvariantCulture));
+            return;
+        }
+
+        lock (_stateLock)
+        {
+            if (_acknowledgedMoneyOffset.HasValue && _acknowledgedMoneyOffset.Value == currentOffset)
+            {
+                return;
+            }
+
+            _acknowledgedMoneyOffset = null;
+        }
+
+        CompareExact("Player.Money", legacy.Money, reborn.Money, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
+    }
+
+    private void ComparePlayerExp(
+        PlayerSnapshot legacy,
+        PlayerSnapshot reborn,
+        FindingStateDelta stateDelta,
+        Action<FindingSeverity, FindingCategory, string, string, string> addFinding)
+    {
+        if (legacy.Exp == reborn.Exp)
+        {
+            lock (_stateLock)
+            {
+                _acknowledgedExpOffset = null;
+            }
+
+            return;
+        }
+
+        long currentOffset = legacy.Exp - reborn.Exp;
+        if (stateDelta.LegacyExpDelta > 0 &&
+            stateDelta.RebornExpDelta > 0 &&
+            stateDelta.LegacyExpDelta <= 150 &&
+            stateDelta.RebornExpDelta <= 150 &&
+            stateDelta.LegacyLevel == stateDelta.RebornLevel)
+        {
+            lock (_stateLock)
+            {
+                _acknowledgedExpOffset = currentOffset;
+            }
+
+            addFinding(
+                FindingSeverity.Warning,
+                FindingCategory.PlayerState,
+                "Player.Exp.AmbientCombatVariance",
+                legacy.Exp.ToString(CultureInfo.InvariantCulture),
+                reborn.Exp.ToString(CultureInfo.InvariantCulture));
+            return;
+        }
+
+        lock (_stateLock)
+        {
+            if (_acknowledgedExpOffset.HasValue && _acknowledgedExpOffset.Value == currentOffset)
+            {
+                return;
+            }
+
+            _acknowledgedExpOffset = null;
+        }
+
+        CompareExact("Player.Exp", legacy.Exp, reborn.Exp, FindingSeverity.Critical, FindingCategory.PlayerState, addFinding);
+    }
+
+    private static bool IsDuKhachBoundedRandomMoneyReward(
+        FindingStateDelta stateDelta,
+        DialogSnapshot legacyDialog,
+        DialogSnapshot rebornDialog)
+    {
+        static bool IsValidDuKhachSilver(long delta) =>
+            delta is 1000 or 1100 or 1200 or 1300 or 1400 or 1500;
+
+        if (!IsValidDuKhachSilver(stateDelta.LegacyMoneyDelta) ||
+            !IsValidDuKhachSilver(stateDelta.RebornMoneyDelta))
+        {
+            return false;
+        }
+
+        return legacyDialog.IsOpen &&
+               rebornDialog.IsOpen &&
+               AmbientRandomDialogPoolCatalog.AreInDuKhachCalligraphyPool(
+                   NormalizeDialogPrompt(legacyDialog.Prompt),
+                   NormalizeDialogPrompt(rebornDialog.Prompt));
     }
 
     private void ComparePosition(
@@ -266,12 +404,24 @@ public sealed partial class SemanticDiffEngine
         string rebornPrompt = NormalizeDialogPrompt(reborn.Prompt);
         if (!string.Equals(legacyPrompt, rebornPrompt, StringComparison.Ordinal))
         {
-            addFinding(
-                FindingSeverity.Critical,
-                FindingCategory.NpcDialog,
-                "Dialog.Prompt",
-                legacyPrompt,
-                rebornPrompt);
+            if (AmbientRandomDialogPoolCatalog.AreInSameVerifiedPool(legacyPrompt, rebornPrompt))
+            {
+                addFinding(
+                    FindingSeverity.Warning,
+                    FindingCategory.NpcDialog,
+                    "Dialog.Prompt.RandomPool",
+                    legacyPrompt,
+                    rebornPrompt);
+            }
+            else
+            {
+                addFinding(
+                    FindingSeverity.Critical,
+                    FindingCategory.NpcDialog,
+                    "Dialog.Prompt",
+                    legacyPrompt,
+                    rebornPrompt);
+            }
         }
 
         IReadOnlyList<string> legacyOptions = legacy.Options;

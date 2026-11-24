@@ -26,6 +26,7 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
     private readonly HandoffTicketMap _handoffMap;
     private readonly Action<WireParitySession>? _onSessionCreated;
     private readonly ConcurrentQueue<WireParitySession> _sessions = new();
+    private readonly ConcurrentDictionary<string, SemanticDiffEngine> _roleDiffEngines = new(StringComparer.OrdinalIgnoreCase);
     private readonly CancellationTokenSource _cts = new();
 
     private TcpListener? _listener;
@@ -173,7 +174,10 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
             primaryConn = await primaryConnectTask.ConfigureAwait(false);
             shadowConn = await shadowConnectTask.ConfigureAwait(false);
 
-            var session = new WireParitySession(ticket.RoleName, _options);
+            SemanticDiffEngine roleDiffEngine = _roleDiffEngines.GetOrAdd(
+                ticket.RoleName,
+                _ => WireParityDiffCoordinator.CreateSemanticDiffEngine(_options));
+            var session = new WireParitySession(ticket.RoleName, _options, roleDiffEngine);
             _sessions.Enqueue(session);
             Volatile.Write(ref _latestSession, session);
             _onSessionCreated?.Invoke(session);
@@ -191,8 +195,58 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
             var shadowSyncEndTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             int gatedOnInitialSync = 0;
             WireActionWindow? activeWindow = null;
+            DateTimeOffset activeWindowOpenedUtc = default;
             CancellationTokenSource? windowTimerCts = null;
             int actionSeq = 0;
+
+            void ScheduleWindowCloseTimerLocked(WireActionWindow window)
+            {
+                windowTimerCts?.Cancel();
+                windowTimerCts?.Dispose();
+                var timerCts = CancellationTokenSource.CreateLinkedTokenSource(linkCts.Token);
+                windowTimerCts = timerCts;
+                int baseDelayMs = Math.Max(20, _options.ActionWindowMs);
+                int delayMs = window.PrimaryC2s.Opcode == ProtocolOpcodes.c2s_npcskill && baseDelayMs >= 300
+                    ? Math.Max(baseDelayMs, 960)
+                    : baseDelayMs;
+                int graceDelayMs = Math.Min(560, Math.Max(60, baseDelayMs + 80));
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(delayMs, timerCts.Token).ConfigureAwait(false);
+                        bool needInFlightGrace = false;
+                        lock (windowLock)
+                        {
+                            if (ReferenceEquals(activeWindow, window))
+                            {
+                                needInFlightGrace = HasInFlightTransitionSkew(session.PrimaryState, session.ShadowState);
+                                if (!needInFlightGrace)
+                                {
+                                    CloseActiveWindowLocked();
+                                    return;
+                                }
+                            }
+                        }
+
+                        if (needInFlightGrace)
+                        {
+                            await Task.Delay(graceDelayMs, timerCts.Token).ConfigureAwait(false);
+                            lock (windowLock)
+                            {
+                                if (ReferenceEquals(activeWindow, window))
+                                {
+                                    CloseActiveWindowLocked();
+                                }
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Closed early or extended by coalesced continuation frame.
+                    }
+                }, CancellationToken.None);
+            }
 
             void CloseActiveWindowLocked()
             {
@@ -226,28 +280,8 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                         c2sWasRewritten: rewrite.WasModified,
                         translationMissReason: rewrite.TranslationMissReason);
                     activeWindow = window;
-
-                    var timerCts = CancellationTokenSource.CreateLinkedTokenSource(linkCts.Token);
-                    windowTimerCts = timerCts;
-                    int delayMs = Math.Max(20, _options.ActionWindowMs);
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await Task.Delay(delayMs, timerCts.Token).ConfigureAwait(false);
-                            lock (windowLock)
-                            {
-                                if (ReferenceEquals(activeWindow, window))
-                                {
-                                    CloseActiveWindowLocked();
-                                }
-                            }
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            // Closed early by next action or disconnect.
-                        }
-                    }, CancellationToken.None);
+                    activeWindowOpenedUtc = DateTimeOffset.UtcNow;
+                    ScheduleWindowCloseTimerLocked(window);
                 }
             }
 
@@ -295,17 +329,53 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                         session.ClientToken1,
                         session.ClientToken2);
 
-                    session.PrimaryState.RecordOutboundC2s(frame.DecryptedPayload, frame.TimestampUtc);
-                    session.ShadowState.RecordOutboundC2s(rewrite.ShadowPayload, frame.TimestampUtc);
+                    bool suppressUnhydratedShadowProbe =
+                        rewrite.TranslationMissReason is not null &&
+                        IsPassiveCacheMissQueryC2s(frame.Opcode);
 
-                    if (frame.Opcode != ProtocolOpcodes.c2s_ping)
+                    session.PrimaryState.RecordOutboundC2s(frame.DecryptedPayload, frame.TimestampUtc);
+                    if (!suppressUnhydratedShadowProbe)
                     {
-                        OpenActionWindow(frame, rewrite);
+                        session.ShadowState.RecordOutboundC2s(rewrite.ShadowPayload, frame.TimestampUtc);
                     }
 
-                    await Task.WhenAll(
-                        primaryConn.WriteEncryptedFrameAsync(frame.DecryptedPayload, linkCts.Token),
-                        shadowConn.WriteEncryptedFrameAsync(rewrite.ShadowPayload, linkCts.Token)).ConfigureAwait(false);
+                    if (frame.Opcode != ProtocolOpcodes.c2s_ping && !suppressUnhydratedShadowProbe)
+                    {
+                        bool canOpenNewWindow = true;
+                        lock (windowLock)
+                        {
+                            if (activeWindow is not null)
+                            {
+                                if (IsPassiveProbeOrKeepaliveC2s(frame.Opcode) &&
+                                    !IsPassiveProbeOrKeepaliveC2s(activeWindow.PrimaryC2s.Opcode))
+                                {
+                                    canOpenNewWindow = false;
+                                }
+                                else if ((DateTimeOffset.UtcNow - activeWindowOpenedUtc) < TimeSpan.FromMilliseconds(5000) &&
+                                         ShouldCoalesceContinuationBurstC2s(activeWindow.PrimaryC2s, frame))
+                                {
+                                    canOpenNewWindow = false;
+                                    ScheduleWindowCloseTimerLocked(activeWindow);
+                                }
+                            }
+                        }
+
+                        if (canOpenNewWindow)
+                        {
+                            OpenActionWindow(frame, rewrite);
+                        }
+                    }
+
+                    if (suppressUnhydratedShadowProbe)
+                    {
+                        await primaryConn.WriteEncryptedFrameAsync(frame.DecryptedPayload, linkCts.Token).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await Task.WhenAll(
+                            primaryConn.WriteEncryptedFrameAsync(frame.DecryptedPayload, linkCts.Token),
+                            shadowConn.WriteEncryptedFrameAsync(rewrite.ShadowPayload, linkCts.Token)).ConfigureAwait(false);
+                    }
                 }
             }, linkCts.Token);
 
@@ -415,6 +485,56 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
 
             Interlocked.Decrement(ref _activeConnections);
         }
+    }
+
+    private static bool IsPassiveCacheMissQueryC2s(byte opcode) =>
+        opcode is ProtocolOpcodes.c2s_requestnpc
+            or ProtocolOpcodes.c2s_requestobj
+            or ProtocolOpcodes.c2s_npcstaterequest
+            or ProtocolOpcodes.c2s_requestnpcfeature;
+
+    private static bool IsPassiveProbeOrKeepaliveC2s(byte opcode) =>
+        IsPassiveCacheMissQueryC2s(opcode) ||
+        opcode is ProtocolOpcodes.c2s_ping
+            or 0xA7
+            or ProtocolOpcodes.c2s_ongettagsrequest
+            or ProtocolOpcodes.c2s_extendfriend
+            or ProtocolOpcodes.c2s_changeauraskill;
+
+    private static bool ShouldCoalesceContinuationBurstC2s(JxWireFrame activeC2s, JxWireFrame incomingC2s)
+    {
+        // 1. Exact duplicate C2S retransmit (e.g. game.exe emitting two identical 0x72 c2s_objmouseclick frames ~10ms apart)
+        if (incomingC2s.Opcode != ProtocolOpcodes.c2s_playerselui &&
+            incomingC2s.DecryptedPayload.AsSpan().SequenceEqual(activeC2s.DecryptedPayload))
+        {
+            return true;
+        }
+
+        // 2. Continuous movement steps (0x4B/0x4C) or rapid auto-attack skill repeats (0x4D) straddling 18-Hz ticks
+        if ((activeC2s.Opcode is ProtocolOpcodes.c2s_npcwalk or ProtocolOpcodes.c2s_npcrun) &&
+            (incomingC2s.Opcode is ProtocolOpcodes.c2s_npcwalk or ProtocolOpcodes.c2s_npcrun))
+        {
+            return true;
+        }
+
+        return activeC2s.Opcode == ProtocolOpcodes.c2s_npcskill &&
+               incomingC2s.Opcode == ProtocolOpcodes.c2s_npcskill;
+    }
+
+    private static bool HasInFlightTransitionSkew(
+        ShadowStates.ProxyShadowClientState primary,
+        ShadowStates.ProxyShadowClientState shadow)
+    {
+        if (primary.MapId != shadow.MapId ||
+            primary.Dialog.IsOpen != shadow.Dialog.IsOpen ||
+            primary.Exp != shadow.Exp)
+        {
+            return true;
+        }
+
+        int dx = Math.Abs(primary.MpsX - shadow.MpsX);
+        int dy = Math.Abs(primary.MpsY - shadow.MpsY);
+        return Math.Max(dx, dy) > 256;
     }
 
     private static async Task IgnoreCancellationAsync(Task task)

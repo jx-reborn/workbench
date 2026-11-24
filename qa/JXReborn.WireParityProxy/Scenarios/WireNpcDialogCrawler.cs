@@ -141,17 +141,24 @@ public sealed class WireNpcDialogCrawler
                 continue;
             }
 
-            if (Distance(snap.Player.MpsX, snap.Player.MpsY, liveNpc.MpsX, liveNpc.MpsY) > 96.0)
+            int targetNpcMpsX = liveNpc.MpsX > 0 ? liveNpc.MpsX : candidate.MpsX;
+            int targetNpcMpsY = liveNpc.MpsY > 0 ? liveNpc.MpsY : candidate.MpsY;
+            if (targetNpcMpsX <= 0 || targetNpcMpsY <= 0)
+            {
+                continue;
+            }
+
+            if (Distance(snap.Player.MpsX, snap.Player.MpsY, targetNpcMpsX, targetNpcMpsY) > 96.0)
             {
                 try
                 {
-                    await WalkNearPositionAsync(client, mapId, liveNpc.MpsX, liveNpc.MpsY, _mapCatalog, _clientPakObstacles, stopRadiusCells: 2, cancellationToken)
+                    await WalkNearPositionAsync(client, mapId, targetNpcMpsX, targetNpcMpsY, _mapCatalog, _clientPakObstacles, stopRadiusCells: 2, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 catch (InvalidOperationException)
                 {
                     // Fall back to direct approach move if static obstacle grid blocks exact cell.
-                    _ = await client.MoveToAsync(liveNpc.MpsX, liveNpc.MpsY, mode: 2, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    _ = await client.MoveToAsync(targetNpcMpsX, targetNpcMpsY, mode: 2, cancellationToken: cancellationToken).ConfigureAwait(false);
                     await WaitTicksAsync(client, 10, cancellationToken).ConfigureAwait(false);
                 }
             }

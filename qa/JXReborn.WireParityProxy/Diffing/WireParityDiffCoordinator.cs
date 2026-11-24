@@ -24,10 +24,17 @@ public sealed class WireParityDiffCoordinator
     private WorldDomSnapshot? _prevShadowSnapshot;
     private DriftAssessment _latestDrift = new(false, FindingSeverity.Info, 0, false, 0, "Not started");
 
-    public WireParityDiffCoordinator(WireParityProxyOptions options)
+    public WireParityDiffCoordinator(WireParityProxyOptions options, SemanticDiffEngine? sharedSemanticDiff = null)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _semanticDiff = new SemanticDiffEngine(new DiffOptions
+        _semanticDiff = sharedSemanticDiff ?? CreateSemanticDiffEngine(options);
+        _driftDetector = new StateDriftDetector(options.PositionToleranceMps, options.CriticalPositionDriftMps);
+    }
+
+    public static SemanticDiffEngine CreateSemanticDiffEngine(WireParityProxyOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new SemanticDiffEngine(new DiffOptions
         {
             PositionToleranceMps = options.PositionToleranceMps,
             CriticalPositionDriftMps = options.CriticalPositionDriftMps,
@@ -35,7 +42,6 @@ public sealed class WireParityDiffCoordinator
             CompareSystemMessages = false,
             CompareNearbyStaticNpcs = false
         });
-        _driftDetector = new StateDriftDetector(options.PositionToleranceMps, options.CriticalPositionDriftMps);
     }
 
     public DriftAssessment LatestDrift
@@ -170,7 +176,7 @@ public sealed class WireParityDiffCoordinator
         lock (_sync)
         {
             _driftDetector.Reset();
-            _semanticDiff.ResetStateTracking();
+            _semanticDiff.ResetPositionStateTrackingOnly();
             _latestDrift = new DriftAssessment(false, FindingSeverity.Info, 0, false, 0, "Reset");
         }
     }

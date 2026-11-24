@@ -129,6 +129,13 @@ public sealed class ProxyShadowClientState
             {
                 _dialog = ShadowDialogState.Closed;
             }
+            else if (opcode is ProtocolOpcodes.c2s_npcwalk or ProtocolOpcodes.c2s_npcrun &&
+                     _dialog.IsOpen &&
+                     _dialog.OptionsTcvn3Hex.Count == 0)
+            {
+                // Signboard/stele Say(..., 0) and 0-option Talk popups close locally in game.exe without emitting 0x5F.
+                _dialog = ShadowDialogState.Closed;
+            }
         }
     }
 
@@ -216,6 +223,17 @@ public sealed class ProxyShadowClientState
                     {
                         _npcsById.Clear();
                         _groundObjects.Clear();
+                        if (payload.Length >= 13)
+                        {
+                            int packedRegion = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(9, 4));
+                            int rx = packedRegion & 0xFFFF;
+                            int ry = (packedRegion >> 16) & 0xFFFF;
+                            if (rx > 0 || ry > 0)
+                            {
+                                MpsX = (rx * 512) + 256;
+                                MpsY = (ry * 1024) + 512;
+                            }
+                        }
                     }
 
                     MapId = newMapId;
@@ -447,6 +465,31 @@ public sealed class ProxyShadowClientState
 
                 break;
 
+            case ProtocolOpcodes.s2c_syncpos:
+                if (payload.Length >= SyncNpcPosS2CPacket.Size)
+                {
+                    SyncNpcPosS2CPacket snapPos = MemoryMarshal.Read<SyncNpcPosS2CPacket>(payload);
+                    UpdateEntityPosition(snapPos.NpcId, snapPos.MapMpsX, snapPos.MapMpsY);
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_npcwalk:
+                if (NpcWalkS2CPacket.TryParse(payload, out NpcWalkS2CPacket walkPkt) && walkPkt.NpcId != SelfNpcId)
+                {
+                    UpdateEntityPosition(walkPkt.NpcId, walkPkt.DestMpsX, walkPkt.DestMpsY);
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_npcrun:
+                if (NpcRunS2CPacket.TryParse(payload, out NpcRunS2CPacket runPkt) && runPkt.NpcId != SelfNpcId)
+                {
+                    UpdateEntityPosition(runPkt.NpcId, runPkt.DestMpsX, runPkt.DestMpsY);
+                }
+
+                break;
+
             case ProtocolOpcodes.s2c_npcremove:
                 if (payload.Length >= 5)
                 {
@@ -556,6 +599,26 @@ public sealed class ProxyShadowClientState
         if (_npcsById.TryGetValue(npcId, out VirtualJxNpcEntity? npc))
         {
             _npcsById[npcId] = npc with { Camp = (byte)camp };
+        }
+    }
+
+    private void UpdateEntityPosition(uint npcId, int mpsX, int mpsY)
+    {
+        if (npcId == 0)
+        {
+            return;
+        }
+
+        if (npcId == SelfNpcId)
+        {
+            MpsX = mpsX;
+            MpsY = mpsY;
+            return;
+        }
+
+        if (_npcsById.TryGetValue(npcId, out VirtualJxNpcEntity? existing))
+        {
+            _npcsById[npcId] = existing with { MpsX = mpsX, MpsY = mpsY };
         }
     }
 

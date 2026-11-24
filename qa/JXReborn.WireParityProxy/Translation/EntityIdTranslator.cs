@@ -47,13 +47,26 @@ public sealed class EntityIdTranslator
             return false;
         }
 
+        bool requireAliveFirst = primaryNpc.LifePercent128 > 0;
         VirtualJxNpcEntity? best = FindClosestMatchingNpc(
             shadowNpcs.Values,
             primaryNpc,
-            static (p, c) =>
-                (p.TemplateId > 0 && c.TemplateId == p.TemplateId) ||
-                (!string.IsNullOrWhiteSpace(p.NameUnicode) &&
-                 string.Equals(c.NameUnicode.Trim(), p.NameUnicode.Trim(), StringComparison.Ordinal)));
+            (p, c) =>
+                (!requireAliveFirst || c.LifePercent128 > 0) &&
+                ((p.TemplateId > 0 && c.TemplateId == p.TemplateId) ||
+                 (!string.IsNullOrWhiteSpace(p.NameUnicode) &&
+                  string.Equals(c.NameUnicode.Trim(), p.NameUnicode.Trim(), StringComparison.Ordinal))));
+
+        if (best is null && requireAliveFirst)
+        {
+            best = FindClosestMatchingNpc(
+                shadowNpcs.Values,
+                primaryNpc,
+                static (p, c) =>
+                    (p.TemplateId > 0 && c.TemplateId == p.TemplateId) ||
+                    (!string.IsNullOrWhiteSpace(p.NameUnicode) &&
+                     string.Equals(c.NameUnicode.Trim(), p.NameUnicode.Trim(), StringComparison.Ordinal)));
+        }
 
         if (best is null && primaryNpc.TemplateId == 0 && string.IsNullOrEmpty(primaryNpc.NameUnicode))
         {

@@ -566,6 +566,7 @@ public sealed class WireScenarioRunner
                             _clientPakObstacles,
                             stopRadiusCells: 1,
                             cancellationToken).ConfigureAwait(false);
+                        _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 6, cancellationToken).ConfigureAwait(false);
                     }
 
                     snap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
@@ -588,6 +589,12 @@ public sealed class WireScenarioRunner
                     if (snap.Player.FightMode == 0)
                     {
                         await InvokeGmMenuPathAsync(client, [4, 0], cancellationToken).ConfigureAwait(false);
+                        snap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
+                    }
+
+                    if (snap.Player.Mana < Math.Max(20, snap.Player.ManaMax / 2))
+                    {
+                        await InvokeGmMenuPathAsync(client, [0, 2, 0], cancellationToken).ConfigureAwait(false);
                         snap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
                     }
 
@@ -623,7 +630,7 @@ public sealed class WireScenarioRunner
 
                     uint targetDwId = target.DwId;
                     int initialLife = target.Life;
-                    if (WireNpcDialogCrawler.Distance(snap.Player.MpsX, snap.Player.MpsY, target.MpsX, target.MpsY) > 128.0)
+                    if (WireNpcDialogCrawler.Distance(snap.Player.MpsX, snap.Player.MpsY, target.MpsX, target.MpsY) > 64.0)
                     {
                         await WireNpcDialogCrawler.WalkNearPositionAsync(
                             client,
@@ -632,10 +639,13 @@ public sealed class WireScenarioRunner
                             target.MpsY,
                             _mapCatalog,
                             _clientPakObstacles,
-                            stopRadiusCells: 1,
+                            stopRadiusCells: 0,
                             cancellationToken).ConfigureAwait(false);
+                        snap = await WireNpcDialogCrawler.WaitTicksAsync(client, 6, cancellationToken).ConfigureAwait(false);
                     }
 
+                    long primaryExpBefore = _gameServerProxy.LatestSession?.PrimaryState.Exp ?? 0;
+                    long shadowExpBefore = _gameServerProxy.LatestSession?.ShadowState.Exp ?? 0;
                     bool resolved = false;
                     for (int attempt = 0; attempt < 12; attempt++)
                     {
@@ -655,6 +665,18 @@ public sealed class WireScenarioRunner
                     }
 
                     _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 10, cancellationToken).ConfigureAwait(false);
+                    for (int settle = 0; settle < 6; settle++)
+                    {
+                        WireParitySession? liveSession = _gameServerProxy.LatestSession;
+                        if (liveSession is null ||
+                            liveSession.PrimaryState.Exp <= primaryExpBefore ||
+                            liveSession.ShadowState.Exp > shadowExpBefore)
+                        {
+                            break;
+                        }
+
+                        _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 6, cancellationToken).ConfigureAwait(false);
+                    }
                 }
 
                 break;
@@ -714,6 +736,7 @@ public sealed class WireScenarioRunner
                             _clientPakObstacles,
                             stopRadiusCells: 1,
                             cancellationToken).ConfigureAwait(false);
+                        _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 6, cancellationToken).ConfigureAwait(false);
                     }
 
                     snap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);

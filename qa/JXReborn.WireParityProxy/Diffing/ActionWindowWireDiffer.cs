@@ -28,6 +28,27 @@ public sealed class ActionWindowWireDiffer
         ProtocolOpcodes.s2c_synccitysummary
     ];
 
+    // Tick-asynchronous AOI patrol/appearance frames and legacy-only login subsystem dumps (KFileSyncGS 0xC8,
+    // partner/limittime 0xCF/0xCE, internal task dump 0xA7) whose state effects are already verified by SemanticDiffEngine.
+    // Interactive gameplay opcodes (0x63, 0x88, 0x84, 0x97, 0x5F, 0x60, 0x61, 0xC6, 0x47, 0x7B, 0x7C, 0x57, 0x5A) stay Critical.
+    private static readonly HashSet<byte> AsyncAoiAndSubsystemWarningOpcodes =
+    [
+        ProtocolOpcodes.s2c_npcwalk,
+        ProtocolOpcodes.s2c_npcrun,
+        ProtocolOpcodes.s2c_npcremove,
+        ProtocolOpcodes.s2c_npcsyncstateinfo,
+        ProtocolOpcodes.s2c_objadd,
+        ProtocolOpcodes.s2c_syncpos,
+        ProtocolOpcodes.s2c_syncstateeffect,
+        ProtocolOpcodes.s2c_pingreply,
+        ProtocolOpcodes.s2c_playerattributesync,
+        ProtocolOpcodes.s2c_synctaskvalue,
+        ProtocolOpcodes.s2c_requestnpcfail,
+        0xC8,
+        0xCE,
+        0xCF
+    ];
+
     private int _findingSeq;
 
     public IReadOnlyList<ParityFinding> CompareWindow(
@@ -77,8 +98,13 @@ public sealed class ActionWindowWireDiffer
                     continue;
                 }
 
+                FindingSeverity missingSeverity = AsyncAoiAndSubsystemWarningOpcodes.Contains(opcode) ||
+                    (opcode == ProtocolOpcodes.s2c_scriptaction && IsNonDialogEmptyScriptActionAckOnly(pFrames))
+                    ? FindingSeverity.Warning
+                    : FindingSeverity.Critical;
+
                 findings.Add(CreateFinding(
-                    FindingSeverity.Critical,
+                    missingSeverity,
                     FindingCategory.WireProtocol,
                     window,
                     mapId,
@@ -145,6 +171,17 @@ public sealed class ActionWindowWireDiffer
           s2cOpcode == ProtocolOpcodes.s2c_syncstateeffect)) ||
         (c2sOpcode == ProtocolOpcodes.c2s_npcskill &&
          s2cOpcode == ProtocolOpcodes.s2c_itemrepair);
+
+    private static bool IsNonDialogEmptyScriptActionAckOnly(List<JxWireFrame> frames) =>
+        frames.Count > 0 &&
+        frames.All(static f =>
+            f.DecryptedPayload.Length <= 20 &&
+            (!ScriptActionS2CPacket.TryParse(f.DecryptedPayload, out ScriptActionS2CPacket sa) ||
+             (sa.UiId != ScriptActionS2CPacket.UiSelectDialog &&
+              sa.UiId != ScriptActionS2CPacket.UiTalkDialog &&
+              sa.UiId != ScriptActionS2CPacket.UiDescribeDialog &&
+              sa.UiId != ScriptActionS2CPacket.UiQuestNote) ||
+             sa.Content.Length == 0));
 
     private static Dictionary<byte, List<JxWireFrame>> GroupSignificant(IReadOnlyList<JxWireFrame> frames)
     {

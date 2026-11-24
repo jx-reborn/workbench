@@ -627,11 +627,11 @@
       "value": 50000
     },
     {
-      "name": "LearnCombatSkill14Lv5",
+      "name": "LearnCombatSkill14Lv20",
       "type": "gm_learn_skill",
       "region": "Stage 3 - Set-Cover Town Sweep & Commerce",
       "value": 14,
-      "level": 5
+      "level": 20
     },
     {
       "name": "CrawlHub1TownSquare16Npcs",

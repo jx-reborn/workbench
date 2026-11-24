@@ -171,4 +171,113 @@ public sealed class SemanticDiffEngineTests
         Assert.Equal(FindingSeverity.Critical, r3.Findings[0].Severity);
         Assert.Equal("Inventory[Place3:(4,182,0,Lv1)]", r3.Findings[0].FieldPath);
     }
+
+    [Fact]
+    public void Compare_AfterPositionOnlyDriftResetOrCrossMapSessionHandoff_ShouldNotReEmitCarryOverMoneyDiscrepancy()
+    {
+        // Ground truth: Map 53 mui2-final Steps 1071..1473 where Du Khach random(1000..1500) left L=50400 vs R=50600,
+        // and ResetPositionStateTrackingOnly / cross-map reconnect (legacyBefore=null) previously re-emitted 18 Criticals.
+        var engine = new SemanticDiffEngine();
+        WorldDomSnapshot legacy1 = TestSnapshotFactory.Create(money: 50400, mpsX: 50000, mpsY: 100000);
+        WorldDomSnapshot reborn1 = TestSnapshotFactory.Create(money: 50600, mpsX: 50600, mpsY: 100000);
+
+        StepComparisonResult r1 = engine.Compare(1071, "SellCalligraphy", "C2S 0x5F", legacy1, reborn1);
+        Assert.Contains(r1.Findings, static f => f.FieldPath == "Player.Money" && f.Severity == FindingSeverity.Critical);
+        Assert.Contains(r1.Findings, static f => f.FieldPath == "Player.Mps" && f.Severity == FindingSeverity.Critical);
+
+        // Position resync resets ONLY position tracking, preserving Player.Money carry-over deduplication
+        engine.ResetPositionStateTrackingOnly();
+
+        // Cross-map portal handoff starts a new GS session (legacyBefore: null, rebornBefore: null) with same Money
+        WorldDomSnapshot legacyMap59 = TestSnapshotFactory.Create(mapId: 59, money: 50400, mpsX: 45600, mpsY: 111104);
+        WorldDomSnapshot rebornMap59 = TestSnapshotFactory.Create(mapId: 59, money: 50600, mpsX: 45600, mpsY: 111104);
+        StepComparisonResult r2 = engine.Compare(1350, "CrossMap59Sync", "C2S 0x43", legacyMap59, rebornMap59, legacyBefore: null, rebornBefore: null);
+        Assert.DoesNotContain(r2.Findings, static f => f.FieldPath == "Player.Money");
+    }
+
+    [Fact]
+    public void Compare_WhenLegacyAndRebornSelectDifferentLinesFromSameVerifiedVillagerPool_ShouldDowngradeToWarningButKeepCrossNpcMismatchCritical()
+    {
+        // Ground truth: ambient-npcs.dialogs.json entry 'ba-lang-la-gia-tham-tu' (Step 689/712) & A Phuong Lv1 (Step 81).
+        var engine = new SemanticDiffEngine();
+
+        WorldDomSnapshot legacyLaGia = TestSnapshotFactory.Create(
+            dialog: TestSnapshotFactory.CreateDialog("Ôi! Không ngờ ta lấy phải một người nghèo túng, cả đời phải cực khổ, ta thật hối hận quá!"));
+        WorldDomSnapshot rebornLaGia = TestSnapshotFactory.Create(
+            dialog: TestSnapshotFactory.CreateDialog("Thời thanh xuân ta cũng có kha khá nhan sắc, nếu lúc đó có thể xuất giá vào nhà giàu có, thì cuộc sống có lẽ không còn phải lo nữa. "));
+
+        StepComparisonResult samePoolResult = engine.Compare(689, "LaGiaThamTu", "C2S 0x6E", legacyLaGia, rebornLaGia);
+        Assert.DoesNotContain(samePoolResult.Findings, static f => f.Severity == FindingSeverity.Critical);
+        Assert.Contains(samePoolResult.Findings, static f => f.FieldPath == "Dialog.Prompt.RandomPool" && f.Severity == FindingSeverity.Warning);
+
+        // Cross-NPC wrong prompt MUST remain Critical!
+        WorldDomSnapshot rebornWrongNpc = TestSnapshotFactory.Create(
+            dialog: TestSnapshotFactory.CreateDialog("Nha môn thông cáo"));
+        StepComparisonResult wrongPoolResult = engine.Compare(690, "WrongNpcBug", "C2S 0x6E", legacyLaGia, rebornWrongNpc);
+        Assert.Contains(wrongPoolResult.Findings, static f => f.FieldPath == "Dialog.Prompt" && f.Severity == FindingSeverity.Critical);
+    }
+
+    [Fact]
+    public void Compare_OnDuKhachCalligraphyRandomSilverAndSubsequentEqualSpend_ShouldClassifyPoolAsWarningAndSuppressOffsetSnowball()
+    {
+        // Ground truth: Map 53 mui3-zero-crit Step 786 (ConfirmSellCalligraphy, 100 * (random(0,5) + 10) -> L=+1300, R=+1200)
+        // followed by Step 807 (-100 Lightfoot) and Step 960 (Map 59 -100 Boatman).
+        var engine = new SemanticDiffEngine();
+        WorldDomSnapshot legacyBefore = TestSnapshotFactory.Create(money: 49300);
+        WorldDomSnapshot rebornBefore = TestSnapshotFactory.Create(money: 49300);
+
+        WorldDomSnapshot legacySale = TestSnapshotFactory.Create(
+            money: 50600,
+            dialog: TestSnapshotFactory.CreateDialog(
+                "Nếu ngươi đã đồng ý bán cho ta, thì không được đổi ý đấy! Để xem ta còn bao nhiêu tiền, 5, 10, 15, 20... Tốt rồi, đưa ngươi 1300ngân lượng."));
+        WorldDomSnapshot rebornSale = TestSnapshotFactory.Create(
+            money: 50500,
+            dialog: TestSnapshotFactory.CreateDialog(
+                "Nếu ngươi đã đồng ý bán cho ta, thì không được đổi ý đấy! Để xem ta còn bao nhiêu tiền, 5, 10, 15, 20... Tốt rồi, đưa ngươi 1200ngân lượng."));
+
+        StepComparisonResult saleResult = engine.Compare(786, "ConfirmSellCalligraphy", "C2S 0x5F", legacySale, rebornSale, legacyBefore, rebornBefore);
+        Assert.NotEmpty(saleResult.Findings);
+        Assert.DoesNotContain(saleResult.Findings, static f => f.Severity == FindingSeverity.Critical);
+        Assert.Contains(saleResult.Findings, static f => f.FieldPath == "Dialog.Prompt.RandomPool" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(saleResult.Findings, static f => f.FieldPath == "Player.Money.RandomRewardPool" && f.Severity == FindingSeverity.Warning);
+
+        // Equal -100 spend on Step 807 preserves the +100 RNG offset without firing Critical
+        WorldDomSnapshot legacyEnroll = TestSnapshotFactory.Create(money: 50500);
+        WorldDomSnapshot rebornEnroll = TestSnapshotFactory.Create(money: 50400);
+        StepComparisonResult enrollResult = engine.Compare(807, "AcceptLightfootPay100Silver", "C2S 0x5F", legacyEnroll, rebornEnroll, legacySale, rebornSale);
+        Assert.DoesNotContain(enrollResult.Findings, static f => f.Severity == FindingSeverity.Critical);
+
+        // Genuine money bug (Reborn deducts -200 instead of -100 -> offset changes from +100 to +200) MUST fire Critical!
+        WorldDomSnapshot legacyBoat = TestSnapshotFactory.Create(mapId: 59, money: 50400);
+        WorldDomSnapshot rebornBugBoat = TestSnapshotFactory.Create(mapId: 59, money: 50200);
+        StepComparisonResult bugResult = engine.Compare(960, "WrongBoatFeeBug", "C2S 0x5F", legacyBoat, rebornBugBoat, legacyEnroll, rebornEnroll);
+        Assert.Contains(bugResult.Findings, static f => f.FieldPath == "Player.Money" && f.Severity == FindingSeverity.Critical);
+    }
+
+    [Fact]
+    public void Compare_OnAmbientMultiLevelFieldMonsterKill_ShouldClassifyPositiveScaledExpVarianceAsWarningWhileKeepingZeroKillCritical()
+    {
+        // Ground truth: Map 53 mui3-zero-crit Step 902 (wandering Huou Dom Lv1..5 -> L=+22 EXP vs R=+38 EXP at Player Lv20).
+        var engine = new SemanticDiffEngine();
+        WorldDomSnapshot legacyBefore = TestSnapshotFactory.Create(level: 20, exp: 3);
+        WorldDomSnapshot rebornBefore = TestSnapshotFactory.Create(level: 20, exp: 3);
+
+        // 1. If Reborn awards 0 EXP when Legacy awards +22 EXP -> MUST stay Critical!
+        WorldDomSnapshot legacyKill = TestSnapshotFactory.Create(level: 20, exp: 25);
+        WorldDomSnapshot rebornNoKill = TestSnapshotFactory.Create(level: 20, exp: 3);
+        StepComparisonResult missedKill = engine.Compare(902, "MissedKillBug", "C2S 0x4D", legacyKill, rebornNoKill, legacyBefore, rebornBefore);
+        Assert.Contains(missedKill.Findings, static f => f.FieldPath == "Player.Exp" && f.Severity == FindingSeverity.Critical);
+
+        // 2. When BOTH award positive scaled starter monster EXP (Lv2 +22 vs Lv3 +38) -> Warning + offset tracked
+        var cleanEngine = new SemanticDiffEngine();
+        WorldDomSnapshot rebornLv3Kill = TestSnapshotFactory.Create(level: 20, exp: 41);
+        StepComparisonResult varianceResult = cleanEngine.Compare(902, "DefeatAmbientSpottedDeer", "C2S 0x4D", legacyKill, rebornLv3Kill, legacyBefore, rebornBefore);
+        Assert.NotEmpty(varianceResult.Findings);
+        Assert.DoesNotContain(varianceResult.Findings, static f => f.Severity == FindingSeverity.Critical);
+        Assert.Contains(varianceResult.Findings, static f => f.FieldPath == "Player.Exp.AmbientCombatVariance" && f.Severity == FindingSeverity.Warning);
+
+        // Subsequent non-combat step preserves the -16 EXP offset without snowballing
+        StepComparisonResult nextStep = cleanEngine.Compare(903, "AfterKillWalk", "C2S 0x4B", legacyKill, rebornLv3Kill, legacyKill, rebornLv3Kill);
+        Assert.DoesNotContain(nextStep.Findings, static f => f.Severity == FindingSeverity.Critical);
+    }
 }

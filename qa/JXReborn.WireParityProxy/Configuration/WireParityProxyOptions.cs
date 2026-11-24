@@ -39,7 +39,7 @@ public sealed class WireParityProxyOptions
 
     public int HandoffTicketTtlSeconds { get; set; } = 60;
 
-    public int ActionWindowMs { get; set; } = 350;
+    public int ActionWindowMs { get; set; } = 480;
 
     public int PositionToleranceMps { get; set; } = 64;
 

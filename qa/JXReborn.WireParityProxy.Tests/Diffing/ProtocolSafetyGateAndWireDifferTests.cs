@@ -294,4 +294,58 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
         Assert.Null(finding);
         Assert.Equal(0, gate.ViolationCount);
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_OnAsyncAoiAndLegacyLoginSubsystems_ShouldClassifyMissingAsWarningWhileKeepingGameplayOpcodesCritical()
+    {
+        // Ground truth: Map 53 mui2-final async AOI opcodes (0x50, 0x4F, 0x7A, 0x64, 0x51, 0x99) & login subsystem syncs (0xC8, 0xCF, 0xCE, 0xA7)
+        // must downgrade to Warning, while interactive gameplay opcodes (0x63, 0x88, 0x84, 0x97, 0x61, 0xC6) remain strictly Critical.
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var c2s = new JxWireFrame(ProtocolOpcodes.c2s_syncend, [ProtocolOpcodes.c2s_syncend, 1, 0, 0, 0, 2, 0, 0, 0], now, 1);
+        var window = new WireActionWindow(1, "Step001_C2S_0x43", c2s, c2s.DecryptedPayload, false, null);
+
+        byte[] realSignboard0x63 = ScriptActionS2CPacket.CreateSayPayload("Nha môn thông cáo", []);
+        byte[] emptyAck0x63 = new byte[20];
+        emptyAck0x63[0] = ProtocolOpcodes.s2c_scriptaction;
+        BinaryPrimitives.WriteUInt16LittleEndian(emptyAck0x63.AsSpan(1, 2), 19);
+        emptyAck0x63[4] = 99; // non-dialog subsystem UI ack alongside 0xA7 login burst (Step 4 ground truth)
+
+        var primaryS2c = new List<JxWireFrame>
+        {
+            new(ProtocolOpcodes.s2c_npcwalk, new byte[13], now, 1),
+            new(ProtocolOpcodes.s2c_npcremove, new byte[5], now, 2),
+            new(ProtocolOpcodes.s2c_npcsyncstateinfo, new byte[11], now, 3),
+            new(ProtocolOpcodes.s2c_objadd, new byte[35], now, 4),
+            new(ProtocolOpcodes.s2c_synctaskvalue, new byte[9], now, 5),
+            new(ProtocolOpcodes.s2c_requestnpcfail, new byte[5], now, 6),
+            new(0xC8, new byte[1027], now, 7),
+            new(ProtocolOpcodes.s2c_scriptaction, realSignboard0x63, now, 8),
+            new(ProtocolOpcodes.s2c_openstorebox, new byte[3], now, 9),
+        };
+
+        IReadOnlyList<ParityFinding> findings = differ.CompareWindow(window, primaryS2c, shadowS2c: [], mapId: 53, playerMpsX: 52032, playerMpsY: 101696);
+        Assert.NotEmpty(findings);
+
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x50]" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x4F]" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x7A]" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x64]" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0xA7]" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x8A]" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0xC8]" && f.Severity == FindingSeverity.Warning);
+
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x63]" && f.Severity == FindingSeverity.Critical);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x88]" && f.Severity == FindingSeverity.Critical);
+
+        // Step 4 ground truth: 20-byte non-dialog 0x63 ack alongside 0xA7 login dump downgrades to Warning
+        IReadOnlyList<ParityFinding> emptyAckFindings = differ.CompareWindow(
+            window,
+            primaryS2c: [new(ProtocolOpcodes.s2c_scriptaction, emptyAck0x63, now, 10)],
+            shadowS2c: [],
+            mapId: 53,
+            playerMpsX: 51984,
+            playerMpsY: 101681);
+        Assert.Contains(emptyAckFindings, static f => f.FieldPath == "S2C.Missing[0x63]" && f.Severity == FindingSeverity.Warning);
+    }
 }
