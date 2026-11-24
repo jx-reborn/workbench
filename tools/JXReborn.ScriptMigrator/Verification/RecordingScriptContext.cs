@@ -242,6 +242,9 @@ public sealed class RecordingScriptContext :
         _pendingOptions = copied.Length > 0 ? copied : null;
     }
 
+    public void SayByStringId(int stringId, params ReadOnlySpan<DialogOption> options) =>
+        Say($"STR_ID:{stringId}", options);
+
     public void Describe(string richHeaderAndPromptUtf8, params ReadOnlySpan<DialogOption> options) =>
         Say(richHeaderAndPromptUtf8, options);
 
@@ -250,6 +253,9 @@ public sealed class RecordingScriptContext :
         Trace.Events.Add(ScriptEffectTrace.FormatTalkEvent(pagesUtf8));
         _pendingTalkContinuation = onCompleted;
     }
+
+    public void TalkByStringIds(IReadOnlyList<int> stringIds, Func<IScriptDialogContext, ValueTask>? onCompleted = null) =>
+        Talk(stringIds.Select(static id => $"STR_ID:{id}").ToArray(), onCompleted);
 
     public void SendSystemMessage(string messageUtf8) =>
         Trace.Events.Add($"MSG(\"{ScriptEffectTrace.EscapeEventText(messageUtf8)}\")");

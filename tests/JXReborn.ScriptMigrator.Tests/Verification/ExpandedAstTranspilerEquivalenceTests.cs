@@ -206,4 +206,60 @@ public sealed class ExpandedAstTranspilerEquivalenceTests
             Assert.Equal(luaXie.ToCanonicalString(), csXieCtx.Trace.ToCanonicalString());
         }
     }
+
+    [Fact]
+    public void Transpile_RealThamCuuNumericStringIdDialogScript_ShouldValidateAndEmitSayByStringIdTalkByStringIdsAndStoreBoxOps()
+    {
+        string legacyBin = LegacyServerTestPaths.FindLegacyBinRoot();
+        string server1Dir = Path.Combine(legacyBin, "server1");
+        string packRoot = LegacyServerTestPaths.FindPackTieuDaoTuRoot();
+
+        ILegacyServerSource source = LegacyServerSourceFactory.Create(server1Dir);
+        PackItemCatalogIndex itemIndex = PackItemCatalogIndex.Load(packRoot);
+        var parser = new Lua4AstParser();
+        var linker = new LuaIncludeLinker(source, parser);
+        var validator = new LuaScriptSemanticValidator(itemIndex.EventItemCodeByDetailId, itemIndex);
+        var emitter = new LuaCSharpCodeEmitter(itemIndex.EventItemCodeByDetailId, itemIndex);
+
+        ScriptInventoryEntry entry = CachedManifest.Value.Entries.First(static e =>
+            e.Utf8DisplayPath.Replace('\\', '/').EndsWith("两湖区/巴陵县/npc/巴陵县_路人10商人对话.lua", StringComparison.OrdinalIgnoreCase));
+        string fullPath = Path.Combine(legacyBin, entry.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+        LuaParseResult parsed = parser.Parse(File.ReadAllBytes(fullPath));
+        Assert.True(parsed.IsSuccess, $"Parse failed: {parsed.FailureReason}");
+
+        LuaLinkResult linked = linker.LinkAndTreeShake(entry.CanonicalScriptPath, parsed.Program!, "main");
+        Assert.True(linked.IsSuccess, $"Link failed: {string.Join(", ", linked.BlockingReasons)}");
+
+        string utf8ScriptPath = "\\" + entry.Utf8DisplayPath.Replace('/', '\\')["server1\\".Length..];
+        (CompiledLuaScript? compiled, IReadOnlyList<string> reasons) = validator.Validate(
+            entry,
+            utf8ScriptPath,
+            GeneratedScriptKind.Npc,
+            linked.LinkedProgram!);
+
+        Assert.Empty(reasons);
+        Assert.NotNull(compiled);
+
+        string tempDir = Path.Combine(Path.GetTempPath(), "jxreborn-ast-thamcuu-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            IReadOnlyList<string> written = emitter.EmitAll(tempDir, [compiled]);
+            Assert.NotEmpty(written);
+
+            string npcCode = File.ReadAllText(Path.Combine(tempDir, "GeneratedNpcDialogScript.cs"));
+            Assert.Contains("context.SayByStringId(11256,", npcCode, StringComparison.Ordinal);
+            Assert.Contains("context.TalkByStringIds([11260],", npcCode, StringComparison.Ordinal);
+            Assert.Contains("context.TalkByStringIds([11261],", npcCode, StringComparison.Ordinal);
+            Assert.Contains("context.IsExpandableBoxUnlocked(", npcCode, StringComparison.Ordinal);
+            Assert.Contains("context.UnlockExpandableBox(", npcCode, StringComparison.Ordinal);
+            Assert.Contains("context.AddNote(", npcCode, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
 }

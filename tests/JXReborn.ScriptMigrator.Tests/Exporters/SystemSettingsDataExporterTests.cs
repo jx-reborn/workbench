@@ -14,7 +14,7 @@ namespace JXReborn.ScriptMigrator.Tests.Exporters;
 public sealed class SystemSettingsDataExporterTests
 {
     [Fact]
-    public void ExportCoreSystemSettings_FromRealLegacyServer_ShouldExportAllSixteenTablesWithoutCommentKeysAndZeroUncoveredRootSettings()
+    public void ExportCoreSystemSettings_FromRealLegacyServer_ShouldExportAllSeventeenTablesWithoutCommentKeysAndZeroUncoveredRootSettings()
     {
         string legacyBin = LegacyServerTestPaths.FindLegacyBinRoot();
         string packRoot = LegacyServerTestPaths.FindPackTieuDaoTuRoot();
@@ -26,7 +26,7 @@ public sealed class SystemSettingsDataExporterTests
             var exporter = new SystemSettingsDataExporter();
             int count = exporter.ExportCoreSystemSettings(source, tempDataDir);
 
-            Assert.Equal(16, count);
+            Assert.Equal(17, count);
 
             string sysDir = Path.Combine(tempDataDir, "system");
             string[] expectedFiles =
@@ -47,6 +47,7 @@ public sealed class SystemSettingsDataExporterTests
                 "lottery-settings.json",
                 "fatigue-settings.json",
                 "market-and-dialog-permits.json",
+                "string-resources.json",
             ];
             Assert.NotEmpty(expectedFiles);
             foreach (string f in expectedFiles)
@@ -134,7 +135,32 @@ public sealed class SystemSettingsDataExporterTests
                 Assert.Equal(60, permittedNpcs[0].GetProperty("mapId").GetInt32());
             }
 
-            // 9. SettingsAndMapsAuditor must report ZERO uncovered root settings files
+            // 9. string-resources.json (server1/settings/stringresource.txt -> exact SHA-256 + numeric IDs 11256, 11260, 11261)
+            using (JsonDocument strDoc = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(sysDir, "string-resources.json"))))
+            {
+                AssertExpectedSha256(legacyBin, "stringresource.txt", strDoc.RootElement.GetProperty("sourceSha256").GetString());
+                JsonElement entries = strDoc.RootElement.GetProperty("entries");
+                Assert.True(entries.GetArrayLength() >= 6000, $"Expected >= 6000 string resource rows, got {entries.GetArrayLength()}.");
+
+                string? s11256 = null;
+                string? s11260 = null;
+                string? s11261 = null;
+                foreach (JsonElement row in entries.EnumerateArray())
+                {
+                    int id = row.GetProperty("id").GetInt32();
+                    if (id == 11256) s11256 = row.GetProperty("text").GetString();
+                    else if (id == 11260) s11260 = row.GetProperty("text").GetString();
+                    else if (id == 11261) s11261 = row.GetProperty("text").GetString();
+                }
+
+                Assert.Equal(
+                    "Cái rương này được làm từ san hô dưới biển sâu, có thể chứa nhiều đồ đạc, hơn nữa là nơi cất giữ đồ an toàn. Vì thế giá cả hơi đắt một chút. Mỗi cái giá <color=yellow>2 Kim Nguyên bảo<color>.",
+                    s11256);
+                Assert.Equal("Khuyên tai đã gói lại rồi! Xin giữ lấy!", s11260);
+                Assert.Equal("Khách quan chưa đủ tiền! Khi nào có đủ tiền hãy quay lại. ", s11261);
+            }
+
+            // 10. SettingsAndMapsAuditor must report ZERO uncovered root settings files
             var auditor = new SettingsAndMapsAuditor();
             SettingsAuditReport auditReport = auditor.Audit(legacyBin, packRoot);
             Assert.Empty(auditReport.UncoveredRootSettingsFiles);

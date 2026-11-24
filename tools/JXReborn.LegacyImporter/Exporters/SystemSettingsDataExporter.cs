@@ -116,6 +116,12 @@ public sealed class SystemSettingsDataExporter
             exportedFiles++;
         }
 
+        var stringTableExporter = new StringTableDataExporter();
+        if (stringTableExporter.ExportStringResources(source, Path.Combine(systemDir, "string-resources.json")))
+        {
+            exportedFiles++;
+        }
+
         return exportedFiles;
     }
 

@@ -1646,6 +1646,7 @@ public sealed class LuaScriptSemanticValidator
 
                 // Zero-arg String getters
                 case "GetName":
+                case "GetAccount":
                 case "GetFaction":
                 case "GetLastAddFaction":
                     RequireArgCount(0);
@@ -1656,6 +1657,7 @@ public sealed class LuaScriptSemanticValidator
                 case "GetTaskTemp":
                 case "GetGlbValue":
                 case "HaveMagic":
+                case "CheckStoreBoxState":
                 case "SubWorldIdx2ID":
                 case "SubWorldID2Idx":
                     if (RequireArgCount(1) && !IsIntCompatible(ArgType(0)))
@@ -2081,9 +2083,10 @@ public sealed class LuaScriptSemanticValidator
 
                 // 0-arg statements
                 case "RestoreCamp":
+                case "SaveNow":
                     if (!isStatement)
                     {
-                        reasons.Add($"statement-used-as-expr:RestoreCamp@line{call.Line}");
+                        reasons.Add($"statement-used-as-expr:{api}@line{call.Line}");
                     }
 
                     RequireArgCount(0);
@@ -2103,6 +2106,7 @@ public sealed class LuaScriptSemanticValidator
                 case "SetPK":
                 case "DelMagic":
                 case "SyncTaskValue":
+                case "OpenStoreBox":
                     if (!isStatement)
                     {
                         reasons.Add($"statement-used-as-expr:{api}@line{call.Line}");
@@ -2174,6 +2178,8 @@ public sealed class LuaScriptSemanticValidator
                     return LuaValueType.Void;
 
                 case "WriteLog":
+                case "WriteGoldLog":
+                case "UseSilver":
                 case "print":
                     if (!isStatement)
                     {
@@ -2479,13 +2485,28 @@ public sealed class LuaScriptSemanticValidator
             reasons.Add($"dynamic-talk-callback@line{call.Line}");
         }
 
+        bool anyIntPage = false;
+        bool anyStringPage = false;
         for (int i = 2; i < call.Arguments.Count; i++)
         {
             LuaValueType pt = ValidateExpr(call.Arguments[i], kind, functionsByName, functionParamTypes, topLevelConsts, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
-            if (pt is not (LuaValueType.String or LuaValueType.Int or LuaValueType.NullableInt))
+            if (pt == LuaValueType.String)
+            {
+                anyStringPage = true;
+            }
+            else if (pt is LuaValueType.Int or LuaValueType.NullableInt)
+            {
+                anyIntPage = true;
+            }
+            else
             {
                 reasons.Add($"invalid-talk-page-type:{pt}@line{call.Line}");
             }
+        }
+
+        if (anyIntPage && anyStringPage)
+        {
+            reasons.Add($"mixed-talk-page-types@line{call.Line}");
         }
     }
 
@@ -2516,10 +2537,9 @@ public sealed class LuaScriptSemanticValidator
             return;
         }
 
-        // Note: numeric string-table ID prompts `Say(10713, ...)` in old unlocalized scripts cannot be resolved without client stringtable
-        if (promptType != LuaValueType.String && call.Arguments[0] is LuaNumberExpr)
+        if (call.CalleeName == "Describe" && promptType != LuaValueType.String)
         {
-            reasons.Add($"numeric-stringtable-say-prompt@line{call.Line}");
+            reasons.Add($"invalid-describe-prompt-type:{promptType}@line{call.Line}");
             return;
         }
 
@@ -2534,11 +2554,12 @@ public sealed class LuaScriptSemanticValidator
             return;
         }
 
-        // Say(prompt, count, opt1, opt2, ...) — supports both constant strings and runtime String expressions (e.g. format(...))!
+        // Say(prompt, count, opt1, opt2, ...) — supports constant or runtime String options; LuaSelectUI reads first `count` options when trailing extra args exist
         if (TryEvalConstantInt(call.Arguments[1], out int inlineCount) &&
             inlineCount > 0 &&
-            call.Arguments.Count == 2 + inlineCount)
+            call.Arguments.Count >= 2 + inlineCount)
         {
+            int checkEnd = 2 + inlineCount;
             for (int i = 2; i < call.Arguments.Count; i++)
             {
                 LuaValueType ot = ValidateExpr(call.Arguments[i], kind, functionsByName, functionParamTypes, topLevelConsts, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
@@ -2548,7 +2569,7 @@ public sealed class LuaScriptSemanticValidator
                     return;
                 }
 
-                if (TryEvalConstantString(call.Arguments[i], out string? optStr) && optStr is not null)
+                if (i < checkEnd && TryEvalConstantString(call.Arguments[i], out string? optStr) && optStr is not null)
                 {
                     ValidateSayOptionString(optStr, functionsByName, reasons);
                 }

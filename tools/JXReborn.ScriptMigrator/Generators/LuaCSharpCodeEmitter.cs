@@ -1886,12 +1886,18 @@ public static class GeneratedLuaRuntime
                 sb.AppendLine($"{indent}_ = {EInt(0)};");
                 break;
             case "WriteLog":
+            case "WriteGoldLog":
+            case "UseSilver":
+            case "SaveNow":
             case "print":
                 for (int i = 0; i < args.Count; i++)
                 {
                     sb.AppendLine($"{indent}_ = {E(i)};");
                 }
 
+                break;
+            case "OpenStoreBox":
+                sb.AppendLine($"{indent}context.UnlockExpandableBox((byte)({EInt(0)}));");
                 break;
             case "Msg2Player":
                 sb.AppendLine($"{indent}context.SendSystemMessage({EStr(0)});");
@@ -2083,12 +2089,6 @@ public static class GeneratedLuaRuntime
                 break;
             case "Talk":
             {
-                var pages = new List<string>(args.Count - 2);
-                for (int i = 2; i < args.Count; i++)
-                {
-                    pages.Add(EStr(i));
-                }
-
                 string cbDelegate = "null";
                 if (args[1] is LuaStringExpr cbStr)
                 {
@@ -2099,14 +2099,35 @@ public static class GeneratedLuaRuntime
                     }
                 }
 
+                LuaValueType firstPageType = InferExpressionType(args[2], script, fnScopeTypes);
+                if (firstPageType is LuaValueType.Int or LuaValueType.NullableInt)
+                {
+                    var intPages = new List<string>(args.Count - 2);
+                    for (int i = 2; i < args.Count; i++)
+                    {
+                        intPages.Add(EInt(i));
+                    }
+
+                    sb.AppendLine($"{indent}context.TalkByStringIds([{string.Join(", ", intPages)}], {cbDelegate});");
+                    break;
+                }
+
+                var pages = new List<string>(args.Count - 2);
+                for (int i = 2; i < args.Count; i++)
+                {
+                    pages.Add(EStr(i));
+                }
+
                 sb.AppendLine($"{indent}context.Talk([{string.Join(", ", pages)}], {cbDelegate});");
                 break;
             }
             case "Say":
             case "Describe":
             {
-                string hostMethod = api == "Describe" ? "Describe" : "Say";
-                string prompt = EStr(0);
+                LuaValueType promptType = InferExpressionType(args[0], script, fnScopeTypes);
+                bool isSayByStringId = api == "Say" && promptType is LuaValueType.Int or LuaValueType.NullableInt;
+                string hostMethod = isSayByStringId ? "SayByStringId" : (api == "Describe" ? "Describe" : "Say");
+                string prompt = isSayByStringId ? EInt(0) : EStr(0);
                 if (args.Count == 2)
                 {
                     sb.AppendLine($"{indent}context.{hostMethod}({prompt});");
@@ -2142,8 +2163,16 @@ public static class GeneratedLuaRuntime
                     }
                 }
 
-                var inlineOpts = new List<string>(args.Count - 2);
-                for (int i = 2; i < args.Count; i++)
+                int maxOptArgEnd = args.Count;
+                if (LuaScriptSemanticValidator.TryEvalConstantInt(args[1], constExprMap, out int declaredOptCount) &&
+                    declaredOptCount > 0 &&
+                    2 + declaredOptCount < args.Count)
+                {
+                    maxOptArgEnd = 2 + declaredOptCount;
+                }
+
+                var inlineOpts = new List<string>(maxOptArgEnd - 2);
+                for (int i = 2; i < maxOptArgEnd; i++)
                 {
                     if (LuaScriptSemanticValidator.TryEvalConstantString(args[i], out string? constOpt) && constOpt is not null)
                     {
@@ -2603,6 +2632,7 @@ public static class GeneratedLuaRuntime
             case "SubWorldIdx2ID": return $"({EInt(0)})";
             case "SubWorldID2Idx": return $"(({EInt(0)}) > 0 ? ({EInt(0)}) : -1)";
             case "GetName": return "context.RoleNameUtf8";
+            case "GetAccount": return "string.Empty";
             case "GetNpcName": return $"(_ = {EInt(0)}, context.SourceNpcNameUtf8 ?? string.Empty).Item2";
             case "NpcName2Replace": return EStr(0);
             case "GetFaction": return "GeneratedLuaRuntime.GetFactionName(context.CurrentFactionId)";
@@ -2611,6 +2641,7 @@ public static class GeneratedLuaRuntime
             case "GetTaskTemp": return $"context.GetTempTask((ushort)({EInt(0)}))";
             case "GetGlbValue": return $"context.GetGlobalValue({EInt(0)})";
             case "HaveMagic": return $"context.GetLearnedSkillLevel({EInt(0)})";
+            case "CheckStoreBoxState": return $"(context.IsExpandableBoxUnlocked((byte)({EInt(0)})) ? 1 : 0)";
             case "Pay": return $"(context.TryPayMoney({EInt(0)}) ? 1 : 0)";
             case "GetByte": return $"GeneratedLuaRuntime.GetByte({EInt(0)}, {EInt(1)})";
             case "SetByte": return $"GeneratedLuaRuntime.SetByte({EInt(0)}, {EInt(1)}, {EInt(2)})";

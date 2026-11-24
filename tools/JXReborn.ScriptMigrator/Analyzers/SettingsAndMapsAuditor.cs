@@ -67,6 +67,7 @@ public sealed class SettingsAndMapsAuditor
         "auction.ini",
         "stallscript_permit.ini",
         "permitdialognpc_info.txt",
+        "stringresource.txt",
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -80,7 +81,6 @@ public sealed class SettingsAndMapsAuditor
         ["autopathfindroutes.txt"] = "clientVisualAudioUiOnly",
         ["portrait.ini"] = "clientVisualAudioUiOnly",
         ["soundlist.txt"] = "clientVisualAudioUiOnly",
-        ["stringresource.txt"] = "clientVisualAudioUiOnly",
         ["×´Ì¬Óë¹âÐ§Í¼ÐÎ¶ÔÕÕ±í.txt"] = "clientVisualAudioUiOnly",
         ["状态与光效图形对照表.txt"] = "clientVisualAudioUiOnly",
 

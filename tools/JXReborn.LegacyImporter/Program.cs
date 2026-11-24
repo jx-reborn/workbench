@@ -28,6 +28,7 @@ public static class Program
         string? outputFilePath = null;
         bool exportAllMaps = false;
         bool compileOnly = false;
+        bool systemSettingsOnly = false;
         bool validateSchemas = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -54,6 +55,9 @@ public static class Program
                     break;
                 case "--compile-only":
                     compileOnly = true;
+                    break;
+                case "--system-settings-only":
+                    systemSettingsOnly = true;
                     break;
                 case "--validate-schemas":
                     validateSchemas = true;
@@ -92,6 +96,14 @@ public static class Program
         string resolvedSource = LegacyServerSourceFactory.ResolveDefaultSourcePath(explicitSource, artifactsDir);
         ILegacyServerSource source = LegacyServerSourceFactory.Create(resolvedSource);
         Console.WriteLine($"[JXReborn.LegacyImporter] Source: {source.DisplayName} -> '{dataDir}' (allMaps={exportAllMaps})...");
+
+        if (systemSettingsOnly)
+        {
+            var onlySysExporter = new SystemSettingsDataExporter();
+            int exportedCount = onlySysExporter.ExportCoreSystemSettings(source, dataDir);
+            Console.WriteLine($"  CoreSystemSettings: {exportedCount} files -> data/system/");
+            return 0;
+        }
 
         var registry = new ExportCatalogRegistry();
 
