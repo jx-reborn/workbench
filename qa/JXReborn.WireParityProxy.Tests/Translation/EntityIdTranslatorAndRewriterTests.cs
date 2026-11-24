@@ -218,6 +218,134 @@ public sealed class EntityIdTranslatorAndRewriterTests
         Assert.Equal(42u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
     }
 
+    [Fact]
+    public void RewriteForShadow_OnStaticObjMouseClickWhenPrimaryHasOnly0x65AndShadowHas0x64Coords_ShouldSelectShadowObjectNearPlayerInsteadOfWrongFirstSeenOrder()
+    {
+        // Ground truth: Map 53 Step 43 Noticeboard 1 at (51824, 100780) vs StorageBox 1 at (52112, 101648).
+        // Primary only emits 0x65 (HasCoords=false), while Shadow emits 0x64+0x65 (HasCoords=true) in different AOI region order.
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        // Hydrate player self position standing next to Noticeboard 1 at (51830, 100790)
+        primary.ApplyS2c(BuildSyncSelfPlayerNpcPayload(npcId: 100u, mpsX: 51830, mpsY: 100790), now);
+        shadow.ApplyS2c(BuildSyncSelfPlayerNpcPayload(npcId: 200u, mpsX: 51840, mpsY: 100795), now);
+
+        // Primary saw StorageBox (1132) first, then Noticeboard 1 (1133) via 0x65 (no coords)
+        primary.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1132), now);
+        primary.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1133), now);
+
+        // Shadow saw Noticeboard 1 (objId=1 at 51824, 100780) first, then StorageBox (objId=2 at 52112, 101648) via 0x64
+        shadow.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 1, dataId: 4, mpsX: 51824, mpsY: 100780, moneyNum: 0, itemId: 0, state: 0, itemWidth: 0, genre: 0, itemHeight: 0, colorId: 0, flag: 0, nameUtf8: string.Empty), now);
+        shadow.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 1), now);
+        shadow.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 2, dataId: 1, mpsX: 52112, mpsY: 101648, moneyNum: 0, itemId: 0, state: 0, itemWidth: 0, genre: 0, itemHeight: 0, colorId: 0, flag: 0, nameUtf8: string.Empty), now);
+        shadow.ApplyS2c(BuildObjSyncStatePayload(state: 0, objId: 2), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] mouseClickC2s = new byte[ObjMouseClickC2SPacket.PayloadSize];
+        new ObjMouseClickC2SPacket(RegionId: 0x00620065u, ObjId: 1133).WritePayload(mouseClickC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(mouseClickC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(result.ShadowPayload.AsSpan(5, 4)));
+    }
+
+    [Fact]
+    public void RewriteForShadow_OnWanderingMonsterBeyond256Mps_ShouldTranslateWithinMonsterPatrolRadius()
+    {
+        // Ground truth: Map 53 Step 1193 wandering monster (NpcId=17040, Camp=5) patrolling > 256 mps apart on Primary vs Shadow.
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncMonsterPayload(npcId: 17040u, templateId: 408, mpsX: 48600, mpsY: 94700, name: "HuouDom"), now);
+        shadow.ApplyS2c(BuildSyncMonsterPayload(npcId: 5020u, templateId: 408, mpsX: 49020, mpsY: 94880, name: "HuouDom"), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] stateReq = new byte[5];
+        stateReq[0] = ProtocolOpcodes.c2s_npcstaterequest;
+        BinaryPrimitives.WriteUInt32LittleEndian(stateReq.AsSpan(1, 4), 17040u);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(stateReq, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(5020u, BinaryPrimitives.ReadUInt32LittleEndian(result.ShadowPayload.AsSpan(1, 4)));
+    }
+
+    [Fact]
+    public void RewriteForShadow_OnStaticObjMouseClickWhenPrimarySentZero0x65Packets_ShouldStillSelectShadowObjectNearPlayer()
+    {
+        // Ground truth: Map 53 mui2-verify Step031_C2S_0x72 (StorageBox 1 at 52112, 101648) & Step042_C2S_0x72 (Noticeboard 1 at 51824, 100780).
+        // game.exe loads default State==0 static objects from client Region_C.dat at map load, so Primary (legacy-linux) emits 0x00 0x65 packets
+        // before the player clicks StorageBox 1 / Noticeboard 1, while Shadow (reborn-server) already emitted 0x64 (HasCoords=true) at Step 5.
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncSelfPlayerNpcPayload(npcId: 100u, mpsX: 52100, mpsY: 101640), now);
+        shadow.ApplyS2c(BuildSyncSelfPlayerNpcPayload(npcId: 200u, mpsX: 52100, mpsY: 101640), now);
+
+        shadow.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 1, dataId: 4, mpsX: 51824, mpsY: 100780, moneyNum: 0, itemId: 0, state: 0, itemWidth: 0, genre: 0, itemHeight: 0, colorId: 0, flag: 0, nameUtf8: string.Empty), now);
+        shadow.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 2, dataId: 1, mpsX: 52112, mpsY: 101648, moneyNum: 0, itemId: 0, state: 0, itemWidth: 0, genre: 0, itemHeight: 0, colorId: 0, flag: 0, nameUtf8: string.Empty), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+        byte[] mouseClickC2s = new byte[ObjMouseClickC2SPacket.PayloadSize];
+        new ObjMouseClickC2SPacket(RegionId: 0x00630065u, ObjId: 1132).WritePayload(mouseClickC2s);
+
+        C2sRewriteResult result = rewriter.RewriteForShadow(mouseClickC2s, 1u, 2u);
+
+        Assert.True(result.WasModified);
+        Assert.Null(result.TranslationMissReason);
+        Assert.Equal(2, BinaryPrimitives.ReadInt32LittleEndian(result.ShadowPayload.AsSpan(5, 4)));
+    }
+
+    private static byte[] BuildSyncSelfPlayerNpcPayload(uint npcId, int mpsX, int mpsY)
+    {
+        var pkt = new SyncNpcFullS2CPacket(
+            Camp: 0,
+            Series: ElementSeries.Metal,
+            LifePercent: 128,
+            MapMpsY: mpsY,
+            DoingState: 1,
+            StateInfo: 0,
+            MapMpsX: mpsX,
+            MenuState: 0,
+            GoldType: 0,
+            Kind: EntityKind.Player,
+            NpcId: npcId,
+            MasterId: -1,
+            TemplateId: 0,
+            Level: 20,
+            RankFfId: 0,
+            NameUnicode: "Tester");
+        return pkt.ToPayloadBytes();
+    }
+
+    private static byte[] BuildSyncMonsterPayload(uint npcId, ushort templateId, int mpsX, int mpsY, string name)
+    {
+        var pkt = new SyncNpcFullS2CPacket(
+            Camp: 5,
+            Series: ElementSeries.Wood,
+            LifePercent: 128,
+            MapMpsY: mpsY,
+            DoingState: 1,
+            StateInfo: 0,
+            MapMpsX: mpsX,
+            MenuState: 0,
+            GoldType: 0,
+            Kind: EntityKind.Monster,
+            NpcId: npcId,
+            MasterId: -1,
+            TemplateId: templateId,
+            Level: 2,
+            RankFfId: 0,
+            NameUnicode: name);
+        return pkt.ToPayloadBytes();
+    }
+
     private static byte[] BuildSyncNpcPayload(uint npcId, ushort templateId, int mpsX, int mpsY, string name)
     {
         var pkt = new SyncNpcFullS2CPacket(

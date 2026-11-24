@@ -555,7 +555,7 @@ public sealed class WireScenarioRunner
                         throw new InvalidOperationException($"NPC '{targetName}' not found on Map {currentMap} near ({step.TileX},{step.TileY}).");
                     }
 
-                    if (WireNpcDialogCrawler.Distance(snap.Player.MpsX, snap.Player.MpsY, found.MpsX, found.MpsY) > 144.0)
+                    if (WireNpcDialogCrawler.Distance(snap.Player.MpsX, snap.Player.MpsY, found.MpsX, found.MpsY) > 64.0)
                     {
                         await WireNpcDialogCrawler.WalkNearPositionAsync(
                             client,
@@ -564,7 +564,7 @@ public sealed class WireScenarioRunner
                             found.MpsY,
                             _mapCatalog,
                             _clientPakObstacles,
-                            stopRadiusCells: 2,
+                            stopRadiusCells: 1,
                             cancellationToken).ConfigureAwait(false);
                     }
 
@@ -703,7 +703,7 @@ public sealed class WireScenarioRunner
                         throw new InvalidOperationException($"Ground object '{step.ObjectName ?? step.DataId?.ToString()}' not found on Map {currentMap} near ({step.TileX},{step.TileY}).");
                     }
 
-                    if (WireNpcDialogCrawler.Distance(snap.Player.MpsX, snap.Player.MpsY, found.MpsX, found.MpsY) > 144.0)
+                    if (WireNpcDialogCrawler.Distance(snap.Player.MpsX, snap.Player.MpsY, found.MpsX, found.MpsY) > 64.0)
                     {
                         await WireNpcDialogCrawler.WalkNearPositionAsync(
                             client,
@@ -712,7 +712,7 @@ public sealed class WireScenarioRunner
                             found.MpsY,
                             _mapCatalog,
                             _clientPakObstacles,
-                            stopRadiusCells: 2,
+                            stopRadiusCells: 1,
                             cancellationToken).ConfigureAwait(false);
                     }
 

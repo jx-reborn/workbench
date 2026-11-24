@@ -126,4 +126,49 @@ public sealed class SemanticDiffEngineTests
         Assert.False(wrongBodyResult.Passed);
         Assert.Contains(wrongBodyResult.Findings, f => f.FieldPath == "Dialog.Prompt");
     }
+
+    [Fact]
+    public void Compare_AcrossConsecutivePassiveWindowsWithUnchangedMoneyAndEquipmentSeriesVariance_ShouldDeduplicateSnowballAndReportSeriesAsWarning()
+    {
+        var engine = new SemanticDiffEngine();
+
+        // Step 1009/929 Ground Truth: Du Khách random(0,5) money (50300 vs 50700) + A Phương Bố Cân (0,7,6,Lv1) random(0,4) Series (S2 vs S1) + 1 Jade Pendant (4,182,0,Lv1)
+        WorldDomSnapshot legacyStep1 = TestSnapshotFactory.Create(
+            money: 50300,
+            items:
+            [
+                TestSnapshotFactory.CreateItem(serverItemId: 1, place: 3, genre: 0, detail: 7, particular: 6, level: 1, series: 2, stack: 1),
+                TestSnapshotFactory.CreateItem(serverItemId: 2, place: 3, genre: 4, detail: 182, particular: 0, level: 1, series: 0, stack: 1),
+            ]);
+        WorldDomSnapshot rebornStep1 = TestSnapshotFactory.Create(
+            money: 50700,
+            items:
+            [
+                TestSnapshotFactory.CreateItem(serverItemId: 10, place: 3, genre: 0, detail: 7, particular: 6, level: 1, series: 1, stack: 1),
+                TestSnapshotFactory.CreateItem(serverItemId: 11, place: 3, genre: 4, detail: 182, particular: 0, level: 1, series: 0, stack: 1),
+            ]);
+
+        StepComparisonResult r1 = engine.Compare(1009, "SellCalligraphy", "C2S 0x5F", legacyStep1, rebornStep1);
+        Assert.Single(r1.Findings, static f => f.FieldPath == "Player.Money" && f.Severity == FindingSeverity.Critical);
+        Assert.DoesNotContain(r1.Findings, static f => f.Category == FindingCategory.Inventory && f.Severity == FindingSeverity.Critical);
+        Assert.Contains(r1.Findings, static f => f.Category == FindingCategory.Inventory && f.Severity == FindingSeverity.Warning);
+
+        // Passive walk window: neither Legacy nor Reborn money or inventory changed -> must NOT snowball-repeat unchanged findings!
+        StepComparisonResult r2 = engine.Compare(1010, "PassiveWalk", "C2S 0x4B", legacyStep1, rebornStep1, legacyBefore: legacyStep1, rebornBefore: rebornStep1);
+        Assert.Empty(r2.Findings);
+
+        // New genuine quantity divergence (e.g., Reborn double-grants Jade Pendant 1 -> 2) MUST still fire as Critical immediately!
+        WorldDomSnapshot rebornDuplicate = TestSnapshotFactory.Create(
+            money: 50700,
+            items:
+            [
+                TestSnapshotFactory.CreateItem(serverItemId: 10, place: 3, genre: 0, detail: 7, particular: 6, level: 1, series: 1, stack: 1),
+                TestSnapshotFactory.CreateItem(serverItemId: 11, place: 3, genre: 4, detail: 182, particular: 0, level: 1, series: 0, stack: 1),
+                TestSnapshotFactory.CreateItem(serverItemId: 12, place: 3, genre: 4, detail: 182, particular: 0, level: 1, series: 0, stack: 1),
+            ]);
+        StepComparisonResult r3 = engine.Compare(1011, "DoubleGrantBug", "C2S 0x72", legacyStep1, rebornDuplicate, legacyBefore: legacyStep1, rebornBefore: rebornStep1);
+        Assert.Single(r3.Findings);
+        Assert.Equal(FindingSeverity.Critical, r3.Findings[0].Severity);
+        Assert.Equal("Inventory[Place3:(4,182,0,Lv1)]", r3.Findings[0].FieldPath);
+    }
 }

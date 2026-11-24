@@ -11,11 +11,21 @@ namespace JXReborn.DualParityServer.Diffing;
 public sealed partial class SemanticDiffEngine
 {
     private readonly DiffOptions _options;
+    private readonly Lock _stateLock = new();
+    private readonly Dictionary<string, (string LegacyValue, string RebornValue)> _activeStateDiscrepancies = new(StringComparer.Ordinal);
     private int _nextFindingSequence;
 
     public SemanticDiffEngine(DiffOptions? options = null)
     {
         _options = options ?? new DiffOptions();
+    }
+
+    public void ResetStateTracking()
+    {
+        lock (_stateLock)
+        {
+            _activeStateDiscrepancies.Clear();
+        }
     }
 
     public StepComparisonResult Compare(
@@ -55,6 +65,11 @@ public sealed partial class SemanticDiffEngine
         IReadOnlyList<string> legacyS2c = ExtractRecentS2cOpcodes(legacyAfter, legacyBefore);
         IReadOnlyList<string> rebornS2c = ExtractRecentS2cOpcodes(rebornAfter, rebornBefore);
         FindingArtifacts resolvedArtifacts = artifacts ?? new FindingArtifacts();
+        var activeFieldsInStep = new HashSet<string>(StringComparer.Ordinal);
+        bool isPassiveContinuationWindow = legacyBefore is not null && rebornBefore is not null;
+        bool dialogUnchangedSincePrev = isPassiveContinuationWindow &&
+            legacyAfter.Dialog.Sequence == legacyBefore!.Dialog.Sequence &&
+            rebornAfter.Dialog.Sequence == rebornBefore!.Dialog.Sequence;
 
         void AddFinding(
             FindingSeverity severity,
@@ -68,6 +83,30 @@ public sealed partial class SemanticDiffEngine
             if (_options.KnownDeviationClusterKeys.Contains(clusterKey))
             {
                 return;
+            }
+
+            bool trackPersistentState = _options.DeduplicateUnchangedStateSnowballs &&
+                (category is FindingCategory.PlayerState or FindingCategory.Inventory or FindingCategory.Position ||
+                 category == FindingCategory.NpcDialog);
+
+            if (trackPersistentState)
+            {
+                lock (_stateLock)
+                {
+                    activeFieldsInStep.Add(fieldPath);
+                    bool canSuppressUnchanged = isPassiveContinuationWindow &&
+                        (category != FindingCategory.NpcDialog || dialogUnchangedSincePrev);
+
+                    if (canSuppressUnchanged &&
+                        _activeStateDiscrepancies.TryGetValue(fieldPath, out (string LegacyValue, string RebornValue) prev) &&
+                        string.Equals(prev.LegacyValue, legacyValue, StringComparison.Ordinal) &&
+                        string.Equals(prev.RebornValue, rebornValue, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    _activeStateDiscrepancies[fieldPath] = (legacyValue, rebornValue);
+                }
             }
 
             int seq = Interlocked.Increment(ref _nextFindingSequence);
@@ -107,6 +146,23 @@ public sealed partial class SemanticDiffEngine
         if (_options.CompareNearbyStaticNpcs)
         {
             CompareNearbyStaticNpcs(legacyAfter.Npcs, rebornAfter.Npcs, AddFinding);
+        }
+
+        if (_options.DeduplicateUnchangedStateSnowballs)
+        {
+            lock (_stateLock)
+            {
+                if (_activeStateDiscrepancies.Count > 0)
+                {
+                    string[] staleKeys = _activeStateDiscrepancies.Keys
+                        .Where(k => !activeFieldsInStep.Contains(k))
+                        .ToArray();
+                    foreach (string staleKey in staleKeys)
+                    {
+                        _activeStateDiscrepancies.Remove(staleKey);
+                    }
+                }
+            }
         }
 
         int criticalCount = findings.Count(f => f.Severity == FindingSeverity.Critical);
@@ -252,8 +308,8 @@ public sealed partial class SemanticDiffEngine
         IReadOnlyList<InventoryItemSnapshot> rebornItems,
         Action<FindingSeverity, FindingCategory, string, string, string> addFinding)
     {
-        Dictionary<string, int> legacyCounts = AggregateInventory(legacyItems);
-        Dictionary<string, int> rebornCounts = AggregateInventory(rebornItems);
+        (Dictionary<string, int> legacyCounts, Dictionary<string, SortedDictionary<int, int>> legacySeries) = AggregateInventoryByTemplateAndSeries(legacyItems);
+        (Dictionary<string, int> rebornCounts, Dictionary<string, SortedDictionary<int, int>> rebornSeries) = AggregateInventoryByTemplateAndSeries(rebornItems);
 
         var allKeys = new SortedSet<string>(legacyCounts.Keys, StringComparer.Ordinal);
         allKeys.UnionWith(rebornCounts.Keys);
@@ -270,6 +326,22 @@ public sealed partial class SemanticDiffEngine
                     $"Inventory[{key}]",
                     legacyQty.ToString(CultureInfo.InvariantCulture),
                     rebornQty.ToString(CultureInfo.InvariantCulture));
+                continue;
+            }
+
+            if (legacyQty > 0)
+            {
+                string lSeries = FormatSeriesDistribution(legacySeries[key]);
+                string rSeries = FormatSeriesDistribution(rebornSeries[key]);
+                if (!string.Equals(lSeries, rSeries, StringComparison.Ordinal))
+                {
+                    addFinding(
+                        FindingSeverity.Warning,
+                        FindingCategory.Inventory,
+                        $"Inventory.Series[{key}]",
+                        lSeries,
+                        rSeries);
+                }
             }
         }
     }
@@ -355,18 +427,31 @@ public sealed partial class SemanticDiffEngine
         return false;
     }
 
-    private static Dictionary<string, int> AggregateInventory(IReadOnlyList<InventoryItemSnapshot> items)
+    private static (Dictionary<string, int> Counts, Dictionary<string, SortedDictionary<int, int>> SeriesByKey) AggregateInventoryByTemplateAndSeries(
+        IReadOnlyList<InventoryItemSnapshot> items)
     {
-        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var seriesByKey = new Dictionary<string, SortedDictionary<int, int>>(StringComparer.Ordinal);
         foreach (InventoryItemSnapshot item in items)
         {
             int qty = Math.Max(1, item.StackCount);
-            string key = $"Place{item.Place}:({item.Genre},{item.DetailType},{item.ParticularType},Lv{item.Level},S{item.Series})";
-            map[key] = map.TryGetValue(key, out int cur) ? cur + qty : qty;
+            string key = $"Place{item.Place}:({item.Genre},{item.DetailType},{item.ParticularType},Lv{item.Level})";
+            counts[key] = counts.TryGetValue(key, out int cur) ? cur + qty : qty;
+
+            if (!seriesByKey.TryGetValue(key, out SortedDictionary<int, int>? seriesCounts))
+            {
+                seriesCounts = [];
+                seriesByKey[key] = seriesCounts;
+            }
+
+            seriesCounts[item.Series] = seriesCounts.TryGetValue(item.Series, out int curS) ? curS + qty : qty;
         }
 
-        return map;
+        return (counts, seriesByKey);
     }
+
+    private static string FormatSeriesDistribution(SortedDictionary<int, int> seriesCounts) =>
+        string.Join(",", seriesCounts.Select(kv => $"S{kv.Key}:{kv.Value}"));
 
     private static IReadOnlyList<string> ExtractRecentS2cOpcodes(WorldDomSnapshot after, WorldDomSnapshot? before)
     {

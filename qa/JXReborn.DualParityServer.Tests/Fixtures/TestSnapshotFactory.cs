@@ -124,7 +124,7 @@ internal static class TestSnapshotFactory
             PromptTcvn3Hex: ToTcvn3Hex(prompt),
             OptionsTcvn3Hex: options.Select(ToTcvn3Hex).ToArray());
 
-    public static InventoryItemSnapshot CreateItem(uint serverItemId, int place, int genre, int detail, int particular, int stack = 1) =>
+    public static InventoryItemSnapshot CreateItem(uint serverItemId, int place, int genre, int detail, int particular, int stack = 1, int level = 1, int series = 0) =>
         new(
             ArrayIndex: (int)(serverItemId % 100) + 1,
             ServerItemId: serverItemId,
@@ -134,8 +134,8 @@ internal static class TestSnapshotFactory
             Genre: genre,
             DetailType: detail,
             ParticularType: particular,
-            Level: 1,
-            Series: 0,
+            Level: level,
+            Series: series,
             Width: 1,
             Height: 1,
             CurDurability: 0,

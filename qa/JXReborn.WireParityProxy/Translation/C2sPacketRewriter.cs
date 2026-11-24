@@ -75,10 +75,10 @@ public sealed class C2sPacketRewriter
                     label: "c2s_viewequip");
 
             case ProtocolOpcodes.c2s_requestobj when copy.Length >= RequestObjC2SPacket.PayloadSize:
-                return RewriteTargetObj(copy, objIdOffset: 1, label: "c2s_requestobj");
+                return RewriteTargetObj(copy, objIdOffset: 1, isMouseClick: false, label: "c2s_requestobj");
 
             case ProtocolOpcodes.c2s_objmouseclick when copy.Length >= ObjMouseClickC2SPacket.PayloadSize:
-                return RewriteTargetObj(copy, objIdOffset: 5, label: "c2s_objmouseclick");
+                return RewriteTargetObj(copy, objIdOffset: 5, isMouseClick: true, label: "c2s_objmouseclick");
 
             case ProtocolOpcodes.c2s_dialognpc when copy.Length >= 5:
                 return RewriteTargetNpc(
@@ -166,7 +166,7 @@ public sealed class C2sPacketRewriter
         return new C2sRewriteResult(copy, WasModified: modified, TranslationMissReason: null);
     }
 
-    private C2sRewriteResult RewriteTargetObj(byte[] copy, int objIdOffset, string label)
+    private C2sRewriteResult RewriteTargetObj(byte[] copy, int objIdOffset, bool isMouseClick, string label)
     {
         int primaryObjId = BinaryPrimitives.ReadInt32LittleEndian(copy.AsSpan(objIdOffset, 4));
         if (primaryObjId <= 0)
@@ -174,7 +174,7 @@ public sealed class C2sPacketRewriter
             return new C2sRewriteResult(copy, WasModified: false, TranslationMissReason: null);
         }
 
-        if (!_translator.TryTranslateObjId(primaryObjId, out int shadowObjId))
+        if (!_translator.TryTranslateObjId(primaryObjId, out int shadowObjId, isMouseClick))
         {
             return new C2sRewriteResult(
                 copy,

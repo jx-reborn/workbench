@@ -15,6 +15,8 @@ public sealed class DiffOptions
 
     public bool CompareNearbyStaticNpcs { get; init; } = true;
 
+    public bool DeduplicateUnchangedStateSnowballs { get; init; } = true;
+
     public IReadOnlySet<string> KnownDeviationClusterKeys { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<string> IgnoredSystemMessageSubstrings { get; init; } = [];

@@ -170,6 +170,7 @@ public sealed class WireParityDiffCoordinator
         lock (_sync)
         {
             _driftDetector.Reset();
+            _semanticDiff.ResetStateTracking();
             _latestDrift = new DriftAssessment(false, FindingSeverity.Info, 0, false, 0, "Reset");
         }
     }

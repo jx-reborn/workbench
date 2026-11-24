@@ -125,10 +125,18 @@ public sealed class RebornHostLauncher : IAsyncDisposable
     private ProcessStartInfo BuildStartInfo(string hostProjectPath, string serverRootDir, string? resolvedPackDir)
     {
         string projectDir = Path.GetDirectoryName(hostProjectPath)!;
-        string prebuiltDll = Path.Combine(projectDir, "bin", "Debug", "net10.0", "JXReborn.Host.dll");
-        string releaseDll = Path.Combine(projectDir, "bin", "Release", "net10.0", "JXReborn.Host.dll");
+        // Ground truth: GmTokenEnvironmentGuard.Apply requires a Debug build (#if DEBUG -> isDebugBuild=true).
+        // Never include Release host binaries; allow Debug-Standalone when bin/Debug is locked by a live dev server.
+        string[] hostDllCandidates =
+        [
+            Path.Combine(projectDir, "bin", "Debug-Standalone", "net10.0", "JXReborn.Host.dll"),
+            Path.Combine(projectDir, "bin", "Debug", "net10.0", "JXReborn.Host.dll")
+        ];
 
-        string? dllToRun = File.Exists(prebuiltDll) ? prebuiltDll : (File.Exists(releaseDll) ? releaseDll : null);
+        string? dllToRun = hostDllCandidates
+            .Where(File.Exists)
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
 
         var psi = new ProcessStartInfo
         {
@@ -295,6 +303,7 @@ public sealed class RebornHostLauncher : IAsyncDisposable
         string workspaceRoot = Directory.GetParent(serverRootDir)?.FullName ?? serverRootDir;
         string[] candidates =
         [
+            Path.Combine(workspaceRoot, "workbench", "src", "JXReborn.Workbench.Scripts", "bin", "Release", "net10.0"),
             Path.Combine(workspaceRoot, "workbench", "src", "JXReborn.Workbench.Scripts", "bin", "Debug", "net10.0"),
             Path.Combine(workspaceRoot, "workbench", "scripts"),
             Path.Combine(AppContext.BaseDirectory, "scripts")

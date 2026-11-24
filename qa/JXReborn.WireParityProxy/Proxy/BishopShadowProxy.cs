@@ -162,10 +162,11 @@ public sealed class BishopShadowProxy : IAsyncDisposable
                 linkCts.Token).ConfigureAwait(false);
 
             var shadowNotifySlot = new ShadowNotifySlot();
+            var selectContext = new LastRoleSelectContext();
 
-            Task c2sTask = PumpClientToBackendsAsync(clientConn, primaryConn, shadowConn, linkCts.Token);
+            Task c2sTask = PumpClientToBackendsAsync(clientConn, primaryConn, shadowConn, selectContext, linkCts.Token);
             Task shadowS2cTask = PumpShadowS2cAsync(shadowConn, shadowNotifySlot, linkCts.Token);
-            Task primaryS2cTask = PumpPrimaryS2cAsync(primaryConn, clientConn, shadowConn, shadowNotifySlot, linkCts.Token);
+            Task primaryS2cTask = PumpPrimaryS2cAsync(primaryConn, clientConn, shadowConn, shadowNotifySlot, selectContext, linkCts.Token);
 
             await Task.WhenAny(c2sTask, primaryS2cTask).ConfigureAwait(false);
             await linkCts.CancelAsync().ConfigureAwait(false);
@@ -216,6 +217,7 @@ public sealed class BishopShadowProxy : IAsyncDisposable
         JxWireConnection client,
         JxWireConnection primary,
         JxWireConnection shadow,
+        LastRoleSelectContext selectContext,
         CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -224,6 +226,11 @@ public sealed class BishopShadowProxy : IAsyncDisposable
             if (frame is null)
             {
                 break;
+            }
+
+            if (frame.Opcode is ProtocolOpcodes.c2s_dbplayerselect or ProtocolOpcodes.c2s_newplayer)
+            {
+                selectContext.Record(frame.DecryptedPayload);
             }
 
             Task primaryWrite = primary.WriteEncryptedFrameAsync(frame.DecryptedPayload, cancellationToken);
@@ -259,6 +266,7 @@ public sealed class BishopShadowProxy : IAsyncDisposable
         JxWireConnection client,
         JxWireConnection shadow,
         ShadowNotifySlot shadowNotifySlot,
+        LastRoleSelectContext selectContext,
         CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -272,6 +280,16 @@ public sealed class BishopShadowProxy : IAsyncDisposable
             if (frame.Opcode == ProtocolOpcodes.s2c_notifyplayerlogin &&
                 frame.DecryptedPayload.Length >= NotifyPlayerLoginS2CPacket.Size)
             {
+                NotifyPlayerLoginS2CPacket firstPkt = MemoryMarshal.Read<NotifyPlayerLoginS2CPacket>(frame.DecryptedPayload);
+                if (firstPkt.Permit == 0 &&
+                    selectContext.TryConsumeWarmupRetry(out byte[]? retrySelect) &&
+                    retrySelect is not null)
+                {
+                    await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+                    await primary.WriteEncryptedFrameAsync(retrySelect, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
                 byte[] rewritten = await HandleNotifyPlayerLoginAsync(
                     frame.DecryptedPayload,
                     shadow,
@@ -420,6 +438,39 @@ public sealed class BishopShadowProxy : IAsyncDisposable
             lock (_lock)
             {
                 return _tcs.Task.WaitAsync(cancellationToken);
+            }
+        }
+    }
+
+    private sealed class LastRoleSelectContext
+    {
+        private const int MaxWarmupRetries = 28;
+        private readonly Lock _lock = new();
+        private byte[]? _lastSelectPayload;
+        private int _remainingRetries;
+
+        public void Record(ReadOnlySpan<byte> payload)
+        {
+            lock (_lock)
+            {
+                _lastSelectPayload = payload.ToArray();
+                _remainingRetries = MaxWarmupRetries;
+            }
+        }
+
+        public bool TryConsumeWarmupRetry(out byte[]? payload)
+        {
+            lock (_lock)
+            {
+                if (_lastSelectPayload is not null && _remainingRetries > 0)
+                {
+                    _remainingRetries--;
+                    payload = _lastSelectPayload;
+                    return true;
+                }
+
+                payload = null;
+                return false;
             }
         }
     }

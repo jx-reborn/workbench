@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using JXReborn.DualParityServer.Configuration;
 using JXReborn.DualParityServer.Diffing;
 using JXReborn.DualParityServer.Reporting;
@@ -106,5 +109,60 @@ public sealed class StandaloneStackTests
                 File.GetLastWriteTimeUtc(resolvedDll) >= File.GetLastWriteTimeUtc(workbenchScriptsDebugDll),
                 $"Expected '{resolvedDll}' to be at least as fresh as '{workbenchScriptsDebugDll}'.");
         }
+    }
+
+    [Fact]
+    public void RebornHostLauncher_CreateHostProcessStartInfo_ShouldNeverSelectReleaseHostBinaryBlockedByGmTokenEnvironmentGuard()
+    {
+        // Ground truth: server/src/JXReborn.Host/Program.cs passes #if DEBUG -> isDebugBuild into GmTokenEnvironmentGuard.Apply,
+        // which clamps EnableTestGmToken=false & AutoGrantGmTokenOnLogin=false on any Release host binary (causing mui2-verify
+        // Step001_C2S_0x43 Inventory[Place3:(6,1,4258,Lv1)] | L: 1 | R: 0).
+        var options = new DualParityOptions { Standalone = true };
+        var launcher = new RebornHostLauncher(options, "test-session");
+
+        ProcessStartInfo psi = launcher.CreateHostProcessStartInfo("reborn-t0.db");
+        Assert.NotEmpty(psi.ArgumentList);
+
+        string firstArg = psi.ArgumentList[0];
+        if (firstArg.EndsWith("JXReborn.Host.dll", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.True(File.Exists(firstArg));
+            DebuggableAttribute.DebuggingModes modes = ReadAssemblyDebuggingModes(firstArg);
+            Assert.True(
+                (modes & DebuggableAttribute.DebuggingModes.DisableOptimizations) != 0,
+                $"Expected Debug host assembly for GmTokenEnvironmentGuard, but selected optimized binary '{firstArg}' (modes={modes}).");
+        }
+        else
+        {
+            Assert.Equal("run", firstArg);
+            Assert.DoesNotContain("Release", psi.ArgumentList, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static DebuggableAttribute.DebuggingModes ReadAssemblyDebuggingModes(string assemblyPath)
+    {
+        using FileStream stream = File.OpenRead(assemblyPath);
+        using var peReader = new PEReader(stream);
+        MetadataReader reader = peReader.GetMetadataReader();
+        foreach (CustomAttributeHandle handle in reader.GetAssemblyDefinition().GetCustomAttributes())
+        {
+            CustomAttribute attr = reader.GetCustomAttribute(handle);
+            if (attr.Constructor.Kind == HandleKind.MemberReference)
+            {
+                MemberReference ctor = reader.GetMemberReference((MemberReferenceHandle)attr.Constructor);
+                if (ctor.Parent.Kind == HandleKind.TypeReference)
+                {
+                    TypeReference typeRef = reader.GetTypeReference((TypeReferenceHandle)ctor.Parent);
+                    if (reader.StringComparer.Equals(typeRef.Name, nameof(DebuggableAttribute)))
+                    {
+                        BlobReader blob = reader.GetBlobReader(attr.Value);
+                        _ = blob.ReadUInt16(); // Prolog 0x0001
+                        return (DebuggableAttribute.DebuggingModes)blob.ReadInt32();
+                    }
+                }
+            }
+        }
+
+        return DebuggableAttribute.DebuggingModes.None;
     }
 }

@@ -1,9 +1,12 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 using JXReborn.Adapter.Legacy.Packets;
 using JXReborn.ClientDriver;
 using JXReborn.Primitives.Characters;
+using JXReborn.Primitives.Encodings;
 using JXReborn.Primitives.Items;
 using JXReborn.Primitives.WorldZones;
 using JXReborn.TestBase.WireCaptures;
@@ -282,6 +285,22 @@ public sealed class ProxyShadowClientState
 
                 break;
 
+            case ProtocolOpcodes.s2c_syncexp:
+                if (PlayerExpSync64S2CPacket.TryParse(payload, out PlayerExpSync64S2CPacket exp64))
+                {
+                    Exp = exp64.CurrentExp;
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_playerexp:
+                if (PlayerExpS2CPacket.TryParse(payload, out PlayerExpS2CPacket exp32))
+                {
+                    Exp = exp32.CurrentExp;
+                }
+
+                break;
+
             case ProtocolOpcodes.s2c_pksyncnormalflag:
                 if (payload.Length >= 2)
                 {
@@ -466,6 +485,7 @@ public sealed class ProxyShadowClientState
                 break;
 
             case ProtocolOpcodes.s2c_objsyncpos:
+            case ProtocolOpcodes.s2c_objsyncstate:
                 if (ObjSyncStateS2CPacket.TryParse(payload, out ObjSyncStateS2CPacket objState))
                 {
                     if (_groundObjects.TryGetValue(objState.ObjId, out ShadowGroundObject existingObj))
@@ -553,6 +573,19 @@ public sealed class ProxyShadowClientState
             {
                 if (action.Param1 != 0)
                 {
+                    if (content.Length >= 4)
+                    {
+                        int stringId = BinaryPrimitives.ReadInt32LittleEndian(content[..4]);
+                        string promptText = ProxyStringResourceTable.TryResolve(stringId, out string? resolved)
+                            ? resolved
+                            : stringId.ToString(CultureInfo.InvariantCulture);
+                        string idPromptHex = Convert.ToHexString(Tcvn3Encoding.EncodeBytes(promptText));
+                        List<string> optSegments = SplitOnDelimiter(content[4..], [0x00], maxSegments: action.OptionOrPageCount + 1);
+                        List<string> idOptions = TakeOptions(optSegments, startIndex: 0, action.OptionOrPageCount);
+                        SetDialogState(idPromptHex, idOptions, isTalk: false);
+                        return;
+                    }
+
                     SetDialogState(Convert.ToHexString(content), [], isTalk: false);
                     return;
                 }
@@ -578,6 +611,32 @@ public sealed class ProxyShadowClientState
             {
                 ReadOnlySpan<byte> delimiter = [(byte)'|', (byte)' ', (byte)'|'];
                 List<string> segments = SplitOnDelimiter(content, delimiter, maxSegments: Math.Max(1, (int)action.OptionOrPageCount) + 1);
+                if (action.Param1 != 0)
+                {
+                    var resolvedHexSegments = new List<string>(segments.Count);
+                    foreach (string segHex in segments)
+                    {
+                        if (segHex.Length == 0)
+                        {
+                            continue;
+                        }
+
+                        string ascii = Encoding.ASCII.GetString(Convert.FromHexString(segHex)).Trim();
+                        if (int.TryParse(ascii, NumberStyles.Integer, CultureInfo.InvariantCulture, out int pageStringId) &&
+                            ProxyStringResourceTable.TryResolve(pageStringId, out string? resolvedPage))
+                        {
+                            resolvedHexSegments.Add(Convert.ToHexString(Tcvn3Encoding.EncodeBytes(resolvedPage)));
+                        }
+                        else
+                        {
+                            resolvedHexSegments.Add(segHex);
+                        }
+                    }
+
+                    SetDialogState(string.Concat(resolvedHexSegments), [], isTalk: true);
+                    break;
+                }
+
                 string promptHex = string.Concat(segments.Where(static s => s.Length > 0));
                 SetDialogState(promptHex, [], isTalk: true);
                 break;

@@ -72,4 +72,39 @@ public sealed class ProxyShadowClientStateScriptActionTests
         Assert.Equal("Prompt", Tcvn3Encoding.DecodeNullTerminated(Convert.FromHexString(state.Dialog.PromptTcvn3Hex)));
         Assert.Single(state.Dialog.OptionsTcvn3Hex);
     }
+
+    [Fact]
+    public void ApplyS2c_WithStringTableSayTalkAnd64BitExpSync_ShouldResolveVietnameseTextFromStringResourcesAndUpdateExp64()
+    {
+        var state = new ProxyShadowClientState("legacy-linux");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        // 1. 0xC6 s2c_syncexp (9 bytes, int64)
+        byte[] exp64Payload = new byte[PlayerExpSync64S2CPacket.PayloadSize];
+        new PlayerExpSync64S2CPacket(5_000_001_235L).WritePayload(exp64Payload);
+        state.ApplyS2c(exp64Payload, now);
+        Assert.Equal(5_000_001_235L, state.Exp);
+
+        // 2. Step 922 Thẩm Cửu Say(11256, 4, "Mua ", "Ta đến làm nhiệm vụ A Phương", "Tìm hiểu", "Không mua") (73B, Param1=1)
+        byte[] sayById = ScriptActionS2CPacket.CreateSayByStringIdPayload(
+            11256,
+            ["Mua ", "Ta đến làm nhiệm vụ A Phương", "Tìm hiểu", "Không mua"]);
+        state.ApplyS2c(sayById, now);
+
+        Assert.True(state.Dialog.IsOpen);
+        Assert.False(state.Dialog.IsTalk);
+        Assert.Equal(4, state.Dialog.OptionsTcvn3Hex.Count);
+        Assert.Equal("Ta đến làm nhiệm vụ A Phương", Tcvn3Encoding.DecodeNullTerminated(Convert.FromHexString(state.Dialog.OptionsTcvn3Hex[1])));
+        string resolvedPrompt11256 = Tcvn3Encoding.DecodeNullTerminated(Convert.FromHexString(state.Dialog.PromptTcvn3Hex));
+        Assert.Contains("2 Kim Nguyên bảo", resolvedPrompt11256, StringComparison.Ordinal);
+
+        // 3. Step 924 Thẩm Cửu Talk(1, "", 11260) (24B, Param1=1)
+        byte[] talkById = ScriptActionS2CPacket.CreateTalkByStringIdsPayload([11260], expectCompletionCallback: false);
+        state.ApplyS2c(talkById, now);
+
+        Assert.True(state.Dialog.IsOpen);
+        Assert.True(state.Dialog.IsTalk);
+        string resolvedTalk11260 = Tcvn3Encoding.DecodeNullTerminated(Convert.FromHexString(state.Dialog.PromptTcvn3Hex));
+        Assert.Contains("Khuyên tai đã gói lại rồi! Xin giữ lấy!", resolvedTalk11260, StringComparison.Ordinal);
+    }
 }

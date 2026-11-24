@@ -11,6 +11,7 @@ namespace JXReborn.WireParityProxy.Translation;
 public sealed class EntityIdTranslator
 {
     private const double MaxNpcMatchDistanceMps = 256.0;
+    private const double MaxMonsterPatrolMatchDistanceMps = 1024.0;
 
     private readonly ProxyShadowClientState _primary;
     private readonly ProxyShadowClientState _shadow;
@@ -75,6 +76,21 @@ public sealed class EntityIdTranslator
                 maxDistanceMps: 64.0);
         }
 
+        // Wandering combat monsters (Camp != 6) patrol independently on Primary vs Shadow (> 256 mps apart).
+        if (best is null && (primaryNpc.Kind == JXReborn.Primitives.Characters.EntityKind.Monster || primaryNpc.Camp != 6))
+        {
+            best = FindClosestMatchingNpc(
+                shadowNpcs.Values,
+                primaryNpc,
+                static (p, c) =>
+                    c.LifePercent128 > 0 &&
+                    ((p.TemplateId > 0 && c.TemplateId == p.TemplateId) ||
+                     (!string.IsNullOrWhiteSpace(p.NameUnicode) &&
+                      string.Equals(c.NameUnicode.Trim(), p.NameUnicode.Trim(), StringComparison.Ordinal)) ||
+                     (c.Camp == p.Camp && c.Camp != 6)),
+                maxDistanceMps: MaxMonsterPatrolMatchDistanceMps);
+        }
+
         if (best is not null)
         {
             shadowNpcId = best.NpcId;
@@ -85,7 +101,7 @@ public sealed class EntityIdTranslator
         return false;
     }
 
-    public bool TryTranslateObjId(int primaryObjId, out int shadowObjId)
+    public bool TryTranslateObjId(int primaryObjId, out int shadowObjId, bool isMouseClick = false)
     {
         if (primaryObjId <= 0)
         {
@@ -96,13 +112,20 @@ public sealed class EntityIdTranslator
         IReadOnlyDictionary<int, ShadowGroundObject> primaryObjs = _primary.SnapshotGroundObjects();
         IReadOnlyDictionary<int, ShadowGroundObject> shadowObjs = _shadow.SnapshotGroundObjects();
 
-        if (!primaryObjs.TryGetValue(primaryObjId, out ShadowGroundObject primaryObj) || shadowObjs.Count == 0)
+        if (shadowObjs.Count == 0)
         {
             shadowObjId = 0;
             return false;
         }
 
-        if (primaryObj.HasCoords)
+        bool hasPrimaryObj = primaryObjs.TryGetValue(primaryObjId, out ShadowGroundObject primaryObj);
+        if (!hasPrimaryObj && !isMouseClick)
+        {
+            shadowObjId = 0;
+            return false;
+        }
+
+        if (hasPrimaryObj && primaryObj.HasCoords)
         {
             ShadowGroundObject? bestByCoord = null;
             double bestDist = double.MaxValue;
@@ -129,9 +152,63 @@ public sealed class EntityIdTranslator
                 return true;
             }
         }
+        else if (isMouseClick)
+        {
+            // On c2s_objmouseclick (0x72), the player must stand within 201 mps of the clicked static object.
+            // Primary either emits 0x65 (HasCoords=false) or emits 0 packets (default State==0 from Region_C.dat),
+            // whereas Shadow emits 0x64 (HasCoords=true) with exact MpsX/MpsY.
+            byte expectedState = hasPrimaryObj ? primaryObj.State : (byte)0;
+            int refX = _shadow.MpsX != 0 || _shadow.MpsY != 0 ? _shadow.MpsX : _primary.MpsX;
+            int refY = _shadow.MpsX != 0 || _shadow.MpsY != 0 ? _shadow.MpsY : _primary.MpsY;
+            if (refX != 0 || refY != 0)
+            {
+                ShadowGroundObject? bestNearPlayer = null;
+                double bestDist = double.MaxValue;
+                foreach (ShadowGroundObject candidate in shadowObjs.Values)
+                {
+                    if (!candidate.HasCoords || candidate.State != expectedState)
+                    {
+                        continue;
+                    }
+
+                    long dx = (long)candidate.MpsX - refX;
+                    long dy = (long)candidate.MpsY - refY;
+                    double dist = Math.Sqrt((dx * dx) + (dy * dy));
+                    if (dist <= MaxNpcMatchDistanceMps && dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestNearPlayer = candidate;
+                    }
+                }
+
+                if (bestNearPlayer is { } nearMatched)
+                {
+                    shadowObjId = nearMatched.ObjId;
+                    return true;
+                }
+            }
+        }
+
+        if (!hasPrimaryObj)
+        {
+            shadowObjId = 0;
+            return false;
+        }
 
         List<ShadowGroundObject> orderedPrimary = primaryObjs.Values.OrderBy(static o => o.FirstSeenOrder).ToList();
         List<ShadowGroundObject> orderedShadow = shadowObjs.Values.OrderBy(static o => o.FirstSeenOrder).ToList();
+
+        if (!primaryObj.HasCoords)
+        {
+            List<ShadowGroundObject> staticPrimary = orderedPrimary.Where(o => !o.HasCoords && o.State == primaryObj.State).ToList();
+            List<ShadowGroundObject> staticShadow = orderedShadow.Where(o => !o.HasCoords && o.State == primaryObj.State).ToList();
+            int staticIdx = staticPrimary.FindIndex(o => o.ObjId == primaryObjId);
+            if (staticIdx >= 0 && staticIdx < staticShadow.Count)
+            {
+                shadowObjId = staticShadow[staticIdx].ObjId;
+                return true;
+            }
+        }
 
         List<ShadowGroundObject> sameStatePrimary = orderedPrimary.Where(o => o.State == primaryObj.State).ToList();
         List<ShadowGroundObject> sameStateShadow = orderedShadow.Where(o => o.State == primaryObj.State).ToList();

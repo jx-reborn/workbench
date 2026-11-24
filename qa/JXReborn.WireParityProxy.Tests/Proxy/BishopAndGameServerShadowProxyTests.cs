@@ -355,4 +355,97 @@ public sealed class BishopAndGameServerShadowProxyTests
         Assert.Single(gsProxy.LatestSession.DiffCoordinator.GetSteps());
         Assert.Equal(new[] { "0x61" }, gsProxy.LatestSession.DiffCoordinator.GetSteps()[0].ShadowS2cOpcodes);
     }
+
+    [Fact]
+    public async Task BishopShadowProxy_WhenPrimaryReturnsPermitZeroWithRoleNameDuringColdBoot_ShouldRetrySelectUntilPrimaryPermits()
+    {
+        // Ground truth: mui2-final cold-boot where bishop_y responds s2c_notifyplayerlogin (0x34) with Permit=0 AND RoleName='gm_bl_01_r1'
+        // while jx_linux_y is still registering Map 53; proxy must retry c2s_dbplayerselect instead of forwarding Permit=0 (loginResult=14) to game.exe.
+        LegacyKeyTable keyTable = LegacyKeyTable.CreateSynthetic();
+        Guid primaryGuid = Guid.NewGuid();
+        Guid shadowGuid = Guid.NewGuid();
+
+        using var primaryBishopListener = new TcpListener(IPAddress.Loopback, 0);
+        using var shadowBishopListener = new TcpListener(IPAddress.Loopback, 0);
+        primaryBishopListener.Start();
+        shadowBishopListener.Start();
+
+        var options = new WireParityProxyOptions
+        {
+            BindHost = "127.0.0.1",
+            BishopListenPort = 0,
+            GameServerListenPort = 0,
+            AdvertisedGameServerHost = "127.0.0.1",
+            LegacyBishopHost = "127.0.0.1",
+            LegacyBishopPort = ((IPEndPoint)primaryBishopListener.LocalEndpoint).Port,
+            RebornBishopHost = "127.0.0.1",
+            RebornBishopPort = ((IPEndPoint)shadowBishopListener.LocalEndpoint).Port,
+            AllowSyntheticKeyTableFallback = true
+        };
+
+        var findings = new List<JXReborn.DualParityServer.Diffing.ParityFinding>();
+        var handoffMap = new HandoffTicketMap();
+        await using var bishopProxy = new BishopShadowProxy(options, keyTable, handoffMap, static () => 16668, findings.Add);
+        bishopProxy.Start();
+
+        Task primaryTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await primaryBishopListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("primary-bishop", tcp, keyTable, CancellationToken.None);
+
+            JxWireFrame? attempt1 = await conn.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(attempt1);
+            Assert.Equal(ProtocolOpcodes.c2s_dbplayerselect, attempt1.Opcode);
+
+            NotifyPlayerLoginS2CPacket deny = NotifyPlayerLoginS2CPacket.Create(Guid.Empty, "gm_bl_01_r1", permitted: false, "127.0.0.1", 16666);
+            byte[] denyBytes = new byte[NotifyPlayerLoginS2CPacket.Size];
+            MemoryMarshal.Write(denyBytes, in deny);
+            await conn.WriteEncryptedFrameAsync(denyBytes, CancellationToken.None);
+
+            JxWireFrame? attempt2 = await conn.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(attempt2);
+            Assert.Equal(ProtocolOpcodes.c2s_dbplayerselect, attempt2.Opcode);
+
+            NotifyPlayerLoginS2CPacket allow = NotifyPlayerLoginS2CPacket.Create(primaryGuid, "gm_bl_01_r1", permitted: true, "127.0.0.1", 16666);
+            byte[] allowBytes = new byte[NotifyPlayerLoginS2CPacket.Size];
+            MemoryMarshal.Write(allowBytes, in allow);
+            await conn.WriteEncryptedFrameAsync(allowBytes, CancellationToken.None);
+        });
+
+        Task shadowTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await shadowBishopListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("shadow-bishop", tcp, keyTable, CancellationToken.None);
+            JxWireFrame? selectFrame = await conn.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(selectFrame);
+
+            NotifyPlayerLoginS2CPacket allow = NotifyPlayerLoginS2CPacket.Create(shadowGuid, "gm_bl_01_r1", permitted: true, "127.0.0.1", 16667);
+            byte[] allowBytes = new byte[NotifyPlayerLoginS2CPacket.Size];
+            MemoryMarshal.Write(allowBytes, in allow);
+            await conn.WriteEncryptedFrameAsync(allowBytes, CancellationToken.None);
+        });
+
+        NotifyPlayerLoginS2CPacket receivedNotify;
+        await using (JxWireConnection clientConn = await JxWireConnection.ConnectUpstreamAsync(
+            "client-bishop",
+            "127.0.0.1",
+            bishopProxy.BoundPort,
+            keyTable,
+            CancellationToken.None))
+        {
+            byte[] selectPayload = new byte[41];
+            selectPayload[0] = ProtocolOpcodes.c2s_dbplayerselect;
+            await clientConn.WriteEncryptedFrameAsync(selectPayload, CancellationToken.None);
+
+            JxWireFrame? notifyFrame = await clientConn.ReadDecryptedFrameAsync(CancellationToken.None);
+            Assert.NotNull(notifyFrame);
+            receivedNotify = MemoryMarshal.Read<NotifyPlayerLoginS2CPacket>(notifyFrame.DecryptedPayload);
+        }
+
+        await Task.WhenAll(primaryTask, shadowTask).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotEqual((byte)0, receivedNotify.Permit);
+        Assert.Equal(primaryGuid, receivedNotify.GetTicketGuid());
+        Assert.Empty(findings);
+    }
 }
