@@ -43,6 +43,19 @@ public static class AmbientRandomDialogPoolCatalog
         return pool.Contains(normalizedLegacyPrompt) && pool.Contains(normalizedRebornPrompt);
     }
 
+    public static bool AreInDaTauRolledQuestPromptPool(string normalizedLegacyPrompt, string normalizedRebornPrompt) =>
+        IsDaTauMainDialogPrompt(normalizedLegacyPrompt) &&
+        IsDaTauMainDialogPrompt(normalizedRebornPrompt);
+
+    public static bool IsDaTauPrisePrompt(string normalizedPrompt) =>
+        !string.IsNullOrWhiteSpace(normalizedPrompt) &&
+        normalizedPrompt.StartsWith("Ngươi vất vả quá, xin mời vị ", StringComparison.Ordinal) &&
+        normalizedPrompt.EndsWith("chọn món mình thích đi!", StringComparison.Ordinal);
+
+    private static bool IsDaTauMainDialogPrompt(string prompt) =>
+        !string.IsNullOrWhiteSpace(prompt) &&
+        prompt.Contains("Đây là nhiệm vụ thứ <color=green>", StringComparison.Ordinal);
+
     private static (IReadOnlyList<HashSet<string>> AllPools, HashSet<string> DuKhachCalligraphyPool) LoadPools()
     {
         var result = new List<HashSet<string>>();

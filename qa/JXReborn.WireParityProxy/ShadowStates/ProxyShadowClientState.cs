@@ -661,6 +661,7 @@ public sealed class ProxyShadowClientState
             }
 
             case ScriptActionS2CPacket.UiDescribeDialog:
+            case ScriptActionS2CPacket.UiPriseDialog:
             {
                 ReadOnlySpan<byte> delimiter = [(byte)'|', (byte)' ', (byte)'|'];
                 List<string> segments = SplitOnDelimiter(content, delimiter, maxSegments: 1 + action.OptionOrPageCount);

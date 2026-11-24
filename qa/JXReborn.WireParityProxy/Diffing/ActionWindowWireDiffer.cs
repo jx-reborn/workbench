@@ -39,6 +39,7 @@ public sealed class ActionWindowWireDiffer
         ProtocolOpcodes.s2c_npcsyncstateinfo,
         ProtocolOpcodes.s2c_objadd,
         ProtocolOpcodes.s2c_syncpos,
+        ProtocolOpcodes.s2c_castskilldirectly,
         ProtocolOpcodes.s2c_syncstateeffect,
         ProtocolOpcodes.s2c_pingreply,
         ProtocolOpcodes.s2c_playerattributesync,
@@ -180,6 +181,7 @@ public sealed class ActionWindowWireDiffer
              (sa.UiId != ScriptActionS2CPacket.UiSelectDialog &&
               sa.UiId != ScriptActionS2CPacket.UiTalkDialog &&
               sa.UiId != ScriptActionS2CPacket.UiDescribeDialog &&
+              sa.UiId != ScriptActionS2CPacket.UiPriseDialog &&
               sa.UiId != ScriptActionS2CPacket.UiQuestNote) ||
              sa.Content.Length == 0));
 

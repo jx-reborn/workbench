@@ -319,9 +319,11 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
             new(ProtocolOpcodes.s2c_objadd, new byte[35], now, 4),
             new(ProtocolOpcodes.s2c_synctaskvalue, new byte[9], now, 5),
             new(ProtocolOpcodes.s2c_requestnpcfail, new byte[5], now, 6),
-            new(0xC8, new byte[1027], now, 7),
-            new(ProtocolOpcodes.s2c_scriptaction, realSignboard0x63, now, 8),
-            new(ProtocolOpcodes.s2c_openstorebox, new byte[3], now, 9),
+            new(ProtocolOpcodes.s2c_castskilldirectly, new byte[25], now, 7),
+            new(0xC8, new byte[1027], now, 8),
+            new(ProtocolOpcodes.s2c_scriptaction, realSignboard0x63, now, 9),
+            new(ProtocolOpcodes.s2c_openstorebox, new byte[3], now, 10),
+            new(ProtocolOpcodes.s2c_skillcast, new byte[25], now, 11),
         };
 
         IReadOnlyList<ParityFinding> findings = differ.CompareWindow(window, primaryS2c, shadowS2c: [], mapId: 53, playerMpsX: 52032, playerMpsY: 101696);
@@ -333,10 +335,12 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x64]" && f.Severity == FindingSeverity.Warning);
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0xA7]" && f.Severity == FindingSeverity.Warning);
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x8A]" && f.Severity == FindingSeverity.Warning);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x85]" && f.Severity == FindingSeverity.Warning);
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0xC8]" && f.Severity == FindingSeverity.Warning);
 
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x63]" && f.Severity == FindingSeverity.Critical);
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x88]" && f.Severity == FindingSeverity.Critical);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Missing[0x5A]" && f.Severity == FindingSeverity.Critical);
 
         // Step 4 ground truth: 20-byte non-dialog 0x63 ack alongside 0xA7 login dump downgrades to Warning
         IReadOnlyList<ParityFinding> emptyAckFindings = differ.CompareWindow(

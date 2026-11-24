@@ -114,6 +114,9 @@ public sealed class C2sPacketRewriter
             case ProtocolOpcodes.c2s_playermoveitem when copy.Length == PlayerMoveItemC2SPacket.PayloadSize:
                 return RewriteMoveItem(copy);
 
+            case ProtocolOpcodes.c2s_giveitemui when GiveItemUiC2SPacket.TryParse(copy, out GiveItemUiC2SPacket giveUi):
+                return RewriteGiveItemUi(copy, giveUi);
+
             case ProtocolOpcodes.c2s_tradeapplystart when copy.Length >= 5:
                 return RewriteTargetNpc(
                     copy,
@@ -245,6 +248,41 @@ public sealed class C2sPacketRewriter
         {
             copy[1] = shadowItem.GridY;
             copy[4] = shadowItem.GridX;
+        }
+
+        return new C2sRewriteResult(copy, WasModified: modified, TranslationMissReason: null);
+    }
+
+    private C2sRewriteResult RewriteGiveItemUi(byte[] copy, GiveItemUiC2SPacket giveUi)
+    {
+        bool modified = false;
+        for (int i = 0; i < giveUi.Entries.Length; i++)
+        {
+            GiveItemUiEntry entry = giveUi.Entries[i];
+            int entryOffset = GiveItemUiC2SPacket.HeaderSize + (i * GiveItemUiC2SPacket.EntrySize);
+            if (!_translator.TryTranslateItemByIdOrCell(
+                    0,
+                    entry.Place,
+                    entry.GridX,
+                    entry.GridY,
+                    out VirtualJxItemSlot? shadowItem) ||
+                shadowItem is null)
+            {
+                return new C2sRewriteResult(
+                    copy,
+                    WasModified: modified,
+                    TranslationMissReason: $"c2s_giveitemui: could not translate Primary item (place={entry.Place}, x={entry.GridX}, y={entry.GridY}).");
+            }
+
+            if (shadowItem.ContainerPlace != entry.Place ||
+                shadowItem.GridX != entry.GridX ||
+                shadowItem.GridY != entry.GridY)
+            {
+                copy[entryOffset] = (byte)shadowItem.ContainerPlace;
+                copy[entryOffset + 1] = shadowItem.GridX;
+                copy[entryOffset + 2] = shadowItem.GridY;
+                modified = true;
+            }
         }
 
         return new C2sRewriteResult(copy, WasModified: modified, TranslationMissReason: null);

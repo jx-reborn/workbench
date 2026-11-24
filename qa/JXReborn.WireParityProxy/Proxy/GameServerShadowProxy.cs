@@ -396,6 +396,23 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                         primarySyncEndTcs.TrySetResult();
                     }
 
+                    if (frame.Opcode == ProtocolOpcodes.s2c_synctaskvalue &&
+                        frame.DecryptedPayload.Length >= 9)
+                    {
+                        int syncTaskId = BinaryPrimitives.ReadInt32LittleEndian(frame.DecryptedPayload.AsSpan(1, 4));
+                        int syncTaskVal = BinaryPrimitives.ReadInt32LittleEndian(frame.DecryptedPayload.AsSpan(5, 4));
+                        if (syncTaskId is >= 1020 and <= 1046)
+                        {
+                            byte[] syncPair = new byte[8];
+                            BinaryPrimitives.WriteInt32LittleEndian(syncPair.AsSpan(0, 4), syncTaskId);
+                            BinaryPrimitives.WriteInt32LittleEndian(syncPair.AsSpan(4, 4), syncTaskVal);
+                            byte[] qaSyncPayload = ScriptProtocolC2SPacket.CreateCanonicalPayload(
+                                ScriptProtocolC2SPacket.TestSyncTaskValuesProtocolId,
+                                syncPair);
+                            await shadowConn.WriteEncryptedFrameAsync(qaSyncPayload, linkCts.Token).ConfigureAwait(false);
+                        }
+                    }
+
                     lock (windowLock)
                     {
                         activeWindow?.AddPrimaryS2c(frame);
@@ -498,6 +515,7 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
         opcode is ProtocolOpcodes.c2s_ping
             or 0xA7
             or ProtocolOpcodes.c2s_ongettagsrequest
+            or ProtocolOpcodes.c2s_extend
             or ProtocolOpcodes.c2s_extendfriend
             or ProtocolOpcodes.c2s_changeauraskill;
 

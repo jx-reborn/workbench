@@ -404,7 +404,8 @@ public sealed partial class SemanticDiffEngine
         string rebornPrompt = NormalizeDialogPrompt(reborn.Prompt);
         if (!string.Equals(legacyPrompt, rebornPrompt, StringComparison.Ordinal))
         {
-            if (AmbientRandomDialogPoolCatalog.AreInSameVerifiedPool(legacyPrompt, rebornPrompt))
+            if (AmbientRandomDialogPoolCatalog.AreInSameVerifiedPool(legacyPrompt, rebornPrompt) ||
+                AmbientRandomDialogPoolCatalog.AreInDaTauRolledQuestPromptPool(legacyPrompt, rebornPrompt))
             {
                 addFinding(
                     FindingSeverity.Warning,
@@ -437,6 +438,9 @@ public sealed partial class SemanticDiffEngine
             return;
         }
 
+        bool isDaTauPrise = AmbientRandomDialogPoolCatalog.IsDaTauPrisePrompt(legacyPrompt) &&
+                            AmbientRandomDialogPoolCatalog.IsDaTauPrisePrompt(rebornPrompt);
+
         for (int i = 0; i < legacyOptions.Count; i++)
         {
             string lOpt = NormalizeText(legacyOptions[i]);
@@ -444,9 +448,9 @@ public sealed partial class SemanticDiffEngine
             if (!string.Equals(lOpt, rOpt, StringComparison.Ordinal))
             {
                 addFinding(
-                    FindingSeverity.Critical,
+                    isDaTauPrise ? FindingSeverity.Warning : FindingSeverity.Critical,
                     FindingCategory.NpcDialog,
-                    $"Dialog.Options[{i}]",
+                    isDaTauPrise ? $"Dialog.Options[{i}].RandomPool" : $"Dialog.Options[{i}]",
                     lOpt,
                     rOpt);
             }

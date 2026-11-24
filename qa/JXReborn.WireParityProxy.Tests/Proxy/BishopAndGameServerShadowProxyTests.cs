@@ -731,4 +731,125 @@ public sealed class BishopAndGameServerShadowProxyTests
         IReadOnlyList<JXReborn.DualParityServer.Diffing.ParityFinding> findings = gsProxy.LatestSession.DiffCoordinator.GetFindings();
         Assert.DoesNotContain(findings, static f => f.Severity == JXReborn.DualParityServer.Diffing.FindingSeverity.Critical);
     }
+
+    [Fact]
+    public async Task GameServerShadowProxy_WhenClientEmits0xFAExtendDuring0x5FMapTransition_ShouldKeep0x5FWindowOpenUntilShadowSyncWorldArrives()
+    {
+        // Ground truth: live playtest wpp-20261124-152238-49b20b Step 76..81:
+        // On 0x5F faction join teleport (Map 53 -> Map 13), Primary emits 0x49 (s2c_syncworld) immediately,
+        // causing game.exe to emit 0xFA (c2s_extend channel query) ~10ms later before Shadow's 18-Hz tick finishes.
+        // 0xFA must not slice the active 0x5F transition window into a transient Player.MapId Critical diff.
+        LegacyKeyTable keyTable = LegacyKeyTable.CreateSynthetic();
+        Guid primaryGuid = Guid.NewGuid();
+        Guid shadowGuid = Guid.NewGuid();
+
+        using var primaryGsListener = new TcpListener(IPAddress.Loopback, 0);
+        using var shadowGsListener = new TcpListener(IPAddress.Loopback, 0);
+        primaryGsListener.Start();
+        shadowGsListener.Start();
+
+        var handoffMap = new HandoffTicketMap();
+        handoffMap.Register(new HandoffTicketEntry(
+            PrimaryGuid: primaryGuid,
+            PrimaryGsHost: "127.0.0.1",
+            PrimaryGsPort: (ushort)((IPEndPoint)primaryGsListener.LocalEndpoint).Port,
+            ShadowGuid: shadowGuid,
+            ShadowGsHost: "127.0.0.1",
+            ShadowGsPort: (ushort)((IPEndPoint)shadowGsListener.LocalEndpoint).Port,
+            RoleName: "WaterSpark",
+            CreatedAtUtc: DateTimeOffset.UtcNow));
+
+        var options = new WireParityProxyOptions
+        {
+            BindHost = "127.0.0.1",
+            BishopListenPort = 0,
+            GameServerListenPort = 0,
+            AllowSyntheticKeyTableFallback = true,
+            ActionWindowMs = 150
+        };
+
+        await using var gsProxy = new GameServerShadowProxy(options, keyTable, handoffMap);
+        gsProxy.Start();
+
+        static byte[] CreateSyncWorldBytes(ushort mapId, int mpsX, int mpsY, string mapName)
+        {
+            SyncWorldS2CPacket sw = SyncWorldS2CPacket.Create(mapId, mpsX, mpsY, 100, mapName);
+            byte[] buf = new byte[SyncWorldS2CPacket.Size];
+            MemoryMarshal.Write(buf, in sw);
+            return buf;
+        }
+
+        static async Task SendBootstrapAsync(JxWireConnection conn, uint selfNpcId)
+        {
+            byte[] syncWorld = CreateSyncWorldBytes(53, 52003, 101307, "Ba Lang Huyen");
+            byte[] selfNpc = new SyncNpcFullS2CPacket(0, ElementSeries.Water, 128, 101307, 1, 0, 52003, 0, 0, EntityKind.Player, selfNpcId, -1, 0xFFFF, 1, 0, "WaterSpark").ToPayloadBytes();
+            byte[] curPlayer = new byte[Marshal.SizeOf<SyncCurPlayerS2CPacket>()];
+            var curPkt = new SyncCurPlayerS2CPacket { ProtocolType = ProtocolOpcodes.s2c_synccurplayer, Id = selfNpcId, Level = 10, LifeMax = 204, StaminaMax = 50, Kind = (byte)EntityKind.Player, ManaMax = 16 };
+            MemoryMarshal.Write(curPlayer, in curPkt);
+            byte[] syncEnd = [ProtocolOpcodes.s2c_syncend];
+            await conn.WriteEncryptedFrameAsync(syncWorld, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(selfNpc, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(curPlayer, CancellationToken.None);
+            await conn.WriteEncryptedFrameAsync(syncEnd, CancellationToken.None);
+        }
+
+        byte[] map13SyncWorld = CreateSyncWorldBytes(13, 60736, 159296, "Nga Mi phai");
+
+        Task primaryTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await primaryGsListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("primary-gs", tcp, keyTable, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // logiclogin
+            await SendBootstrapAsync(conn, 1001u);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x43
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x5F
+            await conn.WriteEncryptedFrameAsync(map13SyncWorld, CancellationToken.None); // Immediate Map 13 transition!
+            while (await conn.ReadDecryptedFrameAsync(CancellationToken.None) is not null) { }
+        });
+
+        Task shadowTask = Task.Run(async () =>
+        {
+            TcpClient tcp = await shadowGsListener.AcceptTcpClientAsync();
+            await using JxWireConnection conn = await JxWireConnection.AcceptClientAsync("shadow-gs", tcp, keyTable, CancellationToken.None);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // logiclogin
+            await SendBootstrapAsync(conn, 2002u);
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x43
+            _ = await conn.ReadDecryptedFrameAsync(CancellationToken.None); // 0x5F
+            await Task.Delay(55); // Shadow 18-Hz tick completes after client's 0xFA burst!
+            await conn.WriteEncryptedFrameAsync(map13SyncWorld, CancellationToken.None);
+            while (await conn.ReadDecryptedFrameAsync(CancellationToken.None) is not null) { }
+        });
+
+        await using (JxWireConnection clientGs = await JxWireConnection.ConnectUpstreamAsync("client-gs", "127.0.0.1", gsProxy.BoundPort, keyTable, CancellationToken.None))
+        {
+            byte[] logicLogin = new byte[17];
+            logicLogin[0] = ProtocolOpcodes.c2s_logiclogin;
+            primaryGuid.TryWriteBytes(logicLogin.AsSpan(1, 16));
+            await clientGs.WriteEncryptedFrameAsync(logicLogin, CancellationToken.None);
+            for (int i = 0; i < 4; i++)
+            {
+                _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None);
+            }
+
+            await clientGs.WriteEncryptedFrameAsync(new byte[9] { ProtocolOpcodes.c2s_syncend, 0, 0, 0, 0, 0, 0, 0, 0 }, CancellationToken.None);
+            await Task.Delay(180);
+
+            byte[] select5F = new byte[17];
+            select5F[0] = ProtocolOpcodes.c2s_playerselui;
+            await clientGs.WriteEncryptedFrameAsync(select5F, CancellationToken.None);
+            _ = await clientGs.ReadDecryptedFrameAsync(CancellationToken.None); // Primary's 0x49 arrives at client
+
+            // Client immediately fires 0xFA c2s_extend channel queries upon entering Map 13!
+            byte[] extendFa = new byte[12];
+            extendFa[0] = ProtocolOpcodes.c2s_extend;
+            await clientGs.WriteEncryptedFrameAsync(extendFa, CancellationToken.None);
+            await Task.Delay(200);
+        }
+
+        await Task.WhenAll(primaryTask, shadowTask).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(gsProxy.LatestSession);
+        IReadOnlyList<JXReborn.DualParityServer.Diffing.ParityFinding> transitionFindings = gsProxy.LatestSession.DiffCoordinator.GetFindings();
+        Assert.DoesNotContain(transitionFindings, static f => f.Severity == JXReborn.DualParityServer.Diffing.FindingSeverity.Critical);
+    }
 }

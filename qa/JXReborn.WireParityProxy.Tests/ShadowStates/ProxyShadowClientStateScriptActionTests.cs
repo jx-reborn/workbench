@@ -28,6 +28,30 @@ public sealed class ProxyShadowClientStateScriptActionTests
     }
 
     [Fact]
+    public void ApplyS2c_WithUiPriseDialog_ShouldParsePromptAndThreeRewardOptions()
+    {
+        // Ground truth: seasonnpc.lua Prise() -> ScriptActionS2CPacket UiPriseDialog (UiId=13), "| |" delimiter
+        var state = new ProxyShadowClientState("reborn-server");
+        byte[] payload = ScriptActionS2CPacket.CreatePrisePayload(
+            "Ngươi vất vả quá, xin mời vị Công tử  chọn món mình thích đi!",
+            "Nhận được 5000 tiền /3",
+            "Nhận được 12000 điểm kinh nghiệm/4",
+            "Nhận được Tiên Thảo Lộ /5");
+
+        state.ApplyS2c(payload, DateTimeOffset.UtcNow);
+
+        Assert.True(state.Dialog.IsOpen);
+        Assert.False(state.Dialog.IsTalk);
+        Assert.Equal(
+            "Ngươi vất vả quá, xin mời vị Công tử  chọn món mình thích đi!",
+            Tcvn3Encoding.DecodeNullTerminated(Convert.FromHexString(state.Dialog.PromptTcvn3Hex)));
+        Assert.Equal(3, state.Dialog.OptionsTcvn3Hex.Count);
+        Assert.Equal(
+            "Nhận được 5000 tiền /3",
+            Tcvn3Encoding.DecodeNullTerminated(Convert.FromHexString(state.Dialog.OptionsTcvn3Hex[0])));
+    }
+
+    [Fact]
     public void ApplyS2c_WithUiSelectDialog_ShouldParseNullDelimitedPromptAndOptions()
     {
         var state = new ProxyShadowClientState("reborn-server");
