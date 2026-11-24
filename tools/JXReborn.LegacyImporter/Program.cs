@@ -29,6 +29,7 @@ public static class Program
         bool exportAllMaps = false;
         bool compileOnly = false;
         bool systemSettingsOnly = false;
+        bool questsOnly = false;
         bool validateSchemas = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -58,6 +59,9 @@ public static class Program
                     break;
                 case "--system-settings-only":
                     systemSettingsOnly = true;
+                    break;
+                case "--quests-only":
+                    questsOnly = true;
                     break;
                 case "--validate-schemas":
                     validateSchemas = true;
@@ -102,6 +106,14 @@ public static class Program
             var onlySysExporter = new SystemSettingsDataExporter();
             int exportedCount = onlySysExporter.ExportCoreSystemSettings(source, dataDir);
             Console.WriteLine($"  CoreSystemSettings: {exportedCount} files -> data/system/");
+            return 0;
+        }
+
+        if (questsOnly)
+        {
+            var onlyQuestExporter = new QuestDataExporter();
+            var qCounts = onlyQuestExporter.ExportQuests(source, dataDir);
+            Console.WriteLine($"  Quests (DaTau): Treasure={qCounts.TreasurePositions}, Milestones={qCounts.MilestoneAwards}, Basic={qCounts.BasicAwards}, Buy={qCounts.BuyGoods}, Find={qCounts.FindGoods}, Up={qCounts.UpGround}, Kill={qCounts.KillMonsters}");
             return 0;
         }
 
