@@ -302,6 +302,48 @@ public sealed class EntityIdTranslatorAndRewriterTests
         Assert.Equal(2, BinaryPrimitives.ReadInt32LittleEndian(result.ShadowPayload.AsSpan(5, 4)));
     }
 
+    [Fact]
+    public void RewriteForShadow_OnPlayerPickupItemWhenMoneyAndItemDropTogetherAcrossPatrolDrift_ShouldTranslateObjIdAtOffset4ByKindAndName()
+    {
+        // Ground truth: Map 53 Step082_C2S_0x5A (5A000003E805000000000000, ObjId=1512 Fresh Meat)
+        // and Step091_C2S_0x5A (5A000000E905000000000000, ObjId=1513 Money).
+        // Wandering monsters die ~360 mps apart (> 256 mps) and drop both Money and "Thịt tươi" at adjacent coordinates.
+        var primary = new ProxyShadowClientState("legacy-linux");
+        var shadow = new ProxyShadowClientState("reborn-server");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        primary.ApplyS2c(BuildSyncSelfPlayerNpcPayload(npcId: 100u, mpsX: 52456, mpsY: 97931), now);
+        shadow.ApplyS2c(BuildSyncSelfPlayerNpcPayload(npcId: 200u, mpsX: 52800, mpsY: 98050), now);
+
+        // Primary drops: ObjId=1512 ("Thịt tươi") and ObjId=1513 (Money=32) near (52456, 97931)
+        primary.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 1512, dataId: 364, mpsX: 52460, mpsY: 97935, moneyNum: 0, itemId: 10, state: 0, itemWidth: 1, genre: 6, itemHeight: 1, colorId: 0, flag: 0, nameUtf8: "Thịt tươi"), now);
+        primary.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 1513, dataId: 8, mpsX: 52462, mpsY: 97936, moneyNum: 32, itemId: 0, state: 0, itemWidth: 0, genre: 0, itemHeight: 0, colorId: 0, flag: 0, nameUtf8: string.Empty), now);
+
+        // Shadow drops in reverse order ~360 mps away near Shadow player (52800, 98050):
+        // ObjId=701 (Money=32, closer!) and ObjId=702 ("Thịt tươi")
+        shadow.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 701, dataId: 8, mpsX: 52802, mpsY: 98051, moneyNum: 32, itemId: 0, state: 0, itemWidth: 0, genre: 0, itemHeight: 0, colorId: 0, flag: 0, nameUtf8: string.Empty), now);
+        shadow.ApplyS2c(ObjAddS2CPacket.CreatePayloadBytes(dir: 0, objId: 702, dataId: 364, mpsX: 52815, mpsY: 98060, moneyNum: 0, itemId: 99, state: 0, itemWidth: 1, genre: 6, itemHeight: 1, colorId: 0, flag: 0, nameUtf8: "Thịt tươi"), now);
+
+        var rewriter = new C2sPacketRewriter(new EntityIdTranslator(primary, shadow));
+
+        // Exact hex from Step082_C2S_0x5A: 5A 00 00 03 E8 05 00 00 00 00 00 00 (ObjId = 0x05E8 = 1512)
+        byte[] pickupMeatC2s = Convert.FromHexString("5A000003E805000000000000");
+        C2sRewriteResult meatResult = rewriter.RewriteForShadow(pickupMeatC2s, 1u, 2u);
+
+        Assert.True(meatResult.WasModified);
+        Assert.Null(meatResult.TranslationMissReason);
+        Assert.Equal(0x03, meatResult.ShadowPayload[3]);
+        Assert.Equal(702, BinaryPrimitives.ReadInt32LittleEndian(meatResult.ShadowPayload.AsSpan(4, 4)));
+
+        // Exact hex from Step091_C2S_0x5A: 5A 00 00 00 E9 05 00 00 00 00 00 00 (ObjId = 0x05E9 = 1513)
+        byte[] pickupMoneyC2s = Convert.FromHexString("5A000000E905000000000000");
+        C2sRewriteResult moneyResult = rewriter.RewriteForShadow(pickupMoneyC2s, 1u, 2u);
+
+        Assert.True(moneyResult.WasModified);
+        Assert.Null(moneyResult.TranslationMissReason);
+        Assert.Equal(701, BinaryPrimitives.ReadInt32LittleEndian(moneyResult.ShadowPayload.AsSpan(4, 4)));
+    }
+
     private static byte[] BuildSyncSelfPlayerNpcPayload(uint npcId, int mpsX, int mpsY)
     {
         var pkt = new SyncNpcFullS2CPacket(

@@ -77,6 +77,9 @@ public sealed class C2sPacketRewriter
             case ProtocolOpcodes.c2s_requestobj when copy.Length >= RequestObjC2SPacket.PayloadSize:
                 return RewriteTargetObj(copy, objIdOffset: 1, isMouseClick: false, label: "c2s_requestobj");
 
+            case ProtocolOpcodes.c2s_playerpickupitem when copy.Length == PlayerPickupItemC2SPacket.PayloadSize:
+                return RewriteTargetObj(copy, objIdOffset: 4, isMouseClick: false, label: "c2s_playerpickupitem");
+
             case ProtocolOpcodes.c2s_objmouseclick when copy.Length >= ObjMouseClickC2SPacket.PayloadSize:
                 return RewriteTargetObj(copy, objIdOffset: 5, isMouseClick: true, label: "c2s_objmouseclick");
 

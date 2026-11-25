@@ -561,7 +561,9 @@ public sealed class ProxyShadowClientState
                         objAdd.MpsX,
                         objAdd.MpsY,
                         HasCoords: true,
-                        FirstSeenOrder: seenOrder);
+                        FirstSeenOrder: seenOrder,
+                        IsMoney: objAdd.MoneyNum > 0,
+                        NameUtf8: (objAdd.NameUtf8 ?? string.Empty).Trim());
                 }
 
                 break;

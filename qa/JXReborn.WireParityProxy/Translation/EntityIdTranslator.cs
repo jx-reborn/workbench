@@ -140,21 +140,38 @@ public sealed class EntityIdTranslator
 
         if (hasPrimaryObj && primaryObj.HasCoords)
         {
+            bool isDynamicLoot = primaryObj.IsMoney || !string.IsNullOrEmpty(primaryObj.NameUtf8);
+            double maxRadius = isDynamicLoot ? MaxMonsterPatrolMatchDistanceMps : MaxNpcMatchDistanceMps;
+            bool hasShadowSelfPos = _shadow.MpsX != 0 || _shadow.MpsY != 0;
+
             ShadowGroundObject? bestByCoord = null;
-            double bestDist = double.MaxValue;
+            double bestScore = double.MaxValue;
             foreach (ShadowGroundObject candidate in shadowObjs.Values)
             {
-                if (!candidate.HasCoords)
+                if (!candidate.HasCoords || !MatchesGroundObjectIdentity(primaryObj, candidate))
                 {
                     continue;
                 }
 
                 long dx = (long)candidate.MpsX - primaryObj.MpsX;
                 long dy = (long)candidate.MpsY - primaryObj.MpsY;
-                double dist = Math.Sqrt((dx * dx) + (dy * dy));
-                if (dist <= MaxNpcMatchDistanceMps && dist < bestDist)
+                double distFromPrimary = Math.Sqrt((dx * dx) + (dy * dy));
+                if (distFromPrimary > maxRadius)
                 {
-                    bestDist = dist;
+                    continue;
+                }
+
+                double score = distFromPrimary;
+                if (isDynamicLoot && hasShadowSelfPos)
+                {
+                    long sdx = (long)candidate.MpsX - _shadow.MpsX;
+                    long sdy = (long)candidate.MpsY - _shadow.MpsY;
+                    score = Math.Sqrt((sdx * sdx) + (sdy * sdy));
+                }
+
+                if (score < bestScore)
+                {
+                    bestScore = score;
                     bestByCoord = candidate;
                 }
             }
@@ -341,6 +358,24 @@ public sealed class EntityIdTranslator
         a.DetailType == b.DetailType &&
         a.ParticularType == b.ParticularType &&
         a.Level == b.Level;
+
+    private static bool MatchesGroundObjectIdentity(ShadowGroundObject primaryObj, ShadowGroundObject candidate)
+    {
+        if (primaryObj.IsMoney != candidate.IsMoney)
+        {
+            return false;
+        }
+
+        if (!primaryObj.IsMoney &&
+            !string.IsNullOrEmpty(primaryObj.NameUtf8) &&
+            !string.IsNullOrEmpty(candidate.NameUtf8) &&
+            !string.Equals(primaryObj.NameUtf8, candidate.NameUtf8, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return true;
+    }
 
     private static VirtualJxItemSlot? FindCoveringItem(
         IEnumerable<VirtualJxItemSlot> items,

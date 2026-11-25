@@ -10,4 +10,6 @@ public readonly record struct ShadowGroundObject(
     int MpsX,
     int MpsY,
     bool HasCoords,
-    int FirstSeenOrder);
+    int FirstSeenOrder,
+    bool IsMoney = false,
+    string NameUtf8 = "");
