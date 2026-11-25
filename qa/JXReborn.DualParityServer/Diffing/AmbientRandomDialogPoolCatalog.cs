@@ -43,18 +43,71 @@ public static class AmbientRandomDialogPoolCatalog
         return pool.Contains(normalizedLegacyPrompt) && pool.Contains(normalizedRebornPrompt);
     }
 
+    private static readonly string[] ValidDaTauObjectivePrefixes =
+    [
+        "Hãy đi <color=yellow>",
+        "Hãy giúp ta đi tìm món này: <color=yellow>",
+        "Ngươi hãy đến <color=yellow>",
+        "Hãy đi nâng cấp <color=yellow>",
+        "Hãy đi tìm giúp ta <color=yellow>",
+    ];
+
     public static bool AreInDaTauRolledQuestPromptPool(string normalizedLegacyPrompt, string normalizedRebornPrompt) =>
-        IsDaTauMainDialogPrompt(normalizedLegacyPrompt) &&
-        IsDaTauMainDialogPrompt(normalizedRebornPrompt);
+        TryParseValidDaTauMainDialogPrompt(normalizedLegacyPrompt, out int legacyQuestNum) &&
+        TryParseValidDaTauMainDialogPrompt(normalizedRebornPrompt, out int rebornQuestNum) &&
+        legacyQuestNum == rebornQuestNum;
 
     public static bool IsDaTauPrisePrompt(string normalizedPrompt) =>
         !string.IsNullOrWhiteSpace(normalizedPrompt) &&
         normalizedPrompt.StartsWith("Ngươi vất vả quá, xin mời vị ", StringComparison.Ordinal) &&
         normalizedPrompt.EndsWith("chọn món mình thích đi!", StringComparison.Ordinal);
 
-    private static bool IsDaTauMainDialogPrompt(string prompt) =>
-        !string.IsNullOrWhiteSpace(prompt) &&
-        prompt.Contains("Đây là nhiệm vụ thứ <color=green>", StringComparison.Ordinal);
+    private static bool TryParseValidDaTauMainDialogPrompt(string prompt, out int questNumber)
+    {
+        questNumber = 0;
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            return false;
+        }
+
+        const string Prefix = "Đây là nhiệm vụ thứ <color=green>";
+        const string Separator = "<color>,";
+
+        int prefixIdx = prompt.IndexOf(Prefix, StringComparison.Ordinal);
+        if (prefixIdx < 0)
+        {
+            return false;
+        }
+
+        int numStart = prefixIdx + Prefix.Length;
+        int sepIdx = prompt.IndexOf(Separator, numStart, StringComparison.Ordinal);
+        if (sepIdx <= numStart)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(prompt.AsSpan(numStart, sepIdx - numStart), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out questNumber) ||
+            questNumber <= 0)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> objective = prompt.AsSpan(sepIdx + Separator.Length).Trim();
+        if (objective.IsEmpty)
+        {
+            return false;
+        }
+
+        foreach (string validPrefix in ValidDaTauObjectivePrefixes)
+        {
+            if (objective.StartsWith(validPrefix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static (IReadOnlyList<HashSet<string>> AllPools, HashSet<string> DuKhachCalligraphyPool) LoadPools()
     {

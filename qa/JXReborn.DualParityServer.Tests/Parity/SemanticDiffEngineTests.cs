@@ -280,4 +280,37 @@ public sealed class SemanticDiffEngineTests
         StepComparisonResult nextStep = cleanEngine.Compare(903, "AfterKillWalk", "C2S 0x4B", legacyKill, rebornLv3Kill, legacyKill, rebornLv3Kill);
         Assert.DoesNotContain(nextStep.Findings, static f => f.Severity == FindingSeverity.Critical);
     }
+
+    [Fact]
+    public void Compare_OnDaTauMainDialogPrompt_ShouldDowngradeValidRolledQuestsWithSameNumberToWarningButKeepTruncatedObjectiveOrMismatchedNumberCritical()
+    {
+        // Ground truth:
+        // - Step 191 (F-20261125-0027): independent RNG roll on Quest #1 (Type 4 FindMaps vs Type 2 FindGoods) -> Warning (Dialog.Prompt.RandomPool)
+        // - Step 193 (F-20261125-0028): truncated Reborn prompt "<enter><enter> Đây là nhiệm vụ thứ <color=green>1<color>," -> Critical (Dialog.Prompt)
+        // - Quest counter desync (<color=green>1<color> vs <color=green>2<color>) -> Critical (Dialog.Prompt)
+        var engine = new SemanticDiffEngine();
+
+        WorldDomSnapshot legacyRolled = TestSnapshotFactory.Create(
+            dialog: TestSnapshotFactory.CreateDialog(
+                "<enter><enter> Đây là nhiệm vụ thứ <color=green>1<color>, Ngươi hãy đến <color=yellow>Linh Cốc động<color> tìm giúp ta <color=yellow>12<color> quyển <color=yellow> Địa Đồ chí  <color>."));
+        WorldDomSnapshot rebornValidRoll = TestSnapshotFactory.Create(
+            dialog: TestSnapshotFactory.CreateDialog(
+                "<enter><enter> Đây là nhiệm vụ thứ <color=green>1<color>, Hãy giúp ta đi tìm món này: <color=yellow>1 cái <color=yellow>Dây chuyền đồng (Mộc)<color><color>."));
+
+        StepComparisonResult validRollResult = engine.Compare(191, "Step191_C2S_0x5F", "C2S 0x5F", legacyRolled, rebornValidRoll);
+        Assert.DoesNotContain(validRollResult.Findings, static f => f.Severity == FindingSeverity.Critical);
+        Assert.Contains(validRollResult.Findings, static f => f.FieldPath == "Dialog.Prompt.RandomPool" && f.Severity == FindingSeverity.Warning);
+
+        WorldDomSnapshot rebornTruncated = TestSnapshotFactory.Create(
+            dialog: TestSnapshotFactory.CreateDialog(
+                "<enter><enter> Đây là nhiệm vụ thứ <color=green>1<color>,"));
+        StepComparisonResult truncatedResult = engine.Compare(193, "Step193_C2S_0x6E", "C2S 0x6E", legacyRolled, rebornTruncated);
+        Assert.Contains(truncatedResult.Findings, static f => f.FieldPath == "Dialog.Prompt" && f.Severity == FindingSeverity.Critical);
+
+        WorldDomSnapshot rebornWrongNumber = TestSnapshotFactory.Create(
+            dialog: TestSnapshotFactory.CreateDialog(
+                "<enter><enter> Đây là nhiệm vụ thứ <color=green>2<color>, Hãy giúp ta đi tìm món này: <color=yellow>1 cái <color=yellow>Dây chuyền đồng (Mộc)<color><color>."));
+        StepComparisonResult wrongNumberResult = engine.Compare(194, "Step194_C2S_0x6E", "C2S 0x6E", legacyRolled, rebornWrongNumber);
+        Assert.Contains(wrongNumberResult.Findings, static f => f.FieldPath == "Dialog.Prompt" && f.Severity == FindingSeverity.Critical);
+    }
 }
