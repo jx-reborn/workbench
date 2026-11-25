@@ -132,7 +132,7 @@ public sealed class DifferentialScriptEquivalenceVerifier
                 {
                     totalVectors++;
                     ScriptEffectTrace luaTrace = luaOracle.Execute(entry.CanonicalScriptPath, kind, vec);
-                    ScriptEffectTrace csTrace = await ExecuteCSharpInstanceAsync(instance, kind, utf8Path, vec, cancellationToken);
+                    ScriptEffectTrace csTrace = await ExecuteCSharpInstanceAsync(instance, kind, utf8Path, vec, itemIndex, cancellationToken);
 
                     string expectedStr = luaTrace.ToCanonicalString();
                     string actualStr = csTrace.ToCanonicalString();
@@ -217,7 +217,7 @@ public sealed class DifferentialScriptEquivalenceVerifier
                         totalVectors++;
 
                         ScriptEffectTrace luaTrace = luaOracle.Execute(entry.CanonicalScriptPath, GeneratedScriptKind.Npc, ambientVec);
-                        ScriptEffectTrace csTrace = await ExecuteCSharpInstanceAsync(ambientScript, GeneratedScriptKind.Npc, utf8Path, ambientVec, cancellationToken);
+                        ScriptEffectTrace csTrace = await ExecuteCSharpInstanceAsync(ambientScript, GeneratedScriptKind.Npc, utf8Path, ambientVec, itemIndex, cancellationToken);
 
                         string expectedStr = luaTrace.ToCanonicalString();
                         string actualStr = csTrace.ToCanonicalString();
@@ -287,7 +287,7 @@ public sealed class DifferentialScriptEquivalenceVerifier
         foreach (ScriptStateVector vec in vectors)
         {
             ScriptEffectTrace luaTrace = luaOracle.Execute(relKey, GeneratedScriptKind.Npc, vec);
-            ScriptEffectTrace csTrace = await ExecuteCSharpInstanceAsync(csharpScript, GeneratedScriptKind.Npc, utf8ScriptPath, vec, cancellationToken);
+            ScriptEffectTrace csTrace = await ExecuteCSharpInstanceAsync(csharpScript, GeneratedScriptKind.Npc, utf8ScriptPath, vec, itemIndex: null, cancellationToken);
 
             string expectedStr = luaTrace.ToCanonicalString();
             string actualStr = csTrace.ToCanonicalString();
@@ -348,6 +348,7 @@ public sealed class DifferentialScriptEquivalenceVerifier
         GeneratedScriptKind kind,
         string utf8ScriptPath,
         ScriptStateVector vector,
+        PackItemCatalogIndex? itemIndex,
         CancellationToken cancellationToken)
     {
         var rng = new Random(vector.RandomSeed);
@@ -356,7 +357,7 @@ public sealed class DifferentialScriptEquivalenceVerifier
             max <= min ? min : rng.Next(min, max + 1));
         using IDisposable? clockScope = ClockScopeMethod?.Invoke(null, [simTime]) as IDisposable;
 
-        var ctx = new RecordingScriptContext(utf8ScriptPath, vector);
+        var ctx = new RecordingScriptContext(utf8ScriptPath, vector, itemIndex);
         switch (kind)
         {
             case GeneratedScriptKind.Trap when instance is ITrapScript trap:

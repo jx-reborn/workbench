@@ -40,12 +40,30 @@ public sealed class LuaIncludeLinker
         "CreateNewSayEx",
         "CreateTaskSay",
         "TaskSay",
+        "RCNY_ApDung",
+        "RCNY_PhatDoVang",
+        "RCNY_DoVang",
+        "EXPAWARD_ExpThat",
+        "_WritePlayerLog",
+        "getItemInfo",
+        "loadsavevalue",
+        "savevalue",
     };
 
     private static readonly HashSet<string> LoweredFrameworkGlobals = new(StringComparer.Ordinal)
     {
         "tbAwardTemplet",
         "DailogClass",
+        "PlayerFunLib",
+        "RCNY_TONG_NHOM",
+        "RCNY_BO",
+        "RCNY_NHOM",
+        "ObjBuffer",
+        "tbLog",
+        "tbVngTransLog",
+        "tbVngLib_File",
+        "tbVNG_BitTask_Lib",
+        "tbvng_ChestExpAward",
     };
 
     private readonly ILegacyServerSource _source;
@@ -115,27 +133,51 @@ public sealed class LuaIncludeLinker
         var reachableConsts = new HashSet<string>(StringComparer.Ordinal);
         var touchedChunks = new HashSet<int> { 0 }; // Entry chunk (0) is always active
         var fnQueue = new Queue<string>();
+        var constQueue = new Queue<string>();
 
         reachableFunctions.Add(expectedEntrypoint);
         fnQueue.Enqueue(expectedEntrypoint);
 
-        while (fnQueue.Count > 0)
+        void DrainFunctionQueue()
         {
-            string fnName = fnQueue.Dequeue();
-            (LuaFunctionDecl fn, int fnChunkId) = functionsByName[fnName];
-            touchedChunks.Add(fnChunkId);
+            while (fnQueue.Count > 0)
+            {
+                string fnName = fnQueue.Dequeue();
+                (LuaFunctionDecl fn, int fnChunkId) = functionsByName[fnName];
+                touchedChunks.Add(fnChunkId);
 
-            ScanStatementsForReachability(
-                fn.Body,
-                functionsByName,
-                constTable,
-                reachableFunctions,
-                reachableConsts,
-                fnQueue);
+                ScanStatementsForReachability(
+                    fn.Body,
+                    functionsByName,
+                    constTable,
+                    reachableFunctions,
+                    reachableConsts,
+                    fnQueue,
+                    constQueue);
+            }
         }
 
+        DrainFunctionQueue();
+
+        // Also scan active top-level impure statements (e.g. RCNY_ApDung(tbAward) in entry chunk)
+        foreach (int chunkId in touchedChunks.OrderBy(static id => id).ToArray())
+        {
+            if (impureStatementsByChunk.TryGetValue(chunkId, out List<LuaStatement>? impures))
+            {
+                ScanStatementsForReachability(
+                    impures,
+                    functionsByName,
+                    constTable,
+                    reachableFunctions,
+                    reachableConsts,
+                    fnQueue,
+                    constQueue);
+            }
+        }
+
+        DrainFunctionQueue();
+
         // Transitively expand constants referenced by reachable constants
-        var constQueue = new Queue<string>(reachableConsts);
         while (constQueue.Count > 0)
         {
             string cName = constQueue.Dequeue();
@@ -154,41 +196,27 @@ public sealed class LuaIncludeLinker
                 fnQueue,
                 constQueue);
 
-            // Drain any newly discovered callbacks found inside reachable constant string tables!
-            while (fnQueue.Count > 0)
-            {
-                string fnName = fnQueue.Dequeue();
-                (LuaFunctionDecl fn, int fnChunkId) = functionsByName[fnName];
-                touchedChunks.Add(fnChunkId);
-                ScanStatementsForReachability(
-                    fn.Body,
-                    functionsByName,
-                    constTable,
-                    reachableFunctions,
-                    reachableConsts,
-                    fnQueue,
-                    constQueue);
-            }
+            DrainFunctionQueue();
         }
 
         // Build pruned top-level statement list:
-        // 1. Any impure top-level statements from entry chunk (0) or any touched included chunk
-        // 2. Reachable top-level constants in exact declaration order
+        // 1. Reachable top-level constants in declaration order (must precede impure calls referencing them, e.g. RCNY_ApDung(tbAward))
+        // 2. Any impure top-level statements from entry chunk (0) or any touched included chunk
         var finalTopLevel = new List<LuaStatement>();
-        foreach (int chunkId in touchedChunks.OrderBy(static id => id))
-        {
-            if (impureStatementsByChunk.TryGetValue(chunkId, out List<LuaStatement>? impures))
-            {
-                finalTopLevel.AddRange(impures);
-            }
-        }
-
         var seenConsts = new HashSet<string>(StringComparer.Ordinal);
         foreach (string cName in constOrder)
         {
             if (reachableConsts.Contains(cName) && seenConsts.Add(cName) && constTable.TryGetValue(cName, out var cEntry))
             {
                 finalTopLevel.Add(cEntry.Statement);
+            }
+        }
+
+        foreach (int chunkId in touchedChunks.OrderBy(static id => id))
+        {
+            if (impureStatementsByChunk.TryGetValue(chunkId, out List<LuaStatement>? impures))
+            {
+                finalTopLevel.AddRange(impures);
             }
         }
 
@@ -228,6 +256,10 @@ public sealed class LuaIncludeLinker
             {
                 string renamed = $"__chunk{myChunkId}_{ld.Name}";
                 chunkLocalRenameMap[ld.Name] = renamed;
+                if (ld.Initializer is LuaAnonFunctionExpr)
+                {
+                    chunkLocalRenameMap["%" + ld.Name] = renamed;
+                }
             }
         }
 
@@ -331,6 +363,11 @@ public sealed class LuaIncludeLinker
             {
                 string targetName = chunkLocalRenameMap.GetValueOrDefault(localDecl.Name, localDecl.Name);
                 LuaExpression valExpr = localDecl.Initializer ?? new LuaNilExpr(localDecl.Line);
+                if (valExpr is LuaAnonFunctionExpr anonFn)
+                {
+                    valExpr = anonFn with { Body = PruneUnreachableStatements(anonFn.Body) };
+                }
+
                 var normalizedStmt = new LuaAssignStmt(targetName, valExpr, localDecl.Line);
                 constTable[targetName] = (normalizedStmt, valExpr, myChunkId);
                 constOrder.Add(targetName);
@@ -370,6 +407,13 @@ public sealed class LuaIncludeLinker
                 continue;
             }
 
+            if (!isEntryChunk &&
+                stmt is LuaIfStmt { Condition: LuaIdentifierExpr { Name: "login_add" } })
+            {
+                // Library startup login hook (`if login_add then login_add(...) end`)
+                continue;
+            }
+
             AddImpure(impureStatementsByChunk, myChunkId, stmt);
         }
 
@@ -383,6 +427,7 @@ public sealed class LuaIncludeLinker
             LuaFunctionDecl fn = chunkLocalRenameMap.Count > 0
                 ? RewriteFunctionChunkLocals(rawFn, chunkLocalRenameMap)
                 : rawFn;
+            fn = fn with { Body = PruneUnreachableStatements(fn.Body) };
 
             if (!functionsByName.ContainsKey(fn.Name))
             {
@@ -582,10 +627,37 @@ public sealed class LuaIncludeLinker
                 {
                     fnQueue.Enqueue(call.CalleeName);
                 }
-
-                foreach (LuaExpression arg in call.Arguments)
+                else if (constTable.ContainsKey(call.CalleeName) && reachableConsts.Add(call.CalleeName))
                 {
-                    ScanExpressionForReachability(arg, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                    constQueue?.Enqueue(call.CalleeName);
+                }
+
+                int skipArgIdx = -1;
+                if (call.CalleeName == "AskClientForNumber" &&
+                    call.Arguments.Count >= 1 &&
+                    call.Arguments[0] is LuaBinaryExpr { Operator: LuaBinaryOp.Concat, Left: LuaStringExpr askPrefix } askBin)
+                {
+                    skipArgIdx = 0;
+                    MarkNumberedCallbackFamilyReachable(askPrefix.DecodedUtf8, functionsByName, reachableFunctions, fnQueue);
+                    ScanExpressionForReachability(askBin.Right, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                }
+                else if (call.CalleeName == "Talk" &&
+                         call.Arguments.Count >= 3 &&
+                         call.Arguments[1] is LuaBinaryExpr { Operator: LuaBinaryOp.Concat, Left: LuaStringExpr talkPrefix } talkBin)
+                {
+                    skipArgIdx = 1;
+                    MarkNumberedCallbackFamilyReachable(talkPrefix.DecodedUtf8, functionsByName, reachableFunctions, fnQueue);
+                    ScanExpressionForReachability(talkBin.Right, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                }
+
+                for (int i = 0; i < call.Arguments.Count; i++)
+                {
+                    if (i == skipArgIdx)
+                    {
+                        continue;
+                    }
+
+                    ScanExpressionForReachability(call.Arguments[i], functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
                 }
 
                 break;
@@ -637,6 +709,10 @@ public sealed class LuaIncludeLinker
                 }
 
                 break;
+
+            case LuaAnonFunctionExpr anon:
+                ScanStatementsForReachability(anon.Body, functionsByName, constTable, reachableFunctions, reachableConsts, fnQueue, constQueue);
+                break;
         }
     }
 
@@ -684,6 +760,29 @@ public sealed class LuaIncludeLinker
 
         callbackName = candidate;
         return true;
+    }
+
+    private static void MarkNumberedCallbackFamilyReachable(
+        string prefix,
+        Dictionary<string, (LuaFunctionDecl Fn, int ChunkId)> functionsByName,
+        HashSet<string> reachableFunctions,
+        Queue<string> fnQueue)
+    {
+        if (string.IsNullOrEmpty(prefix))
+        {
+            return;
+        }
+
+        foreach (string fnName in functionsByName.Keys)
+        {
+            if (fnName.Length > prefix.Length &&
+                fnName.StartsWith(prefix, StringComparison.Ordinal) &&
+                int.TryParse(fnName.AsSpan(prefix.Length), out _) &&
+                reachableFunctions.Add(fnName))
+            {
+                fnQueue.Enqueue(fnName);
+            }
+        }
     }
 
     private static void TryMarkCallbackReachable(
@@ -839,7 +938,11 @@ public sealed class LuaIncludeLinker
             LuaIdentifierExpr id when !shadowedLocals.Contains(id.Name) && chunkLocalMap.TryGetValue(id.Name, out string? mapped) =>
                 new LuaIdentifierExpr(mapped, id.Line),
             LuaCallExpr call =>
-                call with { Arguments = call.Arguments.Select(a => RewriteExprChunkLocals(a, chunkLocalMap, shadowedLocals)).ToArray() },
+                call with
+                {
+                    CalleeName = chunkLocalMap.TryGetValue(call.CalleeName, out string? mappedFn) ? mappedFn : call.CalleeName,
+                    Arguments = call.Arguments.Select(a => RewriteExprChunkLocals(a, chunkLocalMap, shadowedLocals)).ToArray(),
+                },
             LuaBinaryExpr bin =>
                 bin with
                 {
@@ -873,6 +976,140 @@ public sealed class LuaIncludeLinker
                     Receiver = RewriteExprChunkLocals(mcall.Receiver, chunkLocalMap, shadowedLocals),
                     Arguments = mcall.Arguments.Select(a => RewriteExprChunkLocals(a, chunkLocalMap, shadowedLocals)).ToArray(),
                 },
+            LuaAnonFunctionExpr anon =>
+                anon with
+                {
+                    Body = RewriteBlockChunkLocals(
+                        anon.Body,
+                        chunkLocalMap,
+                        new HashSet<string>(shadowedLocals.Concat(anon.Parameters), StringComparer.Ordinal)),
+                },
             _ => expr,
         };
+
+    private static List<LuaStatement> PruneUnreachableStatements(IReadOnlyList<LuaStatement> stmts)
+    {
+        var pruned = new List<LuaStatement>(stmts.Count);
+        foreach (LuaStatement stmt in stmts)
+        {
+            switch (stmt)
+            {
+                case LuaReturnStmt:
+                case LuaBreakStmt:
+                    pruned.Add(stmt);
+                    return pruned;
+
+                case LuaIfStmt ifs:
+                    List<LuaStatement> thenBody = PruneUnreachableStatements(ifs.ThenBody);
+                    List<LuaElseIfBranch> elseIfs = ifs.ElseIfBranches
+                        .Select(ei => ei with { Body = PruneUnreachableStatements(ei.Body) })
+                        .ToList();
+                    List<LuaStatement> elseBody = PruneUnreachableStatements(ifs.ElseBody);
+                    pruned.Add(ifs with { ThenBody = thenBody, ElseIfBranches = elseIfs, ElseBody = elseBody });
+                    if (elseIfs.Count == 0 &&
+                        elseBody.Count == 0 &&
+                        TryEvalConstTruthy(ifs.Condition, out bool isTruthy) &&
+                        isTruthy &&
+                        BlockEndsWithReturnOrBreak(thenBody))
+                    {
+                        return pruned;
+                    }
+
+                    break;
+
+                case LuaNumericForStmt nf:
+                    pruned.Add(nf with { Body = PruneUnreachableStatements(nf.Body) });
+                    break;
+
+                case LuaWhileStmt ws:
+                    pruned.Add(ws with { Body = PruneUnreachableStatements(ws.Body) });
+                    break;
+
+                case LuaDoBlockStmt db:
+                    pruned.Add(db with { Body = PruneUnreachableStatements(db.Body) });
+                    break;
+
+                default:
+                    pruned.Add(stmt);
+                    break;
+            }
+        }
+
+        return pruned;
+    }
+
+    private static bool BlockEndsWithReturnOrBreak(IReadOnlyList<LuaStatement> stmts) =>
+        stmts.Count > 0 && stmts[^1] is LuaReturnStmt or LuaBreakStmt;
+
+    private static bool TryEvalConstTruthy(LuaExpression expr, out bool result)
+    {
+        if (TryEvalConstNumber(expr, out double num))
+        {
+            result = true; // Any number (including 0) is truthy in Lua 4.0! Wait: comparisons below return bool explicitly.
+            return true;
+        }
+
+        switch (expr)
+        {
+            case LuaNilExpr:
+                result = false;
+                return true;
+            case LuaStringExpr:
+                result = true;
+                return true;
+            case LuaBinaryExpr bin when bin.Operator is LuaBinaryOp.Eq or LuaBinaryOp.Neq or LuaBinaryOp.Lt or LuaBinaryOp.Le or LuaBinaryOp.Gt or LuaBinaryOp.Ge:
+                if (TryEvalConstNumber(bin.Left, out double l) && TryEvalConstNumber(bin.Right, out double r))
+                {
+                    result = bin.Operator switch
+                    {
+                        LuaBinaryOp.Eq => l == r,
+                        LuaBinaryOp.Neq => l != r,
+                        LuaBinaryOp.Lt => l < r,
+                        LuaBinaryOp.Le => l <= r,
+                        LuaBinaryOp.Gt => l > r,
+                        LuaBinaryOp.Ge => l >= r,
+                        _ => false,
+                    };
+                    return true;
+                }
+
+                break;
+            case LuaBinaryExpr bin when bin.Operator == LuaBinaryOp.And:
+                if (TryEvalConstTruthy(bin.Left, out bool lAnd) && !lAnd)
+                {
+                    result = false;
+                    return true;
+                }
+
+                if (TryEvalConstTruthy(bin.Left, out _) && TryEvalConstTruthy(bin.Right, out bool rAnd))
+                {
+                    result = rAnd;
+                    return true;
+                }
+
+                break;
+            case LuaUnaryExpr { Operator: LuaUnaryOp.Not } un when TryEvalConstTruthy(un.Operand, out bool inner):
+                result = !inner;
+                return true;
+        }
+
+        result = false;
+        return false;
+    }
+
+    private static bool TryEvalConstNumber(LuaExpression expr, out double value)
+    {
+        switch (expr)
+        {
+            case LuaNumberExpr num:
+                value = num.Value;
+                return true;
+            case LuaUnaryExpr { Operator: LuaUnaryOp.Negate } un when TryEvalConstNumber(un.Operand, out double inner):
+                value = -inner;
+                return true;
+            default:
+                value = 0;
+                return false;
+        }
+    }
 }

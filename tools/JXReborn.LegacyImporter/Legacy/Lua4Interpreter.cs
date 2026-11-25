@@ -530,6 +530,22 @@ public sealed class Lua4Interpreter
                 return [Lua4Value.Nil];
             }
         }));
+
+        SetGlobal("dostring", Lua4Value.FromFunction(a =>
+        {
+            if (a.Length == 0 || !a[0].IsString || string.IsNullOrWhiteSpace(a[0].Text))
+            {
+                return [Lua4Value.Nil];
+            }
+
+            List<Lua4Token> tokens = Lua4Lexer.Tokenize(a[0].AsLuaString());
+            var chunkLocals = new List<Dictionary<string, Lua4Value>>
+            {
+                new(StringComparer.Ordinal),
+            };
+            int pos = 0;
+            return ExecuteBlock(tokens, ref pos, chunkLocals, null, out _, out _);
+        }));
     }
 
     private Lua4Value[] ExecuteBlock(

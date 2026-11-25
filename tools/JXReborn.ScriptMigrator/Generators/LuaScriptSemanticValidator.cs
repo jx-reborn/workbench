@@ -38,6 +38,8 @@ public sealed class LuaScriptSemanticValidator
         "nJxb",
         "nRepute",
         "szFailMsg",
+        "CallBack",
+        "pFun",
     };
 
     private static readonly HashSet<string> HarmlessRuntimeAwardMetadataFields = new(StringComparer.Ordinal)
@@ -56,6 +58,10 @@ public sealed class LuaScriptSemanticValidator
     private readonly PackItemCatalogIndex? _itemCatalogIndex;
     private IReadOnlyDictionary<string, LuaExpression>? _currentTopLevelConstExprs;
     private IReadOnlyDictionary<string, IReadOnlyList<LuaValueType>>? _currentConstTupleCols;
+    private Dictionary<string, IReadOnlyDictionary<int, CompiledAwardNode>>? _currentTopLevelAwardMaps;
+    private Dictionary<string, IReadOnlyDictionary<int, IReadOnlyDictionary<string, int>>>? _currentTopLevelIntRecordMaps;
+    private Dictionary<string, string>? _currentFnLocalTupleTables;
+    private Dictionary<string, IReadOnlyList<LuaValueType>>? _currentFnReturnTuples;
 
     public LuaScriptSemanticValidator(
         IReadOnlyDictionary<int, string> eventItemCodeByDetailId,
@@ -79,8 +85,12 @@ public sealed class LuaScriptSemanticValidator
         var topLevelConstExprs = new Dictionary<string, LuaExpression>(StringComparer.Ordinal);
         var constTupleCols = new Dictionary<string, IReadOnlyList<LuaValueType>>(StringComparer.Ordinal);
         var topLevelAwardNodes = new Dictionary<string, CompiledAwardNode>(StringComparer.Ordinal);
+        var topLevelAwardMaps = new Dictionary<string, IReadOnlyDictionary<int, CompiledAwardNode>>(StringComparer.Ordinal);
+        var topLevelIntRecordMaps = new Dictionary<string, IReadOnlyDictionary<int, IReadOnlyDictionary<string, int>>>(StringComparer.Ordinal);
         _currentTopLevelConstExprs = topLevelConstExprs;
         _currentConstTupleCols = constTupleCols;
+        _currentTopLevelAwardMaps = topLevelAwardMaps;
+        _currentTopLevelIntRecordMaps = topLevelIntRecordMaps;
 
         foreach (LuaStatement stmt in program.TopLevelStatements)
         {
@@ -101,6 +111,13 @@ public sealed class LuaScriptSemanticValidator
                         ? s.DecodedUtf8
                         : "?";
                     reasons.Add($"include:{target}");
+                }
+                else if (callStmt.Call.CalleeName.Equals("RCNY_ApDung", StringComparison.Ordinal) &&
+                         callStmt.Call.Arguments.Count == 1 &&
+                         callStmt.Call.Arguments[0] is LuaIdentifierExpr rcnyTarget &&
+                         topLevelAwardNodes.TryGetValue(rcnyTarget.Name, out CompiledAwardNode? origAward))
+                {
+                    ApplyRcnyApDung(rcnyTarget.Name, origAward, topLevelAwardNodes, reasons);
                 }
                 else
                 {
@@ -188,23 +205,23 @@ public sealed class LuaScriptSemanticValidator
             return (null, reasons.ToArray());
         }
 
-        // 3. Build call graph & detect recursion among local/linked functions.
-        var localCalls = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        // 3. Build call graph separating synchronous call edges (strictly acyclic) from UI callback edges (menu cycles allowed).
+        var syncCalls = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         foreach (LuaFunctionDecl fn in program.Functions)
         {
-            var edges = new HashSet<string>(StringComparer.Ordinal);
-            CollectLocalCallEdges(fn.Body, functionsByName, topLevelConstExprs, edges);
-            localCalls[fn.Name] = edges;
+            var syncEdges = new HashSet<string>(StringComparer.Ordinal);
+            CollectLocalCallEdges(fn.Body, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges: null);
+            syncCalls[fn.Name] = syncEdges;
         }
 
-        if (HasCycle(localCalls))
+        if (HasCycle(syncCalls))
         {
             reasons.Add("unsupported-syntax:recursive-local-functions");
             return (null, reasons.ToArray());
         }
 
-        // Order functions bottom-up (callees before callers) via topological sort; reverse is top-down (callers before callees).
-        List<LuaFunctionDecl> orderedFunctions = TopologicalOrder(program.Functions, localCalls);
+        // Order functions bottom-up (callees before callers) along synchronous calls via topological sort; reverse is top-down.
+        List<LuaFunctionDecl> orderedFunctions = TopologicalOrder(program.Functions, syncCalls);
 
         // 4. Infer monomorphic parameter types for helper functions from call sites & dialog callbacks.
         var functionParamTypes = new Dictionary<string, IReadOnlyList<LuaValueType>>(StringComparer.Ordinal);
@@ -252,15 +269,20 @@ public sealed class LuaScriptSemanticValidator
         }
 
         // 5. Validate each function bottom-up (callees before callers so return types & async flags propagate).
+        Dictionary<string, ushort> pureTaskAliasGlobals = CollectPureTaskAliasGlobals(program.Functions, functionsByName, topLevelConsts, topLevelConstExprs);
+        var fnPreloadedTaskGlobals = new Dictionary<string, IReadOnlyList<(string VarName, ushort TaskId)>>(StringComparer.Ordinal);
         var fnLocalTypes = new Dictionary<string, IReadOnlyDictionary<string, LuaValueType>>(StringComparer.Ordinal);
+        var fnLocalTupleTables = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
         var fnIsAsync = new Dictionary<string, bool>(StringComparer.Ordinal);
         var fnReturnTypes = new Dictionary<string, LuaValueType>(StringComparer.Ordinal);
         var fnReturnTuples = new Dictionary<string, IReadOnlyList<LuaValueType>>(StringComparer.Ordinal);
+        _currentFnReturnTuples = fnReturnTuples;
 
         foreach (LuaFunctionDecl fn in orderedFunctions)
         {
             bool isEntry = string.Equals(fn.Name, expectedEntry, StringComparison.Ordinal);
             var localTypes = new Dictionary<string, LuaValueType>(StringComparer.Ordinal);
+            _currentFnLocalTupleTables = new Dictionary<string, string>(StringComparer.Ordinal);
             var assigned = new HashSet<string>(topLevelConsts.Keys, StringComparer.Ordinal)
             {
                 "SubWorld",
@@ -273,6 +295,21 @@ public sealed class LuaScriptSemanticValidator
                 string pName = fn.Parameters[p];
                 localTypes[pName] = paramTypes[p];
                 assigned.Add(pName);
+            }
+
+            List<(string VarName, ushort TaskId)> preloadedTasks = CollectPreloadedTaskGlobalsForFunction(
+                fn.Body,
+                pureTaskAliasGlobals,
+                assigned,
+                functionsByName);
+            if (preloadedTasks.Count > 0)
+            {
+                fnPreloadedTaskGlobals[fn.Name] = preloadedTasks;
+                foreach ((string vName, _) in preloadedTasks)
+                {
+                    localTypes[vName] = LuaValueType.Int;
+                    assigned.Add(vName);
+                }
             }
 
             Dictionary<string, LuaValueType> emptyListHints = InferEmptyTableListTypes(fn.Body);
@@ -328,6 +365,7 @@ public sealed class LuaScriptSemanticValidator
             }
 
             fnLocalTypes[fn.Name] = localTypes;
+            fnLocalTupleTables[fn.Name] = _currentFnLocalTupleTables!;
             fnIsAsync[fn.Name] = isAsync;
             fnReturnTypes[fn.Name] = returnType;
             if (returnTuple is not null)
@@ -357,7 +395,11 @@ public sealed class LuaScriptSemanticValidator
                 FunctionReturnTuples: fnReturnTuples,
                 ConstTupleColumnTypes: constTupleCols,
                 TopLevelAwardNodes: topLevelAwardNodes,
-                IncludedVirtualKeys: includedVirtualKeys),
+                TopLevelAwardMaps: topLevelAwardMaps,
+                TopLevelIntRecordMaps: topLevelIntRecordMaps,
+                IncludedVirtualKeys: includedVirtualKeys,
+                FunctionPreloadedTaskGlobals: fnPreloadedTaskGlobals,
+                FunctionLocalTupleTables: fnLocalTupleTables),
             []);
     }
 
@@ -371,6 +413,8 @@ public sealed class LuaScriptSemanticValidator
         Dictionary<string, IReadOnlyList<LuaValueType>> functionParamTypes,
         SortedSet<string> reasons)
     {
+        bool changed = false;
+
         void BindParams(string calleeName, IReadOnlyList<LuaValueType> candidateTypes)
         {
             if (string.Equals(calleeName, expectedEntry, StringComparison.Ordinal) ||
@@ -384,14 +428,16 @@ public sealed class LuaScriptSemanticValidator
                 return;
             }
 
-            if (candidateTypes.Count != targetFn.Parameters.Count)
+            if (candidateTypes.Count < targetFn.Parameters.Count)
             {
-                reasons.Add($"invalid-helper-arity:{calleeName}({candidateTypes.Count}!={targetFn.Parameters.Count})");
+                reasons.Add($"invalid-helper-arity:{calleeName}({candidateTypes.Count}<{targetFn.Parameters.Count})");
                 return;
             }
 
-            var normalized = new LuaValueType[candidateTypes.Count];
-            for (int i = 0; i < candidateTypes.Count; i++)
+            // Lua 4.0 semantics: silently drop extra caller arguments beyond targetFn.Parameters.Count.
+            int arity = targetFn.Parameters.Count;
+            var normalized = new LuaValueType[arity];
+            for (int i = 0; i < arity; i++)
             {
                 normalized[i] = candidateTypes[i] == LuaValueType.NullableInt ? LuaValueType.Int : candidateTypes[i];
                 if (normalized[i] is LuaValueType.Void or LuaValueType.Nil)
@@ -414,11 +460,13 @@ public sealed class LuaScriptSemanticValidator
             else
             {
                 functionParamTypes[calleeName] = normalized;
+                changed = true;
             }
         }
 
-        for (int pass = 0; pass < 3; pass++)
+        for (int pass = 0; pass < 16; pass++)
         {
+            changed = false;
             for (int idx = bottomUpFunctions.Count - 1; idx >= 0; idx--)
             {
                 LuaFunctionDecl fn = bottomUpFunctions[idx];
@@ -438,10 +486,15 @@ public sealed class LuaScriptSemanticValidator
 
                 ScanBlockForParamBindings(fn.Body, scopeTypes, functionsByName, topLevelConstExprs, constTupleCols, BindParams);
             }
+
+            if (!changed)
+            {
+                break;
+            }
         }
     }
 
-    private static void ScanBlockForParamBindings(
+    private void ScanBlockForParamBindings(
         IReadOnlyList<LuaStatement> stmts,
         Dictionary<string, LuaValueType> scopeTypes,
         IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
@@ -621,7 +674,7 @@ public sealed class LuaScriptSemanticValidator
         }
     }
 
-    private static void TryQuickBindDialogOptionTuple(
+    private void TryQuickBindDialogOptionTuple(
         LuaTableLiteralExpr optTuple,
         IReadOnlyDictionary<string, LuaValueType> scopeTypes,
         IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
@@ -644,7 +697,7 @@ public sealed class LuaScriptSemanticValidator
         }
     }
 
-    private static LuaValueType QuickInferExprType(
+    private LuaValueType QuickInferExprType(
         LuaExpression expr,
         IReadOnlyDictionary<string, LuaValueType> scopeTypes,
         IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
@@ -682,7 +735,17 @@ public sealed class LuaScriptSemanticValidator
             case LuaIndexExpr idx:
                 if (idx.Target is LuaIndexExpr innerIdx &&
                     innerIdx.Target is LuaIdentifierExpr tupleTblId &&
-                    constTupleCols.TryGetValue(tupleTblId.Name, out IReadOnlyList<LuaValueType>? cols) &&
+                    _currentTopLevelConstExprs is not null &&
+                    _currentTopLevelConstExprs.TryGetValue(tupleTblId.Name, out LuaExpression? outerConstTbl) &&
+                    TryResolveConstantString2D(outerConstTbl, innerIdx.Index, idx.Index, _currentTopLevelConstExprs, out string? resolvedCellStr) &&
+                    resolvedCellStr is not null)
+                {
+                    TryBindParameterizedCallbackString(resolvedCellStr, bindParams);
+                }
+
+                if (idx.Target is LuaIndexExpr tupleInnerIdx &&
+                    tupleInnerIdx.Target is LuaIdentifierExpr tupleTblId2 &&
+                    constTupleCols.TryGetValue(tupleTblId2.Name, out IReadOnlyList<LuaValueType>? cols) &&
                     TryEvalConstantInt(idx.Index, out int col1) &&
                     col1 >= 1 &&
                     col1 <= cols.Count)
@@ -696,6 +759,8 @@ public sealed class LuaScriptSemanticValidator
                     LuaValueType.StringArray or LuaValueType.StringList or LuaValueType.IntKeyedStringMap => LuaValueType.String,
                     LuaValueType.Int2DArray or LuaValueType.IntKeyedIntArrayMap => LuaValueType.IntArray,
                     LuaValueType.String2DArray => LuaValueType.StringArray,
+                    LuaValueType.LocalAwardArray or LuaValueType.IntKeyedAwardTemplateMap => LuaValueType.AwardTemplate,
+                    LuaValueType.IntKeyedIntRecordMap => LuaValueType.IntFieldRecord,
                     _ => LuaValueType.Int,
                 };
             case LuaUnaryExpr un:
@@ -705,6 +770,11 @@ public sealed class LuaScriptSemanticValidator
                 LuaValueType lt = QuickInferExprType(bin.Left, scopeTypes, functionsByName, constTupleCols, bindParams);
                 LuaValueType rt = QuickInferExprType(bin.Right, scopeTypes, functionsByName, constTupleCols, bindParams);
                 if (bin.Operator == LuaBinaryOp.Concat) return LuaValueType.String;
+                if (bin.Operator == LuaBinaryOp.Or && lt == LuaValueType.String && rt == LuaValueType.String)
+                {
+                    return LuaValueType.String;
+                }
+
                 if (bin.Operator == LuaBinaryOp.Or && lt == LuaValueType.NullableInt && rt == LuaValueType.Int)
                 {
                     return LuaValueType.Int;
@@ -749,9 +819,26 @@ public sealed class LuaScriptSemanticValidator
                 foreach (LuaExpression a in mcall.Arguments) _ = QuickInferExprType(a, scopeTypes, functionsByName, constTupleCols, bindParams);
                 return LuaValueType.Int;
             case LuaCallExpr call:
-                if (call.CalleeName == "AskClientForNumber" && call.Arguments.Count >= 1 && call.Arguments[0] is LuaStringExpr askCb)
+                if (call.CalleeName == "AskClientForNumber" && call.Arguments.Count >= 1)
                 {
-                    bindParams(askCb.DecodedUtf8.Trim(), [LuaValueType.Int]);
+                    if (call.Arguments[0] is LuaStringExpr askCb)
+                    {
+                        bindParams(askCb.DecodedUtf8.Trim(), [LuaValueType.Int]);
+                    }
+                    else if (call.Arguments[0] is LuaBinaryExpr { Operator: LuaBinaryOp.Concat, Left: LuaStringExpr askPrefix } &&
+                             !string.IsNullOrEmpty(askPrefix.DecodedUtf8))
+                    {
+                        string pfx = askPrefix.DecodedUtf8;
+                        foreach (string fnName in functionsByName.Keys)
+                        {
+                            if (fnName.Length > pfx.Length &&
+                                fnName.StartsWith(pfx, StringComparison.Ordinal) &&
+                                int.TryParse(fnName.AsSpan(pfx.Length), out _))
+                            {
+                                bindParams(fnName, [LuaValueType.Int]);
+                            }
+                        }
+                    }
                 }
 
                 if (call.CalleeName == "tonumber" && IsLongDateToNumberCall(call))
@@ -769,7 +856,7 @@ public sealed class LuaScriptSemanticValidator
 
                 return call.CalleeName switch
                 {
-                    "GetName" or "GetAccount" or "GetFaction" or "GetLastAddFaction" or "tostring" or "strsub" or "strlower" or "strupper" or "format" or "GetLocalDate" or "date" or "GetNpcName" or "NpcName2Replace" => LuaValueType.String,
+                    "GetName" or "GetAccount" or "GetFaction" or "GetLastAddFaction" or "GetItemName" or "FormatTime2String" or "tostring" or "strsub" or "strlower" or "strupper" or "format" or "GetLocalDate" or "date" or "GetNpcName" or "NpcName2Replace" => LuaValueType.String,
                     "tonumber" => LuaValueType.NullableInt,
                     _ => LuaValueType.Int,
                 };
@@ -782,7 +869,7 @@ public sealed class LuaScriptSemanticValidator
     {
         if (tonumberCall.CalleeName != "tonumber" ||
             tonumberCall.Arguments.Count != 1 ||
-            tonumberCall.Arguments[0] is not LuaCallExpr { CalleeName: "GetLocalDate" or "date", Arguments.Count: 1 } dateCall ||
+            tonumberCall.Arguments[0] is not LuaCallExpr { CalleeName: "GetLocalDate" or "date" or "FormatTime2String", Arguments.Count: >= 1 } dateCall ||
             !TryEvalConstantString(dateCall.Arguments[0], out string? fmt) ||
             string.IsNullOrEmpty(fmt))
         {
@@ -848,6 +935,20 @@ public sealed class LuaScriptSemanticValidator
         string spec = slash >= 0 ? text[(slash + 1)..].Trim() : text.Trim();
         if (!spec.StartsWith('#'))
         {
+            if (TryParseHoleFunctionOption(text, out string holeFn, out string[] holeRawArgs) && holeRawArgs.Length > 0)
+            {
+                var holeTypes = new LuaValueType[holeRawArgs.Length];
+                for (int i = 0; i < holeRawArgs.Length; i++)
+                {
+                    string p = holeRawArgs[i];
+                    holeTypes[i] = p.StartsWith('"') || p.StartsWith('\'')
+                        ? LuaValueType.String
+                        : LuaValueType.Int;
+                }
+
+                bindParams(holeFn, holeTypes);
+            }
+
             return;
         }
 
@@ -878,6 +979,67 @@ public sealed class LuaScriptSemanticValidator
         }
 
         bindParams(fnName, types);
+    }
+
+    public static bool TryParseHoleFunctionOption(string text, out string callbackName, out string[] rawArgs)
+    {
+        callbackName = string.Empty;
+        rawArgs = [];
+        int s1 = text.IndexOf('/');
+        if (s1 < 0)
+        {
+            return false;
+        }
+
+        int s2 = text.IndexOf('/', s1 + 1);
+        if (s2 < 0)
+        {
+            return false;
+        }
+
+        int s3 = text.IndexOf('/', s2 + 1);
+        if (s3 < 0)
+        {
+            return false;
+        }
+
+        string fnName = text[(s3 + 1)..].Trim();
+        if (!IsValidLuaIdentifier(fnName))
+        {
+            return false;
+        }
+
+        string paramSegment = text[(s2 + 1)..s3].Trim();
+        callbackName = fnName;
+        if (paramSegment.Length == 0)
+        {
+            return true;
+        }
+
+        rawArgs = paramSegment.Split(',', StringSplitOptions.TrimEntries);
+        return true;
+    }
+
+    public static bool IsValidLuaIdentifier(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < name.Length; i++)
+        {
+            char c = name[i];
+            bool ok = i == 0
+                ? (char.IsLetter(c) || c == '_' || c >= 0x80)
+                : (char.IsLetterOrDigit(c) || c == '_' || c >= 0x80);
+            if (!ok)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static Dictionary<string, LuaValueType> InferEmptyTableListTypes(IReadOnlyList<LuaStatement> stmts)
@@ -1037,6 +1199,13 @@ public sealed class LuaScriptSemanticValidator
 
                     localTypes[localDecl.Name] = rhsType;
                     assigned.Add(localDecl.Name);
+                    if (rhsType == LuaValueType.ConstTupleRow &&
+                        localDecl.Initializer is LuaIndexExpr { Target: LuaIdentifierExpr rowSrcId } &&
+                        _currentFnLocalTupleTables is not null)
+                    {
+                        _currentFnLocalTupleTables[localDecl.Name] = rowSrcId.Name;
+                    }
+
                     if (localDecl.Initializer is LuaTableLiteralExpr { Elements.Count: > 0 } tbl && rhsType is LuaValueType.StringArray or LuaValueType.IntArray)
                     {
                         constArrays[localDecl.Name] = tbl;
@@ -1564,6 +1733,19 @@ public sealed class LuaScriptSemanticValidator
             {
                 tupleTypes = [LuaValueType.Int, LuaValueType.Int];
             }
+            else if (singleCall.CalleeName == "GetLeavePos" && singleCall.Arguments.Count == 0)
+            {
+                tupleTypes = [LuaValueType.Int, LuaValueType.Int, LuaValueType.Int];
+            }
+            else if (singleCall.CalleeName == "GetTong" && singleCall.Arguments.Count == 0)
+            {
+                tupleTypes = [LuaValueType.String, LuaValueType.Int];
+            }
+            else if (singleCall.CalleeName == "GetItemProp" && singleCall.Arguments.Count == 1)
+            {
+                _ = ValidateExpr(singleCall.Arguments[0], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                tupleTypes = [LuaValueType.Int, LuaValueType.Int, LuaValueType.Int, LuaValueType.Int, LuaValueType.Int, LuaValueType.Int];
+            }
             else if (singleCall.CalleeName == "RevID2WXY")
             {
                 _ = ValidateCall(singleCall, isStatement: false, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, constArrays, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
@@ -1739,6 +1921,11 @@ public sealed class LuaScriptSemanticValidator
                     return LuaValueType.DialogOptionList;
                 }
 
+                if (tbl.Elements.All(el => el is LuaKeyedTableLiteralExpr && TryCompileAwardNode(el, _currentTopLevelConstExprs, out _, out _)))
+                {
+                    return LuaValueType.LocalAwardArray;
+                }
+
                 LuaValueType elemType = LuaValueType.Void;
                 for (int i = 0; i < tbl.Elements.Count; i++)
                 {
@@ -1767,6 +1954,39 @@ public sealed class LuaScriptSemanticValidator
 
             case LuaIndexExpr idxExpr:
             {
+                // Special case: `rowVar[constCol]` where `rowVar` was assigned `constTupleTable[rowIdx]`
+                if (idxExpr.Target is LuaIdentifierExpr rowVarIdent &&
+                    _currentFnLocalTupleTables is not null &&
+                    _currentFnLocalTupleTables.TryGetValue(rowVarIdent.Name, out string? rowTupleTbl) &&
+                    _currentConstTupleCols is not null &&
+                    _currentConstTupleCols.TryGetValue(rowTupleTbl, out IReadOnlyList<LuaValueType>? rowTupleCols))
+                {
+                    if (!TryEvalConstantInt(idxExpr.Index, _currentTopLevelConstExprs, out int col1Based) ||
+                        col1Based < 1 ||
+                        col1Based > rowTupleCols.Count)
+                    {
+                        reasons.Add($"dynamic-or-oob-tuple-col:{rowTupleTbl}@line{idxExpr.Line}");
+                        return LuaValueType.Void;
+                    }
+
+                    return rowTupleCols[col1Based - 1];
+                }
+
+                // Special case: `constTupleTable[rowIdx]` (single-row tuple slice)
+                if (idxExpr.Target is LuaIdentifierExpr singleTupleTblIdent &&
+                    topLevelConsts.TryGetValue(singleTupleTblIdent.Name, out LuaValueType singleTblType) &&
+                    singleTblType == LuaValueType.ConstTupleTable)
+                {
+                    LuaValueType rType = ValidateExpr(idxExpr.Index, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                    if (!IsIntCompatible(rType))
+                    {
+                        reasons.Add($"non-int-index@line{idxExpr.Line}");
+                        return LuaValueType.Void;
+                    }
+
+                    return LuaValueType.ConstTupleRow;
+                }
+
                 // Special case: `constTupleTable[rowIdx][constCol]`
                 if (idxExpr.Target is LuaIndexExpr rowIdxExpr &&
                     rowIdxExpr.Target is LuaIdentifierExpr tupleTblIdent &&
@@ -1808,12 +2028,20 @@ public sealed class LuaScriptSemanticValidator
                     LuaValueType.IntKeyedIntMap => LuaValueType.NullableInt,
                     LuaValueType.Int2DArray or LuaValueType.IntKeyedIntArrayMap => LuaValueType.IntArray,
                     LuaValueType.String2DArray => LuaValueType.StringArray,
+                    LuaValueType.LocalAwardArray or LuaValueType.IntKeyedAwardTemplateMap => LuaValueType.AwardTemplate,
+                    LuaValueType.IntKeyedIntRecordMap => LuaValueType.IntFieldRecord,
                     _ => FailExpr($"index-non-array:{targetType}@line{idxExpr.Line}", reasons),
                 };
             }
 
             case LuaMemberAccessExpr macc:
             {
+                LuaValueType targetType = ValidateExpr(macc.Target, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                if (targetType == LuaValueType.IntFieldRecord)
+                {
+                    return LuaValueType.Int;
+                }
+
                 string baseDesc = macc.Target is LuaIdentifierExpr id ? id.Name : "expr";
                 reasons.Add($"unsupported-member-access:{baseDesc}.{macc.FieldName}@line{macc.Line}");
                 return LuaValueType.Void;
@@ -1871,6 +2099,9 @@ public sealed class LuaScriptSemanticValidator
                     case LuaBinaryOp.Or when lt == LuaValueType.NullableInt && rt == LuaValueType.Int:
                         return LuaValueType.Int;
 
+                    case LuaBinaryOp.Or when lt == LuaValueType.String && rt == LuaValueType.String:
+                        return LuaValueType.String;
+
                     case LuaBinaryOp.And:
                     case LuaBinaryOp.Or:
                         if (!IsConditionCompatible(lt) || !IsConditionCompatible(rt))
@@ -1882,12 +2113,17 @@ public sealed class LuaScriptSemanticValidator
 
                     case LuaBinaryOp.Eq:
                     case LuaBinaryOp.Neq:
-                        if (!AreEqualityComparable(lt, rt))
+                    {
+                        bool isBoolIntCmp =
+                            (lt == LuaValueType.Bool && TryEvalConstantInt(bin.Right, _currentTopLevelConstExprs, out int rBit) && rBit is 0 or 1) ||
+                            (rt == LuaValueType.Bool && TryEvalConstantInt(bin.Left, _currentTopLevelConstExprs, out int lBit) && lBit is 0 or 1);
+                        if (!isBoolIntCmp && !AreEqualityComparable(lt, rt))
                         {
                             reasons.Add($"invalid-equality:{lt}-{rt}@line{bin.Line}");
                         }
 
                         return LuaValueType.Bool;
+                    }
 
                     case LuaBinaryOp.Lt:
                     case LuaBinaryOp.Le:
@@ -2004,16 +2240,23 @@ public sealed class LuaScriptSemanticValidator
             }
 
             LuaExpression awardExpr = mcall.Arguments[0];
-            if (awardExpr is LuaIdentifierExpr awardIdent)
+            if (awardExpr is LuaIdentifierExpr awardIdent &&
+                !topLevelAwardNodes.ContainsKey(awardIdent.Name))
             {
-                if (!topLevelAwardNodes.ContainsKey(awardIdent.Name))
+                LuaValueType identType = ValidateExpr(awardExpr, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                if (identType != LuaValueType.AwardTemplate)
                 {
                     reasons.Add($"non-static-awardtemplet-table:{awardIdent.Name}@line{mcall.Line}");
                 }
             }
-            else if (!TryCompileAwardNode(awardExpr, _currentTopLevelConstExprs, out _, out string? awardErr))
+            else if (awardExpr is not LuaIdentifierExpr &&
+                     !TryCompileAwardNode(awardExpr, _currentTopLevelConstExprs, out _, out _))
             {
-                reasons.Add(awardErr ?? $"invalid-awardtemplet-table@line{mcall.Line}");
+                LuaValueType dynType = ValidateExpr(awardExpr, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                if (dynType != LuaValueType.AwardTemplate)
+                {
+                    reasons.Add($"invalid-awardtemplet-table@line{mcall.Line}");
+                }
             }
 
             if (mcall.MemberName == "GiveAwardByList")
@@ -2102,6 +2345,64 @@ public sealed class LuaScriptSemanticValidator
                     reasons);
                 return LuaValueType.Void;
             }
+        }
+
+        // 4. PlayerFunLib (activitysys/playerfunlib.lua): CheckTaskDaily, CheckFreeBagCellWH, AddTaskDaily, GetTaskDailyCount
+        if (mcall.IsColonCall && mcall.Receiver is LuaIdentifierExpr { Name: "PlayerFunLib" })
+        {
+            foreach (LuaExpression a in mcall.Arguments)
+            {
+                _ = ValidateExpr(a, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            }
+
+            switch (mcall.MemberName)
+            {
+                case "CheckTaskDaily" when mcall.Arguments.Count == 4:
+                case "CheckFreeBagCellWH" when mcall.Arguments.Count == 4:
+                    return LuaValueType.Int;
+                case "AddTaskDaily" when mcall.Arguments.Count == 2:
+                    return isStatement ? LuaValueType.Void : LuaValueType.Int;
+                case "GetTaskDailyCount" when mcall.Arguments.Count == 1:
+                    return LuaValueType.Int;
+            }
+        }
+
+        // 5. ObjBuffer / Logging / ExpAward framework singletons
+        string? rawRecvName = mcall.Receiver switch
+        {
+            LuaIdentifierExpr rid2 => rid2.Name,
+            LuaUpvalueExpr uid2 => uid2.Name,
+            _ => null,
+        };
+        if (mcall.IsColonCall && rawRecvName is "ObjBuffer" or "tbLog" or "tbVngTransLog")
+        {
+            foreach (LuaExpression a in mcall.Arguments)
+            {
+                if (a is LuaUpvalueExpr)
+                {
+                    // Logging no-ops (`%nPromotionID`) need no upvalue resolution
+                    continue;
+                }
+
+                _ = ValidateExpr(a, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            }
+
+            if (rawRecvName == "ObjBuffer" && mcall.MemberName == "PushObject" && mcall.Arguments.Count == 2)
+            {
+                return LuaValueType.Void;
+            }
+
+            if (rawRecvName is "tbLog" or "tbVngTransLog")
+            {
+                return LuaValueType.Void;
+            }
+        }
+
+        if (mcall.IsColonCall && rawRecvName == "tbvng_ChestExpAward" && mcall.MemberName == "ExpAward" && mcall.Arguments.Count == 2)
+        {
+            _ = ValidateExpr(mcall.Arguments[0], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            _ = ValidateExpr(mcall.Arguments[1], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            return LuaValueType.Void;
         }
 
         string receiverDesc = mcall.Receiver is LuaIdentifierExpr rid ? rid.Name : "expr";
@@ -2273,19 +2574,44 @@ public sealed class LuaScriptSemanticValidator
             return LuaValueType.Void;
         }
 
+        // Check top-level local/chunk closure helpers (`%fn(...)` -> `LuaAnonFunctionExpr` in constTable)
+        if (topLevelConsts.TryGetValue(api, out LuaValueType topValType) &&
+            topValType == LuaValueType.ClosureHelper &&
+            _currentTopLevelConstExprs is not null &&
+            _currentTopLevelConstExprs.TryGetValue(api, out LuaExpression? closureExpr) &&
+            closureExpr is LuaAnonFunctionExpr anonHelper)
+        {
+            for (int i = 0; i < args.Count; i++)
+            {
+                _ = ValidateExpr(args[i], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            }
+
+            if (args.Count < anonHelper.Parameters.Count)
+            {
+                reasons.Add($"invalid-closure-call-arity:{api}({args.Count}<{anonHelper.Parameters.Count})");
+            }
+
+            return LuaValueType.Void;
+        }
+
         // Check intra-file / linked helper function call
         if (functionsByName.ContainsKey(api))
         {
             IReadOnlyList<LuaValueType> expectedParams = functionParamTypes.GetValueOrDefault(api, []);
-            if (args.Count != expectedParams.Count)
+            if (args.Count < expectedParams.Count)
             {
-                reasons.Add($"invalid-helper-call-arity:{api}({args.Count}!={expectedParams.Count})");
+                reasons.Add($"invalid-helper-call-arity:{api}({args.Count}<{expectedParams.Count})");
                 return LuaValueType.Void;
             }
 
             for (int i = 0; i < args.Count; i++)
             {
                 LuaValueType actualArg = ValidateExpr(args[i], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                if (i >= expectedParams.Count)
+                {
+                    continue;
+                }
+
                 if (!IsArgAssignableToParam(actualArg, expectedParams[i]))
                 {
                     reasons.Add($"invalid-helper-arg-type:{api}[{i}]({actualArg}!={expectedParams[i]})");
@@ -2363,14 +2689,28 @@ public sealed class LuaScriptSemanticValidator
                 case "IsDisabledUseTownP":
                 case "GetTeamSize":
                 case "IsCaptain":
+                case "GetExp":
+                case "GetLucky":
+                case "GetProp":
+                case "GetMagicPoint":
+                case "GetTripMode":
+                case "ST_GetTransLifeCount":
+                case "OB_Create":
+                case "LeaveTeam":
+                case "BT_LeaveBattle":
                     RequireArgCount(0);
-                    return LuaValueType.Int;
+                    return api is "LeaveTeam" or "BT_LeaveBattle" && isStatement ? LuaValueType.Void : LuaValueType.Int;
 
                 // Multi-return getters usable in scalar position
                 case "GetWorldPos":
                 case "GetPlayerRev":
+                case "GetLeavePos":
                     RequireArgCount(0);
                     return LuaValueType.Int;
+
+                case "GetTong":
+                    RequireArgCount(0);
+                    return LuaValueType.String;
 
                 case "RevID2WXY":
                     if (args.Count == 1 && args[0] is LuaCallExpr { CalleeName: "GetPlayerRev", Arguments.Count: 0 })
@@ -2448,12 +2788,152 @@ public sealed class LuaScriptSemanticValidator
                     return isStatement ? LuaValueType.Void : LuaValueType.Int;
 
                 case "GetNpcName":
+                case "GetItemName":
                     if (RequireArgCount(1) && !IsIntCompatible(ArgType(0)))
                     {
-                        reasons.Add($"invalid-arg-type:GetNpcName@line{call.Line}");
+                        reasons.Add($"invalid-arg-type:{api}@line{call.Line}");
                     }
 
                     return LuaValueType.String;
+
+                case "GetItemProp":
+                case "ITEM_GetExpiredTime":
+                    if (RequireArgCount(1) && !IsIntCompatible(ArgType(0)))
+                    {
+                        reasons.Add($"invalid-arg-type:{api}@line{call.Line}");
+                    }
+
+                    return LuaValueType.Int;
+
+                case "ITEM_SetExpiredTime":
+                    if (RequireArgRange(2, 3))
+                    {
+                        for (int i = 0; i < args.Count; i++)
+                        {
+                            if (!IsIntCompatible(ArgType(i)))
+                            {
+                                reasons.Add($"invalid-arg-type:ITEM_SetExpiredTime@line{call.Line}");
+                            }
+                        }
+                    }
+
+                    return isStatement ? LuaValueType.Void : LuaValueType.Int;
+
+                case "GetItemParam":
+                    if (RequireArgCount(2) && (!IsIntCompatible(ArgType(0)) || !IsIntCompatible(ArgType(1))))
+                    {
+                        reasons.Add($"invalid-arg-type:GetItemParam@line{call.Line}");
+                    }
+
+                    return LuaValueType.Int;
+
+                case "SetSpecItemParam":
+                    if (RequireArgCount(3) && (!IsIntCompatible(ArgType(0)) || !IsIntCompatible(ArgType(1)) || !IsIntCompatible(ArgType(2))))
+                    {
+                        reasons.Add($"invalid-arg-type:SetSpecItemParam@line{call.Line}");
+                    }
+
+                    return isStatement ? LuaValueType.Void : LuaValueType.Int;
+
+                case "SyncItem":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:SyncItem@line{call.Line}");
+                    }
+
+                    if (RequireArgCount(1) && !IsIntCompatible(ArgType(0)))
+                    {
+                        reasons.Add($"invalid-arg-type:SyncItem@line{call.Line}");
+                    }
+
+                    return LuaValueType.Void;
+
+                case "FormatTime2String":
+                    if (RequireArgRange(1, 2))
+                    {
+                        if (ArgType(0) != LuaValueType.String)
+                        {
+                            reasons.Add($"invalid-arg-type:FormatTime2String@line{call.Line}");
+                        }
+
+                        if (args.Count == 2 && !IsNumeric(ArgType(1)))
+                        {
+                            reasons.Add($"invalid-arg-type:FormatTime2String@line{call.Line}");
+                        }
+                    }
+
+                    return LuaValueType.String;
+
+                case "GetBitTask":
+                    if (RequireArgCount(3) && (!IsIntCompatible(ArgType(0)) || !IsIntCompatible(ArgType(1)) || !IsIntCompatible(ArgType(2))))
+                    {
+                        reasons.Add($"invalid-arg-type:GetBitTask@line{call.Line}");
+                    }
+
+                    return LuaValueType.Int;
+
+                case "SetBitTask":
+                    if (RequireArgCount(4) && (!IsIntCompatible(ArgType(0)) || !IsIntCompatible(ArgType(1)) || !IsIntCompatible(ArgType(2)) || !IsIntCompatible(ArgType(3))))
+                    {
+                        reasons.Add($"invalid-arg-type:SetBitTask@line{call.Line}");
+                    }
+
+                    return isStatement ? LuaValueType.Void : LuaValueType.Int;
+
+                case "SetCreateTeam":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:SetCreateTeam@line{call.Line}");
+                    }
+
+                    if (RequireArgCount(1) && !IsIntCompatible(ArgType(0)))
+                    {
+                        reasons.Add($"invalid-arg-type:SetCreateTeam@line{call.Line}");
+                    }
+
+                    return LuaValueType.Void;
+
+                case "SetDeathScript":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:SetDeathScript@line{call.Line}");
+                    }
+
+                    if (RequireArgCount(1) && ArgType(0) != LuaValueType.String)
+                    {
+                        reasons.Add($"invalid-arg-type:SetDeathScript@line{call.Line}");
+                    }
+
+                    return LuaValueType.Void;
+
+                case "OB_Release":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:OB_Release@line{call.Line}");
+                    }
+
+                    if (RequireArgCount(1) && !IsIntCompatible(ArgType(0)))
+                    {
+                        reasons.Add($"invalid-arg-type:OB_Release@line{call.Line}");
+                    }
+
+                    return LuaValueType.Void;
+
+                case "RemoteExecute":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:RemoteExecute@line{call.Line}");
+                    }
+
+                    if (RequireArgCount(3))
+                    {
+                        if (ArgType(0) != LuaValueType.String || ArgType(1) != LuaValueType.String || !IsIntCompatible(ArgType(2)))
+                        {
+                            reasons.Add($"invalid-arg-type:RemoteExecute@line{call.Line}");
+                        }
+                    }
+
+                    return LuaValueType.Void;
 
                 case "NpcName2Replace":
                     if (RequireArgCount(1) && ArgType(0) != LuaValueType.String)
@@ -2769,7 +3249,7 @@ public sealed class LuaScriptSemanticValidator
                 // General GDPL item APIs
                 case "AddItem":
                 case "AddItemNoStack":
-                    if (RequireArgRange(6, 7))
+                    if (RequireArgRange(6, 13))
                     {
                         for (int i = 0; i < args.Count; i++)
                         {
@@ -2779,10 +3259,71 @@ public sealed class LuaScriptSemanticValidator
                             }
                         }
 
-                        ValidateGdplOperands(args[0], args[1], args[2], args[3], api, call.Line, topLevelConsts, constArrays, reasons);
+                        ValidateGdplOperands(args[0], args[1], args[2], args[3], api, call.Line, topLevelConsts, constArrays, reasons, allowMissingZeroGenre: true);
                     }
 
                     return LuaValueType.Int;
+
+                case "HaveCommonItem":
+                    if (RequireArgCount(3))
+                    {
+                        for (int i = 0; i < 3; i++)
+                        {
+                            if (!IsIntCompatible(ArgType(i)))
+                            {
+                                reasons.Add($"invalid-arg-type:HaveCommonItem@line{call.Line}");
+                            }
+                        }
+
+                        if (!TryResolveConstInt(args[0], out int g) ||
+                            !TryResolveConstInt(args[1], out int d) ||
+                            !TryResolveConstInt(args[2], out int p))
+                        {
+                            reasons.Add($"dynamic-gdp:HaveCommonItem@line{call.Line}");
+                        }
+                        else if (g != 0 && (_itemCatalogIndex is null || !_itemCatalogIndex.TryResolveByGdp(g, d, p, out _)))
+                        {
+                            reasons.Add($"unknown-gdp:{g},{d},{p}");
+                        }
+                    }
+
+                    return LuaValueType.Int;
+
+                case "RollbackSkill":
+                    RequireArgCount(0);
+                    return isStatement ? LuaValueType.Void : LuaValueType.Int;
+
+                case "RestoreLife":
+                case "RestoreMana":
+                case "RestoreStamina":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:{api}@line{call.Line}");
+                    }
+
+                    RequireArgCount(0);
+                    return LuaValueType.Void;
+
+                case "ST_SyncMiniMapObj":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:ST_SyncMiniMapObj@line{call.Line}");
+                    }
+
+                    if (RequireArgCount(2) && (!IsNumeric(ArgType(0)) || !IsNumeric(ArgType(1))))
+                    {
+                        reasons.Add($"invalid-arg-type:ST_SyncMiniMapObj@line{call.Line}");
+                    }
+
+                    return LuaValueType.Void;
+
+                case "AddPlayerEvent":
+                    if (RequireArgCount(1) && !IsIntCompatible(ArgType(0)))
+                    {
+                        reasons.Add($"invalid-arg-type:AddPlayerEvent@line{call.Line}");
+                    }
+
+                    return isStatement ? LuaValueType.Void : LuaValueType.Int;
 
                 case "AddStackItem":
                     if (RequireArgRange(7, 8))
@@ -2834,6 +3375,32 @@ public sealed class LuaScriptSemanticValidator
                         }
 
                         ValidateGdplOperands(args[1], args[2], args[3], args[4], api, call.Line, topLevelConsts, constArrays, reasons);
+                    }
+
+                    return LuaValueType.Int;
+
+                case "CalcItemCount":
+                    if (RequireArgCount(5))
+                    {
+                        if (!IsIntCompatible(ArgType(0)))
+                        {
+                            reasons.Add($"invalid-arg-type:CalcItemCount@line{call.Line}");
+                        }
+
+                        ValidateGdplOperands(args[1], args[2], args[3], args[4], api, call.Line, topLevelConsts, constArrays, reasons);
+                    }
+
+                    return LuaValueType.Int;
+
+                case "ConsumeItem":
+                    if (RequireArgCount(6))
+                    {
+                        if (!IsIntCompatible(ArgType(0)) || !IsIntCompatible(ArgType(1)))
+                        {
+                            reasons.Add($"invalid-arg-type:ConsumeItem@line{call.Line}");
+                        }
+
+                        ValidateGdplOperands(args[2], args[3], args[4], args[5], api, call.Line, topLevelConsts, constArrays, reasons);
                     }
 
                     return LuaValueType.Int;
@@ -2936,11 +3503,10 @@ public sealed class LuaScriptSemanticValidator
 
                 case "AddProp":
                 case "AddMagicPoint":
-                    if (kind != GeneratedScriptKind.Item)
-                    {
-                        reasons.Add($"item-only-api:{api}");
-                    }
-
+                case "AddStrg":
+                case "AddDex":
+                case "AddVit":
+                case "AddEng":
                     if (!isStatement)
                     {
                         reasons.Add($"statement-used-as-expr:{api}@line{call.Line}");
@@ -3187,6 +3753,37 @@ public sealed class LuaScriptSemanticValidator
                                 reasons.Add($"invalid-asknumber-callback-sig:{cb}");
                             }
                         }
+                        else if (args[0] is LuaBinaryExpr { Operator: LuaBinaryOp.Concat, Left: LuaStringExpr askPrefix } askConcat &&
+                                 !string.IsNullOrEmpty(askPrefix.DecodedUtf8))
+                        {
+                            LuaValueType sufType = ValidateExpr(askConcat.Right, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                            if (!IsIntCompatible(sufType))
+                            {
+                                reasons.Add($"dynamic-asknumber-callback@line{call.Line}");
+                            }
+
+                            string pfx = askPrefix.DecodedUtf8;
+                            int matched = 0;
+                            foreach (string fnName in functionsByName.Keys)
+                            {
+                                if (fnName.Length > pfx.Length &&
+                                    fnName.StartsWith(pfx, StringComparison.Ordinal) &&
+                                    int.TryParse(fnName.AsSpan(pfx.Length), out _))
+                                {
+                                    matched++;
+                                    if (functionParamTypes.TryGetValue(fnName, out IReadOnlyList<LuaValueType>? cbParams) &&
+                                        (cbParams.Count != 1 || cbParams[0] != LuaValueType.Int))
+                                    {
+                                        reasons.Add($"invalid-asknumber-callback-sig:{fnName}");
+                                    }
+                                }
+                            }
+
+                            if (matched == 0)
+                            {
+                                reasons.Add($"missing-asknumber-callback:{pfx}*");
+                            }
+                        }
                         else
                         {
                             reasons.Add($"dynamic-asknumber-callback@line{call.Line}");
@@ -3201,6 +3798,21 @@ public sealed class LuaScriptSemanticValidator
                     return LuaValueType.Void;
 
                 case "NewWorld":
+                    if (args.Count == 1 &&
+                        args[0] is LuaCallExpr singleWorldCall &&
+                        _currentFnReturnTuples is not null &&
+                        _currentFnReturnTuples.TryGetValue(singleWorldCall.CalleeName, out IReadOnlyList<LuaValueType>? worldTup) &&
+                        worldTup.Count >= 3)
+                    {
+                        _ = ValidateCall(singleWorldCall, isStatement: false, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, constArrays, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+                        if (kind != GeneratedScriptKind.Monster)
+                        {
+                            localAsync = true;
+                        }
+
+                        return isStatement ? LuaValueType.Void : LuaValueType.Int;
+                    }
+
                     if (RequireArgCount(3))
                     {
                         if (!IsNumeric(ArgType(0)) || !IsNumeric(ArgType(1)) || !IsNumeric(ArgType(2)))
@@ -3209,7 +3821,11 @@ public sealed class LuaScriptSemanticValidator
                         }
                     }
 
-                    localAsync = true;
+                    if (kind != GeneratedScriptKind.Monster)
+                    {
+                        localAsync = true;
+                    }
+
                     return isStatement ? LuaValueType.Void : LuaValueType.Int;
 
                 case "SetPos":
@@ -3226,12 +3842,20 @@ public sealed class LuaScriptSemanticValidator
                         }
                     }
 
-                    localAsync = true;
+                    if (kind != GeneratedScriptKind.Monster)
+                    {
+                        localAsync = true;
+                    }
+
                     return LuaValueType.Void;
 
                 case "ReturnFromPortal":
                     RequireArgCount(0);
-                    localAsync = true;
+                    if (kind != GeneratedScriptKind.Monster)
+                    {
+                        localAsync = true;
+                    }
+
                     return isStatement ? LuaValueType.Void : LuaValueType.Int;
 
                 case "Talk":
@@ -3251,6 +3875,15 @@ public sealed class LuaScriptSemanticValidator
                     }
 
                     ValidateSayOrDescribeCall(call, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, constArrays, fnIsAsync, fnReturnTypes, ref localAsync, reasons);
+                    return LuaValueType.Void;
+
+                case "Prise":
+                    if (!isStatement)
+                    {
+                        reasons.Add($"statement-used-as-expr:Prise@line{call.Line}");
+                    }
+
+                    ValidatePriseCall(call, kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, constArrays, fnIsAsync, fnReturnTypes, ref localAsync, reasons);
                     return LuaValueType.Void;
 
                 case "CreateNewSayEx":
@@ -3401,7 +4034,8 @@ public sealed class LuaScriptSemanticValidator
         int line,
         IReadOnlyDictionary<string, LuaValueType> topLevelConsts,
         IReadOnlyDictionary<string, LuaTableLiteralExpr>? constArrays,
-        SortedSet<string> reasons)
+        SortedSet<string> reasons,
+        bool allowMissingZeroGenre = false)
     {
         if (TryEvalConstantIntWithScope(gExpr, topLevelConsts, constArrays, out int g) &&
             TryEvalConstantIntWithScope(dExpr, topLevelConsts, constArrays, out int d) &&
@@ -3409,7 +4043,8 @@ public sealed class LuaScriptSemanticValidator
         {
             if (TryEvalConstantIntWithScope(pExpr, topLevelConsts, constArrays, out int p))
             {
-                if (_itemCatalogIndex is null || !_itemCatalogIndex.TryResolveByGdpl(g, d, p, lv, out _))
+                if ((_itemCatalogIndex is null || !_itemCatalogIndex.TryResolveByGdpl(g, d, p, lv, out _)) &&
+                    !(allowMissingZeroGenre && g == 0))
                 {
                     reasons.Add($"unknown-gdpl:{g},{d},{p},{lv}");
                 }
@@ -3417,11 +4052,12 @@ public sealed class LuaScriptSemanticValidator
                 return;
             }
 
-            if (TryExtractConstTableIntCandidates(pExpr, _currentTopLevelConstExprs, out List<int>? pCandidates) && pCandidates.Count > 0)
+            if (TryExtractConstTableIntCandidates(pExpr, _currentTopLevelConstExprs, out List<int>? pCandidates, _currentFnLocalTupleTables) && pCandidates.Count > 0)
             {
                 foreach (int candP in pCandidates)
                 {
-                    if (_itemCatalogIndex is null || !_itemCatalogIndex.TryResolveByGdpl(g, d, candP, lv, out _))
+                    if ((_itemCatalogIndex is null || !_itemCatalogIndex.TryResolveByGdpl(g, d, candP, lv, out _)) &&
+                        !(allowMissingZeroGenre && g == 0))
                     {
                         reasons.Add($"unknown-gdpl:{g},{d},{candP},{lv}");
                     }
@@ -3437,7 +4073,8 @@ public sealed class LuaScriptSemanticValidator
     public static bool TryExtractConstTableIntCandidates(
         LuaExpression expr,
         IReadOnlyDictionary<string, LuaExpression>? topLevelConstExprs,
-        out List<int> candidates)
+        out List<int> candidates,
+        IReadOnlyDictionary<string, string>? fnLocalTupleTables = null)
     {
         candidates = [];
         if (topLevelConstExprs is null)
@@ -3463,11 +4100,27 @@ public sealed class LuaScriptSemanticValidator
             return candidates.Count > 0;
         }
 
-        // Pattern 2: `tbl[rowExpr][constCol]` where `tbl` is 2D/tuple table
-        if (expr is LuaIndexExpr { Target: LuaIndexExpr { Target: LuaIdentifierExpr tbl2Id }, Index: var colExpr } &&
-            TryEvalConstantInt(colExpr, topLevelConstExprs, out int col1Based) &&
+        // Pattern 2: `tbl[rowExpr][constCol]` or Pattern 3: `rowVar[constCol]` where `tbl` is 2D/tuple table
+        string? tupleTblName = null;
+        LuaExpression? colExpr2 = null;
+        if (expr is LuaIndexExpr { Target: LuaIndexExpr { Target: LuaIdentifierExpr tbl2Id }, Index: var cExpr2 })
+        {
+            tupleTblName = tbl2Id.Name;
+            colExpr2 = cExpr2;
+        }
+        else if (expr is LuaIndexExpr { Target: LuaIdentifierExpr rowVarId, Index: var cExpr3 } &&
+                 fnLocalTupleTables is not null &&
+                 fnLocalTupleTables.TryGetValue(rowVarId.Name, out string? mappedTbl))
+        {
+            tupleTblName = mappedTbl;
+            colExpr2 = cExpr3;
+        }
+
+        if (tupleTblName is not null &&
+            colExpr2 is not null &&
+            TryEvalConstantInt(colExpr2, topLevelConstExprs, out int col1Based) &&
             col1Based >= 1 &&
-            topLevelConstExprs.TryGetValue(tbl2Id.Name, out LuaExpression? rawTbl2) &&
+            topLevelConstExprs.TryGetValue(tupleTblName, out LuaExpression? rawTbl2) &&
             rawTbl2 is LuaTableLiteralExpr seq2)
         {
             foreach (LuaExpression rowExpr in seq2.Elements)
@@ -3536,16 +4189,12 @@ public sealed class LuaScriptSemanticValidator
         if (call.Arguments[1] is LuaStringExpr cbStr)
         {
             string cbName = cbStr.DecodedUtf8.Trim();
-            if (cbName.Length > 0)
+            if (cbName.Length > 0 &&
+                IsValidLuaIdentifier(cbName) &&
+                functionsByName.TryGetValue(cbName, out LuaFunctionDecl? cbFn) &&
+                cbFn.Parameters.Count > 0)
             {
-                if (!functionsByName.TryGetValue(cbName, out LuaFunctionDecl? cbFn))
-                {
-                    reasons.Add($"missing-talk-callback:{cbName}");
-                }
-                else if (cbFn.Parameters.Count > 0)
-                {
-                    reasons.Add($"talk-callback-requires-0-params:{cbName}");
-                }
+                reasons.Add($"talk-callback-requires-0-params:{cbName}");
             }
         }
         else if (call.Arguments[1] is not LuaNilExpr)
@@ -3683,6 +4332,85 @@ public sealed class LuaScriptSemanticValidator
         reasons.Add($"unsupported-say-form@line{call.Line}");
     }
 
+    private void ValidatePriseCall(
+        LuaCallExpr call,
+        GeneratedScriptKind kind,
+        IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
+        IReadOnlyDictionary<string, IReadOnlyList<LuaValueType>> functionParamTypes,
+        IReadOnlyDictionary<string, LuaValueType> topLevelConsts,
+        IReadOnlyDictionary<string, CompiledAwardNode> topLevelAwardNodes,
+        IReadOnlyDictionary<string, LuaValueType> localTypes,
+        IReadOnlySet<string> assigned,
+        IReadOnlyDictionary<string, LuaTableLiteralExpr>? constArrays,
+        IReadOnlyDictionary<string, bool> fnIsAsync,
+        IReadOnlyDictionary<string, LuaValueType> fnReturnTypes,
+        ref bool isAsync,
+        SortedSet<string> reasons)
+    {
+        if (call.Arguments.Count < 2)
+        {
+            return;
+        }
+
+        LuaValueType promptType = ValidateExpr(call.Arguments[0], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+        if (promptType is not (LuaValueType.String or LuaValueType.Int or LuaValueType.NullableInt))
+        {
+            reasons.Add($"invalid-prise-prompt-type:{promptType}@line{call.Line}");
+            return;
+        }
+
+        if (call.Arguments.Count == 3)
+        {
+            LuaValueType cType = ValidateExpr(call.Arguments[1], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            LuaValueType tType = ValidateExpr(call.Arguments[2], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            if (!IsIntCompatible(cType) || tType is not (LuaValueType.StringArray or LuaValueType.StringList))
+            {
+                reasons.Add($"unsupported-prise-form@line{call.Line}");
+            }
+
+            return;
+        }
+
+        if (call.Arguments.Count != 4)
+        {
+            reasons.Add($"invalid-prise-arity:{call.Arguments.Count}@line{call.Line}");
+            return;
+        }
+
+        for (int i = 1; i < 4; i++)
+        {
+            LuaValueType ot = ValidateExpr(call.Arguments[i], kind, functionsByName, functionParamTypes, topLevelConsts, topLevelAwardNodes, localTypes, assigned, fnIsAsync, fnReturnTypes, ref isAsync, reasons);
+            if (ot != LuaValueType.String)
+            {
+                reasons.Add($"invalid-prise-option-type:{ot}@line{call.Line}");
+                return;
+            }
+
+            if (TryEvalConstantStringWithScope(call.Arguments[i], out string? optStr) && optStr is not null)
+            {
+                ValidatePriseOptionString(optStr, functionsByName, reasons);
+            }
+        }
+    }
+
+    private static void ValidatePriseOptionString(
+        string optionSpec,
+        IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
+        SortedSet<string> reasons)
+    {
+        if (TryParseHoleFunctionOption(optionSpec, out string fnName, out _))
+        {
+            if (!functionsByName.ContainsKey(fnName))
+            {
+                reasons.Add($"missing-prise-callback:{fnName}");
+            }
+
+            return;
+        }
+
+        ValidateSayOptionString(optionSpec, functionsByName, reasons);
+    }
+
     public bool TryCompileAwardNode(
         LuaExpression expr,
         IReadOnlyDictionary<string, LuaExpression>? constExprs,
@@ -3770,7 +4498,7 @@ public sealed class LuaScriptSemanticValidator
                     ordered[idxKey] = e.Value;
                 }
 
-                if (ordered.Keys.First() != 1 || ordered.Keys.Last() != ordered.Count)
+                if (ordered.Keys.First() < 1)
                 {
                     error = $"sparse-award-group@line{keyedTbl.Line}";
                     return false;
@@ -3830,6 +4558,69 @@ public sealed class LuaScriptSemanticValidator
                 }
             }
 
+            int expiredMinutes = 0;
+            if (fields.TryGetValue("nExpiredTime", out LuaExpression? expTimeExpr) &&
+                TryEvalConstantInt(expTimeExpr, constExprs, out int expMins))
+            {
+                expiredMinutes = expMins;
+            }
+
+            int[]? specParams = null;
+            if (fields.TryGetValue("tbParam", out LuaExpression? paramTblExpr) &&
+                paramTblExpr is LuaTableLiteralExpr paramTbl &&
+                paramTbl.Elements.Count > 0)
+            {
+                specParams = new int[paramTbl.Elements.Count];
+                for (int i = 0; i < paramTbl.Elements.Count; i++)
+                {
+                    if (!TryEvalConstantInt(paramTbl.Elements[i], constExprs, out specParams[i]))
+                    {
+                        specParams = null;
+                        break;
+                    }
+                }
+            }
+
+            string? callbackKind = null;
+            string? callbackTitle = null;
+            if (fields.TryGetValue("CallBack", out LuaExpression? cbExpr) &&
+                !TryExtractAwardCallback(cbExpr, constExprs, isPFun: false, out callbackKind, out callbackTitle, out _, out error))
+            {
+                return false;
+            }
+
+            if (fields.TryGetValue("pFun", out LuaExpression? pFunExpr))
+            {
+                if (!TryExtractAwardCallback(pFunExpr, constExprs, isPFun: true, out string? pFunKind, out string? pFunTitle, out long pFunAmount, out error))
+                {
+                    return false;
+                }
+
+                if (pFunKind == "VngChestExp")
+                {
+                    node = new CompiledAwardNode(
+                        CompiledAwardNodeKind.LeafChestExpAward,
+                        RatePercent: rate,
+                        Count: count,
+                        NumericAmount: pFunAmount,
+                        CallbackKind: pFunKind,
+                        CallbackTitleUtf8: pFunTitle);
+                    return true;
+                }
+
+                if (pFunKind == "BingoBoxExp")
+                {
+                    node = new CompiledAwardNode(
+                        CompiledAwardNodeKind.LeafBingoBoxExpAward,
+                        RatePercent: rate,
+                        Count: count,
+                        NumericAmount: pFunAmount,
+                        CallbackKind: pFunKind,
+                        CallbackTitleUtf8: pFunTitle);
+                    return true;
+                }
+            }
+
             if (fields.TryGetValue("tbProp", out LuaExpression? propExpr))
             {
                 if (propExpr is not LuaTableLiteralExpr propTbl || propTbl.Elements.Count < 2)
@@ -3876,7 +4667,12 @@ public sealed class LuaScriptSemanticValidator
                         MaxStackCount: 1,
                         ConsumeRandomSeriesRoll: consumeSeriesRng,
                         FixedSeries: fixedSeries,
-                        BindStateRaw: bindState);
+                        BindStateRaw: bindState,
+                        CatalogItemNameUtf8: goldEntry.NameUtf8,
+                        CallbackKind: callbackKind,
+                        CallbackTitleUtf8: callbackTitle,
+                        ExpiredTimeMinutes: expiredMinutes,
+                        SpecParams: specParams);
                     return true;
                 }
 
@@ -3906,7 +4702,12 @@ public sealed class LuaScriptSemanticValidator
                     ConsumeRandomSeriesRoll: consumeSeriesRng,
                     FixedSeries: fixedSeries,
                     BindStateRaw: bindState,
-                    NumericAmount: g == 0 ? 1 : 0);
+                    NumericAmount: g == 0 ? 1 : 0,
+                    CatalogItemNameUtf8: itemEntry.NameUtf8,
+                    CallbackKind: callbackKind,
+                    CallbackTitleUtf8: callbackTitle,
+                    ExpiredTimeMinutes: expiredMinutes,
+                    SpecParams: specParams);
                 return true;
             }
 
@@ -3953,6 +4754,12 @@ public sealed class LuaScriptSemanticValidator
         out string? error)
     {
         error = null;
+        if (expr is LuaAnonFunctionExpr)
+        {
+            type = LuaValueType.ClosureHelper;
+            return true;
+        }
+
         if (expr is LuaUnsupportedExpr unsup)
         {
             type = LuaValueType.Void;
@@ -4136,6 +4943,27 @@ public sealed class LuaScriptSemanticValidator
                             return true;
                     }
                 }
+
+                // 1b. Integer-keyed dictionary of named int fields (`[3053] = { nW = 1, nH = 1 }`)
+                if (targetConstName is not null &&
+                    _currentTopLevelIntRecordMaps is not null &&
+                    TryCompileIntKeyedIntRecordMap(ktbl, existingConstExprs, out Dictionary<int, IReadOnlyDictionary<string, int>>? recMap))
+                {
+                    _currentTopLevelIntRecordMaps[targetConstName] = recMap!;
+                    type = LuaValueType.IntKeyedIntRecordMap;
+                    return true;
+                }
+
+                // 1c. Integer-keyed dictionary of award groups (`[3053] = { ... }, [3054] = { ... }`)
+                if (targetConstName is not null &&
+                    _currentTopLevelAwardMaps is not null &&
+                    ktbl.Entries.All(static e => e.Value is LuaTableLiteralExpr) &&
+                    TryCompileIntKeyedAwardMap(ktbl, existingConstExprs, out Dictionary<int, CompiledAwardNode>? awardMap))
+                {
+                    _currentTopLevelAwardMaps[targetConstName] = awardMap!;
+                    type = LuaValueType.IntKeyedAwardTemplateMap;
+                    return true;
+                }
             }
 
             // 2. Try static tbAwardTemplet template
@@ -4305,7 +5133,7 @@ public sealed class LuaScriptSemanticValidator
     private static bool IsNumeric(LuaValueType t) => t is LuaValueType.Int or LuaValueType.NullableInt or LuaValueType.Number;
 
     private static bool IsConditionCompatible(LuaValueType t) =>
-        t is LuaValueType.Bool or LuaValueType.Nil or LuaValueType.Int or LuaValueType.NullableInt or LuaValueType.Number or LuaValueType.String or LuaValueType.SyncCallback;
+        t is LuaValueType.Bool or LuaValueType.Nil or LuaValueType.Int or LuaValueType.NullableInt or LuaValueType.Number or LuaValueType.String or LuaValueType.SyncCallback or LuaValueType.AwardTemplate or LuaValueType.IntFieldRecord;
 
     private static bool IsArgAssignableToParam(LuaValueType arg, LuaValueType param)
     {
@@ -4613,69 +5441,70 @@ public sealed class LuaScriptSemanticValidator
         IReadOnlyList<LuaStatement> stmts,
         IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
         IReadOnlyDictionary<string, LuaExpression> topLevelConstExprs,
-        HashSet<string> edges)
+        HashSet<string> syncEdges,
+        HashSet<string>? uiCallbackEdges)
     {
         foreach (LuaStatement stmt in stmts)
         {
             switch (stmt)
             {
                 case LuaCallStmt cs:
-                    CollectExprCalls(cs.Call, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(cs.Call, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     break;
                 case LuaMemberCallStmt mcs:
-                    CollectExprCalls(mcs.Call, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(mcs.Call, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: mcs.Call.MemberName == "AddOptEntry");
                     break;
                 case LuaMemberAssignStmt mas:
-                    CollectExprCalls(mas.Target, functionsByName, topLevelConstExprs, edges);
-                    CollectExprCalls(mas.Value, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(mas.Target, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    CollectExprCalls(mas.Value, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     break;
                 case LuaLocalDeclStmt ld when ld.Initializer is not null:
-                    CollectExprCalls(ld.Initializer, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(ld.Initializer, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     break;
                 case LuaMultiLocalDeclStmt mld:
-                    foreach (LuaExpression init in mld.Initializers) CollectExprCalls(init, functionsByName, topLevelConstExprs, edges);
+                    foreach (LuaExpression init in mld.Initializers) CollectExprCalls(init, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     break;
                 case LuaAssignStmt asg:
-                    CollectExprCalls(asg.Value, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(asg.Value, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     break;
                 case LuaMultiAssignStmt masg:
-                    foreach (LuaExpression v in masg.Values) CollectExprCalls(v, functionsByName, topLevelConstExprs, edges);
+                    foreach (LuaExpression v in masg.Values) CollectExprCalls(v, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     break;
                 case LuaIndexAssignStmt iasg:
-                    CollectExprCalls(iasg.Index, functionsByName, topLevelConstExprs, edges);
-                    CollectExprCalls(iasg.Value, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(iasg.Index, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    CollectExprCalls(iasg.Value, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     break;
                 case LuaReturnStmt ret:
-                    if (ret.Value is not null) CollectExprCalls(ret.Value, functionsByName, topLevelConstExprs, edges);
+                    if (ret.Value is not null) CollectExprCalls(ret.Value, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     if (ret.ExtraValues is not null)
                     {
-                        foreach (LuaExpression ev in ret.ExtraValues) CollectExprCalls(ev, functionsByName, topLevelConstExprs, edges);
+                        foreach (LuaExpression ev in ret.ExtraValues) CollectExprCalls(ev, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                     }
 
                     break;
                 case LuaIfStmt ifs:
-                    CollectExprCalls(ifs.Condition, functionsByName, topLevelConstExprs, edges);
-                    CollectLocalCallEdges(ifs.ThenBody, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(ifs.Condition, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    CollectLocalCallEdges(ifs.ThenBody, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges);
                     foreach (LuaElseIfBranch ei in ifs.ElseIfBranches)
                     {
-                        CollectExprCalls(ei.Condition, functionsByName, topLevelConstExprs, edges);
-                        CollectLocalCallEdges(ei.Body, functionsByName, topLevelConstExprs, edges);
+                        CollectExprCalls(ei.Condition, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                        CollectLocalCallEdges(ei.Body, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges);
                     }
 
-                    CollectLocalCallEdges(ifs.ElseBody, functionsByName, topLevelConstExprs, edges);
+                    CollectLocalCallEdges(ifs.ElseBody, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges);
                     break;
                 case LuaNumericForStmt nf:
-                    CollectExprCalls(nf.Start, functionsByName, topLevelConstExprs, edges);
-                    CollectExprCalls(nf.Limit, functionsByName, topLevelConstExprs, edges);
-                    if (nf.Step is not null) CollectExprCalls(nf.Step, functionsByName, topLevelConstExprs, edges);
-                    CollectLocalCallEdges(nf.Body, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(nf.Start, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    CollectExprCalls(nf.Limit, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    if (nf.Step is not null) CollectExprCalls(nf.Step, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    CollectLocalCallEdges(nf.Body, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges);
                     break;
                 case LuaWhileStmt ws:
-                    CollectExprCalls(ws.Condition, functionsByName, topLevelConstExprs, edges);
-                    CollectLocalCallEdges(ws.Body, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(ws.Condition, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    CollectLocalCallEdges(ws.Body, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges);
                     break;
                 case LuaDoBlockStmt db:
-                    CollectLocalCallEdges(db.Body, functionsByName, topLevelConstExprs, edges);
+                    CollectLocalCallEdges(db.Body, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges);
                     break;
             }
         }
@@ -4685,7 +5514,9 @@ public sealed class LuaScriptSemanticValidator
         LuaExpression expr,
         IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
         IReadOnlyDictionary<string, LuaExpression> topLevelConstExprs,
-        HashSet<string> edges)
+        HashSet<string> syncEdges,
+        HashSet<string>? uiCallbackEdges,
+        bool inUiContext)
     {
         switch (expr)
         {
@@ -4693,7 +5524,7 @@ public sealed class LuaScriptSemanticValidator
                 if (LuaIncludeLinker.TryExtractOptionCallbackName(str.DecodedUtf8, out string cb) &&
                     functionsByName.ContainsKey(cb))
                 {
-                    edges.Add(cb);
+                    uiCallbackEdges?.Add(cb);
                 }
 
                 break;
@@ -4701,13 +5532,20 @@ public sealed class LuaScriptSemanticValidator
             case LuaIdentifierExpr id:
                 if (functionsByName.ContainsKey(id.Name))
                 {
-                    edges.Add(id.Name);
+                    if (inUiContext)
+                    {
+                        uiCallbackEdges?.Add(id.Name);
+                    }
+                    else
+                    {
+                        syncEdges.Add(id.Name);
+                    }
                 }
                 else if (topLevelConstExprs.TryGetValue(id.Name, out LuaExpression? constVal) && constVal is LuaTableLiteralExpr constTbl)
                 {
                     foreach (LuaExpression el in constTbl.Elements)
                     {
-                        CollectExprCalls(el, functionsByName, topLevelConstExprs, edges);
+                        CollectExprCalls(el, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext);
                     }
                 }
 
@@ -4716,47 +5554,75 @@ public sealed class LuaScriptSemanticValidator
             case LuaCallExpr call:
                 if (functionsByName.ContainsKey(call.CalleeName))
                 {
-                    edges.Add(call.CalleeName);
+                    syncEdges.Add(call.CalleeName);
                 }
 
+                if (call.CalleeName == "AskClientForNumber" &&
+                    call.Arguments.Count >= 1 &&
+                    call.Arguments[0] is LuaBinaryExpr { Operator: LuaBinaryOp.Concat, Left: LuaStringExpr askPrefix } askBin &&
+                    !string.IsNullOrEmpty(askPrefix.DecodedUtf8))
+                {
+                    string pfx = askPrefix.DecodedUtf8;
+                    foreach (string fnName in functionsByName.Keys)
+                    {
+                        if (fnName.Length > pfx.Length &&
+                            fnName.StartsWith(pfx, StringComparison.Ordinal) &&
+                            int.TryParse(fnName.AsSpan(pfx.Length), out _))
+                        {
+                            uiCallbackEdges?.Add(fnName);
+                        }
+                    }
+
+                    CollectExprCalls(askBin.Right, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    for (int i = 1; i < call.Arguments.Count; i++)
+                    {
+                        CollectExprCalls(call.Arguments[i], functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: true);
+                    }
+
+                    break;
+                }
+
+                bool childUiContext = inUiContext ||
+                    call.CalleeName is "Say" or "Describe" or "Prise" or "CreateNewSayEx" or "Talk" or "AskClientForNumber";
                 foreach (LuaExpression arg in call.Arguments)
                 {
-                    CollectExprCalls(arg, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(arg, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, childUiContext);
                 }
 
                 break;
 
             case LuaMemberCallExpr mcall:
-                CollectExprCalls(mcall.Receiver, functionsByName, topLevelConstExprs, edges);
+                CollectExprCalls(mcall.Receiver, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                bool memberUiContext = inUiContext || mcall.MemberName == "AddOptEntry";
                 foreach (LuaExpression arg in mcall.Arguments)
                 {
-                    CollectExprCalls(arg, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(arg, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, memberUiContext);
                 }
 
                 break;
 
             case LuaMemberAccessExpr macc:
-                CollectExprCalls(macc.Target, functionsByName, topLevelConstExprs, edges);
+                CollectExprCalls(macc.Target, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                 break;
 
             case LuaBinaryExpr bin:
-                CollectExprCalls(bin.Left, functionsByName, topLevelConstExprs, edges);
-                CollectExprCalls(bin.Right, functionsByName, topLevelConstExprs, edges);
+                CollectExprCalls(bin.Left, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext);
+                CollectExprCalls(bin.Right, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext);
                 break;
 
             case LuaUnaryExpr un:
-                CollectExprCalls(un.Operand, functionsByName, topLevelConstExprs, edges);
+                CollectExprCalls(un.Operand, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext);
                 break;
 
             case LuaIndexExpr idx:
-                CollectExprCalls(idx.Target, functionsByName, topLevelConstExprs, edges);
-                CollectExprCalls(idx.Index, functionsByName, topLevelConstExprs, edges);
+                CollectExprCalls(idx.Target, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext);
+                CollectExprCalls(idx.Index, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
                 break;
 
             case LuaTableLiteralExpr tbl:
                 foreach (LuaExpression el in tbl.Elements)
                 {
-                    CollectExprCalls(el, functionsByName, topLevelConstExprs, edges);
+                    CollectExprCalls(el, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: true);
                 }
 
                 break;
@@ -4764,8 +5630,8 @@ public sealed class LuaScriptSemanticValidator
             case LuaKeyedTableLiteralExpr ktbl:
                 foreach (LuaTableFieldEntry fe in ktbl.Entries)
                 {
-                    if (fe.BracketKey is not null) CollectExprCalls(fe.BracketKey, functionsByName, topLevelConstExprs, edges);
-                    CollectExprCalls(fe.Value, functionsByName, topLevelConstExprs, edges);
+                    if (fe.BracketKey is not null) CollectExprCalls(fe.BracketKey, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: false);
+                    CollectExprCalls(fe.Value, functionsByName, topLevelConstExprs, syncEdges, uiCallbackEdges, inUiContext: true);
                 }
 
                 break;
@@ -4846,5 +5712,598 @@ public sealed class LuaScriptSemanticValidator
         }
 
         return ordered;
+    }
+
+    private bool TryEvalConstantStringWithScope(LuaExpression expr, out string? value)
+    {
+        if (TryEvalConstantString(expr, out value))
+        {
+            return true;
+        }
+
+        if (expr is LuaIndexExpr outerIdx &&
+            outerIdx.Target is LuaIndexExpr innerIdx &&
+            innerIdx.Target is LuaIdentifierExpr arrIdent &&
+            _currentTopLevelConstExprs is not null &&
+            _currentTopLevelConstExprs.TryGetValue(arrIdent.Name, out LuaExpression? tblExpr))
+        {
+            return TryResolveConstantString2D(tblExpr, innerIdx.Index, outerIdx.Index, _currentTopLevelConstExprs, out value);
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static bool TryResolveConstantString2D(
+        LuaExpression outerExpr,
+        LuaExpression rowIndexExpr,
+        LuaExpression colIndexExpr,
+        IReadOnlyDictionary<string, LuaExpression> constExprs,
+        out string? value)
+    {
+        value = null;
+        if (outerExpr is not LuaTableLiteralExpr outerTbl ||
+            !TryEvalConstantInt(rowIndexExpr, constExprs, out int r) ||
+            !TryEvalConstantInt(colIndexExpr, constExprs, out int c) ||
+            r < 1 || r > outerTbl.Elements.Count ||
+            outerTbl.Elements[r - 1] is not LuaTableLiteralExpr rowTbl ||
+            c < 1 || c > rowTbl.Elements.Count)
+        {
+            return false;
+        }
+
+        return TryEvalConstantString(rowTbl.Elements[c - 1], out value);
+    }
+
+    private static bool TryCompileIntKeyedIntRecordMap(
+        LuaKeyedTableLiteralExpr ktbl,
+        IReadOnlyDictionary<string, LuaExpression> existingConstExprs,
+        out Dictionary<int, IReadOnlyDictionary<string, int>>? map)
+    {
+        map = null;
+        var result = new Dictionary<int, IReadOnlyDictionary<string, int>>();
+        foreach (LuaTableFieldEntry fe in ktbl.Entries)
+        {
+            if (fe.BracketKey is null ||
+                !TryEvalConstantInt(fe.BracketKey, existingConstExprs, out int intKey) ||
+                fe.Value is not LuaKeyedTableLiteralExpr innerRec ||
+                innerRec.Entries.Count == 0 ||
+                result.ContainsKey(intKey))
+            {
+                return false;
+            }
+
+            var recFields = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (LuaTableFieldEntry rf in innerRec.Entries)
+            {
+                if (string.IsNullOrEmpty(rf.FieldName) ||
+                    !TryEvalConstantInt(rf.Value, existingConstExprs, out int fVal))
+                {
+                    return false;
+                }
+
+                recFields[rf.FieldName] = fVal;
+            }
+
+            result[intKey] = recFields;
+        }
+
+        map = result;
+        return result.Count > 0;
+    }
+
+    private bool TryCompileIntKeyedAwardMap(
+        LuaKeyedTableLiteralExpr ktbl,
+        IReadOnlyDictionary<string, LuaExpression> existingConstExprs,
+        out Dictionary<int, CompiledAwardNode>? map)
+    {
+        map = null;
+        var result = new Dictionary<int, CompiledAwardNode>();
+        foreach (LuaTableFieldEntry fe in ktbl.Entries)
+        {
+            if (fe.BracketKey is null ||
+                !TryEvalConstantInt(fe.BracketKey, existingConstExprs, out int intKey) ||
+                result.ContainsKey(intKey) ||
+                !TryCompileAwardNode(fe.Value, existingConstExprs, out CompiledAwardNode? valNode, out _) ||
+                valNode is null)
+            {
+                return false;
+            }
+
+            result[intKey] = valNode;
+        }
+
+        map = result;
+        return result.Count > 0;
+    }
+
+    private bool TryExtractAwardCallback(
+        LuaExpression expr,
+        IReadOnlyDictionary<string, LuaExpression>? constExprs,
+        bool isPFun,
+        out string? callbackKind,
+        out string? callbackTitle,
+        out long amount,
+        out string? error)
+    {
+        callbackKind = null;
+        callbackTitle = null;
+        amount = 0;
+        error = null;
+
+        if (expr is not LuaAnonFunctionExpr anon || anon.Body.Count != 1)
+        {
+            error = $"unsupported-award-{(isPFun ? "pfun" : "callback")}@line{expr.Line}";
+            return false;
+        }
+
+        LuaStatement bodyStmt = anon.Body[0];
+        if (bodyStmt is LuaMemberCallStmt mcs)
+        {
+            string recvName = mcs.Call.Receiver switch
+            {
+                LuaIdentifierExpr id => id.Name,
+                LuaUpvalueExpr up => up.Name,
+                _ => string.Empty,
+            };
+
+            if (!isPFun && recvName == "tbVngTransLog" && mcs.Call.MemberName == "Write")
+            {
+                callbackKind = null;
+                return true;
+            }
+
+            if (isPFun &&
+                recvName == "tbvng_ChestExpAward" &&
+                mcs.Call.MemberName == "ExpAward" &&
+                mcs.Call.Arguments.Count == 2 &&
+                TryEvalConstantDouble(mcs.Call.Arguments[0], constExprs, out double expVal) &&
+                TryEvalConstantString(mcs.Call.Arguments[1], out string? chestName) &&
+                chestName is not null)
+            {
+                callbackKind = "VngChestExp";
+                callbackTitle = chestName;
+                amount = (long)Math.Truncate(expVal);
+                return true;
+            }
+        }
+        else if (bodyStmt is LuaCallStmt cs)
+        {
+            string callee = cs.Call.CalleeName;
+            if (!isPFun &&
+                (callee is "_Message" or "%_Message" || callee.EndsWith("__Message", StringComparison.Ordinal)) &&
+                cs.Call.Arguments.Count == 2 &&
+                TryEvalConstantString(cs.Call.Arguments[1], out string? boxTitle) &&
+                boxTitle is not null)
+            {
+                callbackKind = "BingoMessage";
+                callbackTitle = boxTitle;
+                return true;
+            }
+
+            if (isPFun &&
+                (callee is "BingoBoxAddExp" or "%BingoBoxAddExp" || callee.EndsWith("_BingoBoxAddExp", StringComparison.Ordinal)) &&
+                cs.Call.Arguments.Count == 2 &&
+                TryEvalConstantDouble(cs.Call.Arguments[0], constExprs, out double expVal) &&
+                TryEvalConstantString(cs.Call.Arguments[1], out string? bingoBoxTitle) &&
+                bingoBoxTitle is not null)
+            {
+                callbackKind = "BingoBoxExp";
+                callbackTitle = bingoBoxTitle;
+                amount = (long)Math.Truncate(expVal);
+                return true;
+            }
+        }
+
+        error = $"unsupported-award-{(isPFun ? "pfun" : "callback")}@line{expr.Line}";
+        return false;
+    }
+
+    private void ApplyRcnyApDung(
+        string targetName,
+        CompiledAwardNode origNode,
+        Dictionary<string, CompiledAwardNode> topLevelAwardNodes,
+        SortedSet<string> reasons)
+    {
+        if (origNode.Children is null)
+        {
+            reasons.Add($"invalid-rcny-target:{targetName}");
+            return;
+        }
+
+        static bool IsRemovedRcnyItem(string code) =>
+            code.EndsWith("-2714", StringComparison.Ordinal) ||
+            code.EndsWith("-2715", StringComparison.Ordinal) ||
+            code.EndsWith("-2716", StringComparison.Ordinal) ||
+            code.EndsWith("-2717", StringComparison.Ordinal) ||
+            code.EndsWith("-2718", StringComparison.Ordinal) ||
+            code.EndsWith("-2719", StringComparison.Ordinal) ||
+            code.EndsWith("-2720", StringComparison.Ordinal) ||
+            code.EndsWith("-2721", StringComparison.Ordinal) ||
+            code.EndsWith("-2722", StringComparison.Ordinal) ||
+            code.EndsWith("-2723", StringComparison.Ordinal) ||
+            code.EndsWith("-2350", StringComparison.Ordinal) ||
+            code.EndsWith("-2351", StringComparison.Ordinal);
+
+        var tbKhac = new List<CompiledAwardNode>();
+        var tbExp = new List<CompiledAwardNode>();
+        double nKhac = 0.0;
+        double nExp = 0.0;
+
+        foreach (CompiledAwardNode c in origNode.Children)
+        {
+            if (c.Kind == CompiledAwardNodeKind.LeafItem && IsRemovedRcnyItem(c.ItemCode))
+            {
+                continue;
+            }
+
+            if (c.Kind is CompiledAwardNodeKind.LeafExp or CompiledAwardNodeKind.LeafExpTl or CompiledAwardNodeKind.LeafChestExpAward or CompiledAwardNodeKind.LeafBingoBoxExpAward)
+            {
+                tbExp.Add(c);
+                nExp += c.RatePercent;
+            }
+            else
+            {
+                tbKhac.Add(c);
+                nKhac += c.RatePercent;
+            }
+        }
+
+        const double RcnyTongNhom = 31.48;
+        var merged = new List<CompiledAwardNode>(tbKhac.Count + tbExp.Count + 30);
+        merged.AddRange(tbKhac);
+        if (nExp > 0.0)
+        {
+            double nHeSo = (100.0 - RcnyTongNhom - nKhac) / nExp;
+            foreach (CompiledAwardNode e in tbExp)
+            {
+                merged.Add(e with { RatePercent = e.RatePercent * nHeSo });
+            }
+        }
+
+        // Canonical RCNY_NHOM entries from global/ruong_chianhuy.lua
+        (int G, int D, int P, int L, int Count, double Rate, bool IsGold, string? ExplicitName)[] nhom =
+        [
+            (6, 1, 5121, 1, 1, 2.8, false, null),
+            (6, 1, 5122, 1, 1, 2.8, false, null),
+            (6, 1, 5125, 1, 1, 2.0, false, null),
+            (6, 1, 5123, 1, 1, 1.6, false, null),
+            (6, 1, 5182, 1, 5, 2.4, false, null),
+            (6, 1, 5128, 1, 1, 1.92, false, null),
+            (6, 1, 5124, 1, 1, 0.08, false, null),
+            (6, 1, 1257, 1, 1, 2.5, false, null),
+            (6, 1, 1256, 1, 1, 1.1, false, null),
+            (6, 1, 1255, 1, 1, 0.35, false, null),
+            (6, 1, 1254, 1, 1, 0.05, false, null),
+            (6, 1, 147, 6, 1, 2.5, false, null),
+            (6, 1, 147, 7, 1, 1.5, false, null),
+            (6, 1, 147, 8, 1, 0.7, false, null),
+            (6, 1, 147, 9, 1, 0.25, false, null),
+            (6, 1, 147, 10, 1, 0.05, false, null),
+            (4, 417, 1, 1, 5, 3.0, false, null),
+            (4, 417, 1, 1, 20, 0.9, false, null),
+            (0, 494, 0, 1, 1, 0.7, true, "[Cực phẩm] Đồng Sát Bạch Kim Điêu Long Giới"),
+            (0, 495, 0, 1, 1, 0.7, true, "[Cực phẩm] Đồng Sát Bạch Ngọc Càn Khôn Bội"),
+            (0, 496, 0, 1, 1, 0.7, true, "[Cực phẩm] Đồng Sát Bạch Kim Tỉ Phượng Giới"),
+            (0, 497, 0, 1, 1, 0.7, true, "[Cực phẩm] Đồng Sát Phỉ Thúy Ngọc Hạng Khuyên"),
+            (0, 512, 0, 1, 1, 0.35, true, "[Hoàn Mỹ] Vinh Diệu Y"),
+            (0, 513, 0, 1, 1, 0.35, true, "[Hoàn Mỹ] Tinh Chuẩn Ngoa"),
+            (6, 1, 2127, 1, 1, 0.1, false, null),
+            (6, 1, 2160, 1, 1, 0.05, false, null),
+            (6, 1, 2161, 1, 1, 0.02, false, null),
+            (6, 1, 2162, 1, 1, 0.01, false, null),
+            (6, 1, 1308, 1, 1, 1.0, false, null),
+            (6, 1, 1309, 1, 1, 0.3, false, null),
+        ];
+
+        foreach ((int g, int d, int p, int l, int cnt, double rate, bool isGold, string? explicitName) in nhom)
+        {
+            if (isGold)
+            {
+                if (_itemCatalogIndex is null || !_itemCatalogIndex.TryResolveGoldEquipByRowId(d, out PackItemEntry goldEntry))
+                {
+                    reasons.Add($"unknown-rcny-gold:{d}");
+                    return;
+                }
+
+                string display = explicitName ?? goldEntry.NameUtf8;
+                merged.Add(new CompiledAwardNode(
+                    CompiledAwardNodeKind.LeafGoldEquip,
+                    RatePercent: rate,
+                    Count: cnt,
+                    ItemCode: goldEntry.Code,
+                    ItemNameUtf8: display,
+                    MaxStackCount: 1,
+                    ConsumeRandomSeriesRoll: false,
+                    CatalogItemNameUtf8: goldEntry.NameUtf8,
+                    CallbackKind: "RcnyGoldNews",
+                    CallbackTitleUtf8: display));
+            }
+            else
+            {
+                if (_itemCatalogIndex is null || !_itemCatalogIndex.TryResolveByGdpl(g, d, p, l, out PackItemEntry itemEntry))
+                {
+                    reasons.Add($"unknown-rcny-gdpl:{g},{d},{p},{l}");
+                    return;
+                }
+
+                merged.Add(new CompiledAwardNode(
+                    CompiledAwardNodeKind.LeafItem,
+                    RatePercent: rate,
+                    Count: cnt,
+                    ItemCode: itemEntry.Code,
+                    ItemNameUtf8: explicitName ?? itemEntry.NameUtf8,
+                    MaxStackCount: itemEntry.MaxStackCount,
+                    ConsumeRandomSeriesRoll: false,
+                    CatalogItemNameUtf8: itemEntry.NameUtf8));
+            }
+        }
+
+        topLevelAwardNodes[targetName] = origNode with
+        {
+            Kind = CompiledAwardNodeKind.RandomWeightedGroup,
+            Children = merged,
+        };
+    }
+
+    private static Dictionary<string, ushort> CollectPureTaskAliasGlobals(
+        IReadOnlyList<LuaFunctionDecl> functions,
+        IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName,
+        IReadOnlyDictionary<string, LuaValueType> topLevelConsts,
+        IReadOnlyDictionary<string, LuaExpression> topLevelConstExprs)
+    {
+        var candidateTaskIds = new Dictionary<string, ushort>(StringComparer.Ordinal);
+        var disqualified = new HashSet<string>(StringComparer.Ordinal);
+
+        void Disqualify(string name)
+        {
+            disqualified.Add(name);
+            candidateTaskIds.Remove(name);
+        }
+
+        void WalkBlock(IReadOnlyList<LuaStatement> stmts, HashSet<string> shadowedLocals)
+        {
+            foreach (LuaStatement stmt in stmts)
+            {
+                switch (stmt)
+                {
+                    case LuaLocalDeclStmt ld:
+                        shadowedLocals.Add(ld.Name);
+                        break;
+                    case LuaMultiLocalDeclStmt mld:
+                        foreach (string n in mld.Names)
+                        {
+                            shadowedLocals.Add(n);
+                        }
+
+                        break;
+                    case LuaAssignStmt asg:
+                        if (!shadowedLocals.Contains(asg.TargetName) &&
+                            !topLevelConsts.ContainsKey(asg.TargetName) &&
+                            !functionsByName.ContainsKey(asg.TargetName) &&
+                            asg.TargetName is not ("PlayerIndex" or "SubWorld"))
+                        {
+                            if (asg.Value is LuaCallExpr { CalleeName: "GetTask" or "nt_getTask", Arguments.Count: 1 } gc &&
+                                TryEvalConstantInt(gc.Arguments[0], topLevelConstExprs, out int tid) &&
+                                tid is >= 0 and <= ushort.MaxValue)
+                            {
+                                ushort utid = (ushort)tid;
+                                if (!disqualified.Contains(asg.TargetName))
+                                {
+                                    if (candidateTaskIds.TryGetValue(asg.TargetName, out ushort prevTid))
+                                    {
+                                        if (prevTid != utid)
+                                        {
+                                            Disqualify(asg.TargetName);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        candidateTaskIds[asg.TargetName] = utid;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                Disqualify(asg.TargetName);
+                            }
+                        }
+
+                        break;
+                    case LuaMultiAssignStmt masg:
+                        foreach (string n in masg.TargetNames)
+                        {
+                            if (!shadowedLocals.Contains(n))
+                            {
+                                Disqualify(n);
+                            }
+                        }
+
+                        break;
+                    case LuaIfStmt ifs:
+                        WalkBlock(ifs.ThenBody, new HashSet<string>(shadowedLocals, StringComparer.Ordinal));
+                        foreach (LuaElseIfBranch ei in ifs.ElseIfBranches)
+                        {
+                            WalkBlock(ei.Body, new HashSet<string>(shadowedLocals, StringComparer.Ordinal));
+                        }
+
+                        WalkBlock(ifs.ElseBody, new HashSet<string>(shadowedLocals, StringComparer.Ordinal));
+                        break;
+                    case LuaNumericForStmt nf:
+                        var forScope = new HashSet<string>(shadowedLocals, StringComparer.Ordinal) { nf.IteratorName };
+                        WalkBlock(nf.Body, forScope);
+                        break;
+                    case LuaWhileStmt ws:
+                        WalkBlock(ws.Body, new HashSet<string>(shadowedLocals, StringComparer.Ordinal));
+                        break;
+                    case LuaDoBlockStmt db:
+                        WalkBlock(db.Body, new HashSet<string>(shadowedLocals, StringComparer.Ordinal));
+                        break;
+                }
+            }
+        }
+
+        foreach (LuaFunctionDecl fn in functions)
+        {
+            var paramShadow = new HashSet<string>(fn.Parameters, StringComparer.Ordinal);
+            WalkBlock(fn.Body, paramShadow);
+        }
+
+        return candidateTaskIds;
+    }
+
+    private static List<(string VarName, ushort TaskId)> CollectPreloadedTaskGlobalsForFunction(
+        IReadOnlyList<LuaStatement> body,
+        IReadOnlyDictionary<string, ushort> pureTaskAliasGlobals,
+        HashSet<string> initialAssigned,
+        IReadOnlyDictionary<string, LuaFunctionDecl> functionsByName)
+    {
+        var result = new List<(string VarName, ushort TaskId)>();
+        if (pureTaskAliasGlobals.Count == 0)
+        {
+            return result;
+        }
+
+        var seenAssigned = new HashSet<string>(initialAssigned, StringComparer.Ordinal);
+        var added = new HashSet<string>(StringComparer.Ordinal);
+
+        void ScanExpr(LuaExpression expr)
+        {
+            switch (expr)
+            {
+                case LuaIdentifierExpr id:
+                    if (!seenAssigned.Contains(id.Name) &&
+                        !functionsByName.ContainsKey(id.Name) &&
+                        !TruthyBuiltinFunctionGlobals.Contains(id.Name) &&
+                        id.Name is not ("PlayerIndex" or "SubWorld") &&
+                        pureTaskAliasGlobals.TryGetValue(id.Name, out ushort tid) &&
+                        added.Add(id.Name))
+                    {
+                        result.Add((id.Name, tid));
+                    }
+
+                    break;
+                case LuaBinaryExpr bin:
+                    ScanExpr(bin.Left);
+                    ScanExpr(bin.Right);
+                    break;
+                case LuaUnaryExpr un:
+                    ScanExpr(un.Operand);
+                    break;
+                case LuaIndexExpr idx:
+                    ScanExpr(idx.Target);
+                    ScanExpr(idx.Index);
+                    break;
+                case LuaCallExpr call:
+                    foreach (LuaExpression a in call.Arguments)
+                    {
+                        ScanExpr(a);
+                    }
+
+                    break;
+                case LuaMemberCallExpr mcall:
+                    ScanExpr(mcall.Receiver);
+                    foreach (LuaExpression a in mcall.Arguments)
+                    {
+                        ScanExpr(a);
+                    }
+
+                    break;
+                case LuaMemberAccessExpr macc:
+                    ScanExpr(macc.Target);
+                    break;
+                case LuaTableLiteralExpr tbl:
+                    foreach (LuaExpression el in tbl.Elements)
+                    {
+                        ScanExpr(el);
+                    }
+
+                    break;
+                case LuaKeyedTableLiteralExpr ktbl:
+                    foreach (LuaTableFieldEntry fe in ktbl.Entries)
+                    {
+                        if (fe.BracketKey is not null) ScanExpr(fe.BracketKey);
+                        ScanExpr(fe.Value);
+                    }
+
+                    break;
+            }
+        }
+
+        void ScanBlock(IReadOnlyList<LuaStatement> stmts)
+        {
+            foreach (LuaStatement stmt in stmts)
+            {
+                switch (stmt)
+                {
+                    case LuaCallStmt cs:
+                        ScanExpr(cs.Call);
+                        break;
+                    case LuaMemberCallStmt mcs:
+                        ScanExpr(mcs.Call);
+                        break;
+                    case LuaLocalDeclStmt ld:
+                        if (ld.Initializer is not null) ScanExpr(ld.Initializer);
+                        seenAssigned.Add(ld.Name);
+                        break;
+                    case LuaMultiLocalDeclStmt mld:
+                        foreach (LuaExpression init in mld.Initializers) ScanExpr(init);
+                        foreach (string n in mld.Names) seenAssigned.Add(n);
+                        break;
+                    case LuaAssignStmt asg:
+                        ScanExpr(asg.Value);
+                        seenAssigned.Add(asg.TargetName);
+                        break;
+                    case LuaMultiAssignStmt masg:
+                        foreach (LuaExpression v in masg.Values) ScanExpr(v);
+                        foreach (string n in masg.TargetNames) seenAssigned.Add(n);
+                        break;
+                    case LuaIndexAssignStmt iasg:
+                        ScanExpr(iasg.Index);
+                        ScanExpr(iasg.Value);
+                        break;
+                    case LuaMemberAssignStmt mas:
+                        ScanExpr(mas.Target);
+                        ScanExpr(mas.Value);
+                        break;
+                    case LuaReturnStmt ret:
+                        if (ret.Value is not null) ScanExpr(ret.Value);
+                        if (ret.ExtraValues is not null)
+                        {
+                            foreach (LuaExpression v in ret.ExtraValues) ScanExpr(v);
+                        }
+
+                        break;
+                    case LuaIfStmt ifs:
+                        ScanExpr(ifs.Condition);
+                        ScanBlock(ifs.ThenBody);
+                        foreach (LuaElseIfBranch ei in ifs.ElseIfBranches)
+                        {
+                            ScanExpr(ei.Condition);
+                            ScanBlock(ei.Body);
+                        }
+
+                        ScanBlock(ifs.ElseBody);
+                        break;
+                    case LuaNumericForStmt nf:
+                        ScanExpr(nf.Start);
+                        ScanExpr(nf.Limit);
+                        if (nf.Step is not null) ScanExpr(nf.Step);
+                        seenAssigned.Add(nf.IteratorName);
+                        ScanBlock(nf.Body);
+                        break;
+                    case LuaWhileStmt ws:
+                        ScanExpr(ws.Condition);
+                        ScanBlock(ws.Body);
+                        break;
+                    case LuaDoBlockStmt db:
+                        ScanBlock(db.Body);
+                        break;
+                }
+            }
+        }
+
+        ScanBlock(body);
+        return result;
     }
 }

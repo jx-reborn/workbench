@@ -183,6 +183,18 @@ public static class AstBoundaryStateProber
             vectors.Add(new ScriptStateVector($"dialog-opt-{opt}", DialogChoices: [opt, 0]));
         }
 
+        if (ctx.SawItemExpiration)
+        {
+            // Simulated default clock is 2026-11-23 12:00:00 UTC (1795435200); probe valid future & expired past.
+            vectors.Add(new ScriptStateVector("item-exp-valid", ItemExpirationUnixSeconds: 1893456000u));
+            vectors.Add(new ScriptStateVector("item-exp-expired", ItemExpirationUnixSeconds: 1700000000u));
+        }
+
+        foreach (int pType in ctx.ParticularTypeProbes.Take(4))
+        {
+            vectors.Add(new ScriptStateVector($"item-particular-{pType}", ParticularType: pType));
+        }
+
         return vectors;
     }
 
@@ -208,6 +220,9 @@ public static class AstBoundaryStateProber
         public Dictionary<string, int> ItemCountProbes { get; } = new(StringComparer.OrdinalIgnoreCase);
         public SortedSet<int> SkillProbes { get; } = [];
         public SortedSet<int> NumberInputProbes { get; } = [];
+        public SortedSet<int> ParticularTypeProbes { get; } = [];
+        public bool SawItemExpiration { get; private set; }
+        public bool SawItemProp { get; private set; }
 
         public void VisitStmt(LuaStatement stmt)
         {
@@ -405,6 +420,39 @@ public static class AstBoundaryStateProber
                                                  itemCatalogIndex.TryResolveByGdpl(xg, xd, xp, xl, out PackItemEntry xEntry):
                     ItemCountProbes[xEntry.Code] = Math.Max(ItemCountProbes.GetValueOrDefault(xEntry.Code, 0), Math.Max(1, reqCnt));
                     break;
+                case "GetItemProp":
+                    SawItemProp = true;
+                    break;
+                case "ITEM_GetExpiredTime":
+                    SawItemExpiration = true;
+                    break;
+                case "HaveCommonItem" when itemCatalogIndex is not null &&
+                                            call.Arguments.Count >= 3 &&
+                                            LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int hg) &&
+                                            LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], out int hd) &&
+                                            LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], out int hp) &&
+                                            itemCatalogIndex.TryResolveByGdp(hg, hd, hp, out PackItemEntry hEntry):
+                    ItemCountProbes[hEntry.Code] = Math.Max(ItemCountProbes.GetValueOrDefault(hEntry.Code, 0), 5);
+                    break;
+                case "CalcItemCount" when itemCatalogIndex is not null &&
+                                           call.Arguments.Count >= 5 &&
+                                           LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], out int cig) &&
+                                           LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], out int cid) &&
+                                           LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], out int cip) &&
+                                           LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[4], out int cil) &&
+                                           itemCatalogIndex.TryResolveByGdpl(cig, cid, cip, cil, out PackItemEntry ciEntry):
+                    ItemCountProbes[ciEntry.Code] = Math.Max(ItemCountProbes.GetValueOrDefault(ciEntry.Code, 0), 5);
+                    break;
+                case "ConsumeItem" when itemCatalogIndex is not null &&
+                                         call.Arguments.Count >= 6 &&
+                                         LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], out int reqCnt2) &&
+                                         LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], out int csg) &&
+                                         LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], out int csd) &&
+                                         LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[4], out int csp) &&
+                                         LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[5], out int csl) &&
+                                         itemCatalogIndex.TryResolveByGdpl(csg, csd, csp, csl, out PackItemEntry csEntry):
+                    ItemCountProbes[csEntry.Code] = Math.Max(ItemCountProbes.GetValueOrDefault(csEntry.Code, 0), Math.Max(1, reqCnt2));
+                    break;
                 case "HaveMagic" or "DelMagic" when call.Arguments.Count == 1 &&
                                                     LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], out int sid) && sid > 0:
                     SkillProbes.Add(sid);
@@ -434,11 +482,23 @@ public static class AstBoundaryStateProber
                 case "tinsert":
                     MaxSayOptions = Math.Max(MaxSayOptions, 4);
                     break;
+                case "Prise" when call.Arguments.Count >= 2:
+                    MaxSayOptions = Math.Max(MaxSayOptions, call.Arguments.Count - 1);
+                    break;
             }
         }
 
         private void InspectComparison(LuaExpression probeTarget, LuaExpression constantSide)
         {
+            if (probeTarget is LuaIdentifierExpr { Name: "nP" or "nParticular" or "nPart" } &&
+                SawItemProp &&
+                LuaScriptSemanticValidator.TryEvalConstantInt(constantSide, out int pVal) &&
+                pVal > 0)
+            {
+                ParticularTypeProbes.Add(pVal);
+                return;
+            }
+
             if (probeTarget is not LuaCallExpr call)
             {
                 return;

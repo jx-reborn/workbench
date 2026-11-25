@@ -42,4 +42,8 @@ public sealed record ScriptStateVector(
     int TeamSize = 0,
     int InitiatorPartySlot = 1,
     int ActiveTimerId = 0,
-    IReadOnlyDictionary<ushort, int>? TeammateTasks = null);
+    IReadOnlyDictionary<ushort, int>? TeammateTasks = null,
+    int ParticularType = 0,
+    uint ItemExpirationUnixSeconds = 0u,
+    IReadOnlyList<int>? ItemSpecParams = null,
+    long InitialExperience = 0);

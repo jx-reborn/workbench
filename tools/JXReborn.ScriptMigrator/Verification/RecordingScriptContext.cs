@@ -7,6 +7,7 @@ using JXReborn.Primitives.Characters;
 using JXReborn.Primitives.Combat;
 using JXReborn.Primitives.Items;
 using JXReborn.Primitives.WorldZones;
+using JXReborn.ScriptMigrator.Generators;
 using JXReborn.ZoneEngine.Factions;
 using JXReborn.ZoneEngine.Scripting;
 using JXReborn.ZoneEngine.WorldZones;
@@ -33,7 +34,7 @@ public sealed class RecordingScriptContext :
 
     public ScriptEffectTrace Trace { get; }
 
-    public RecordingScriptContext(string scriptPath, ScriptStateVector vector)
+    public RecordingScriptContext(string scriptPath, ScriptStateVector vector, PackItemCatalogIndex? itemCatalogIndex = null)
     {
         ArgumentNullException.ThrowIfNull(vector);
         _vector = vector;
@@ -44,6 +45,31 @@ public sealed class RecordingScriptContext :
         ObjectScriptPath = scriptPath;
         ItemScriptPath = scriptPath;
         SlainNpcScriptPath = scriptPath;
+        Experience = vector.InitialExperience;
+        ParticularType = vector.ParticularType;
+
+        if (vector.ItemExpirationUnixSeconds > 0u)
+        {
+            _bagItemExpirations[40001u] = vector.ItemExpirationUnixSeconds;
+        }
+
+        if (vector.ItemSpecParams is { Count: > 0 } specParams)
+        {
+            int[] arr = new int[6];
+            for (int i = 0; i < arr.Length && i < specParams.Count; i++)
+            {
+                arr[i] = specParams[i];
+            }
+
+            _bagItemSpecParams[40001u] = arr;
+        }
+
+        if (itemCatalogIndex is not null &&
+            vector.ParticularType > 0 &&
+            itemCatalogIndex.TryResolveByGdp(6, 1, vector.ParticularType, out PackItemEntry ownedItem))
+        {
+            _bagItemNames[40001u] = ownedItem.NameUtf8;
+        }
 
         if (vector.OwnedItemCodes is not null)
         {
@@ -81,6 +107,21 @@ public sealed class RecordingScriptContext :
     public string RoleNameUtf8 => _vector.RoleName;
     public byte Level => _vector.Level;
     public CharacterGender Gender => (CharacterGender)_vector.Gender;
+    public long Experience { get; private set; }
+    public ushort Lucky { get; private set; }
+    public ushort UnallocatedAttributePoints { get; private set; }
+    public ushort UnallocatedSkillPoints { get; private set; }
+    public bool IsCreateTeamAllowed { get; set; } = true;
+    public string? CustomDeathScriptPath { get; set; }
+
+    private readonly Dictionary<uint, string> _bagItemNames = new() { [1u] = "ScriptItem", [40001u] = string.Empty };
+    private readonly Dictionary<uint, uint> _bagItemExpirations = new();
+    private readonly Dictionary<uint, int[]> _bagItemSpecParams = new();
+
+    public void AddBaseStrength(int delta) => Trace.Events.Add($"ADD_BASE_STR({delta})");
+    public void AddBaseDexterity(int delta) => Trace.Events.Add($"ADD_BASE_DEX({delta})");
+    public void AddBaseVitality(int delta) => Trace.Events.Add($"ADD_BASE_VIT({delta})");
+    public void AddBaseEnergy(int delta) => Trace.Events.Add($"ADD_BASE_ENG({delta})");
     public ElementSeries Series => (ElementSeries)_vector.Series;
     public byte CurrentFactionId => Trace.FinalCurrentFactionId;
     public byte FirstFactionId => _vector.EffectiveFactionId;
@@ -111,7 +152,7 @@ public sealed class RecordingScriptContext :
 
     public uint RuntimeItemId => 40001u;
     public int ItemTemplateId => 1;
-    public int ParticularType => 0;
+    public int ParticularType { get; }
     public string ItemCode => "oracle-item";
     public string? ItemScriptPath { get; }
     public int CurrentStackCount => 1;
@@ -389,7 +430,15 @@ public sealed class RecordingScriptContext :
         }
     }
 
-    public void GrantExperience(long amountExp) => Trace.AddExperienceForActivePlayer(amountExp);
+    public void GrantExperience(long amountExp)
+    {
+        if (amountExp > 0)
+        {
+            Experience += amountExp;
+        }
+
+        Trace.AddExperienceForActivePlayer(amountExp);
+    }
 
     public bool CanFitBagItem(byte gridWidthCells, byte gridHeightCells) => _vector.FreeBagCells > 0;
 
@@ -414,6 +463,99 @@ public sealed class RecordingScriptContext :
         _bagItems[itemCode] = GetBagItemCount(itemCode) + 1;
         Trace.Events.Add($"GRANT_EQUIP({itemCode})");
         return true;
+    }
+
+    public bool TryGrantEquipmentByCode(
+        string itemCode,
+        ElementSeries series,
+        ReadOnlySpan<int> magicLevels,
+        ItemBindState bindState = ItemBindState.Unbound,
+        ushort? luckOverride = null,
+        ushort? currentDurabilityOverride = null)
+    {
+        _ = luckOverride;
+        _ = currentDurabilityOverride;
+        _bagItems[itemCode] = GetBagItemCount(itemCode) + 1;
+        string levels = string.Join(",", magicLevels.ToArray());
+        Trace.Events.Add($"GRANT_EQUIP_EX({itemCode},{(int)series},[{levels}],{(int)bindState})");
+        return true;
+    }
+
+    public bool IsOwnedBagItem(uint runtimeItemId) => runtimeItemId != 0 && _bagItemNames.ContainsKey(runtimeItemId);
+
+    public string GetBagItemNameUtf8(uint runtimeItemId) =>
+        _bagItemNames.TryGetValue(runtimeItemId, out string? name) ? name : string.Empty;
+
+    public uint? GetBagItemExpirationUnixSeconds(uint runtimeItemId) =>
+        _bagItemExpirations.TryGetValue(runtimeItemId, out uint exp) ? exp : null;
+
+    public bool TrySetBagItemExpirationDate(uint runtimeItemId, int dateOrMinutes, int hhmmss = 0)
+    {
+        if (runtimeItemId == 0)
+        {
+            return false;
+        }
+
+        uint unixSeconds;
+        if (dateOrMinutes <= 20_000_000)
+        {
+            if (dateOrMinutes <= 0)
+            {
+                return false;
+            }
+
+            DateTime nowDt = _vector.SimulatedLocalTime ?? new DateTime(2026, 11, 23, 12, 0, 0, DateTimeKind.Utc);
+            DateTime utc = nowDt.Kind == DateTimeKind.Utc ? nowDt : DateTime.SpecifyKind(nowDt, DateTimeKind.Utc);
+            unixSeconds = (uint)new DateTimeOffset(utc).AddMinutes(dateOrMinutes).ToUnixTimeSeconds();
+        }
+        else
+        {
+            int year = dateOrMinutes / 10000;
+            int month = (dateOrMinutes / 100) % 100;
+            int day = dateOrMinutes % 100;
+            int hour = hhmmss / 10000;
+            int minute = (hhmmss / 100) % 100;
+            int second = hhmmss % 100;
+            var dt = new DateTimeOffset(year, month, day, hour, minute, second, TimeSpan.Zero);
+            unixSeconds = (uint)dt.ToUnixTimeSeconds();
+        }
+
+        _bagItemExpirations[runtimeItemId] = unixSeconds;
+        Trace.Events.Add($"SET_BAG_EXPIRATION({runtimeItemId},{dateOrMinutes},{hhmmss})");
+        return true;
+    }
+
+    public int GetBagItemSpecParam(uint runtimeItemId, int oneBasedParamIndex)
+    {
+        if (oneBasedParamIndex is < 1 or > 6)
+        {
+            return 0;
+        }
+
+        return _bagItemSpecParams.TryGetValue(runtimeItemId, out int[]? arr) ? arr[oneBasedParamIndex - 1] : 0;
+    }
+
+    public bool TrySetBagItemSpecParam(uint runtimeItemId, int oneBasedParamIndex, int value)
+    {
+        if (runtimeItemId == 0 || oneBasedParamIndex is < 1 or > 6)
+        {
+            return false;
+        }
+
+        if (!_bagItemSpecParams.TryGetValue(runtimeItemId, out int[]? arr))
+        {
+            arr = new int[6];
+            _bagItemSpecParams[runtimeItemId] = arr;
+        }
+
+        arr[oneBasedParamIndex - 1] = value;
+        Trace.Events.Add($"SET_BAG_SPEC_PARAM({runtimeItemId},{oneBasedParamIndex},{value})");
+        return true;
+    }
+
+    public void SyncBagItem(uint runtimeItemId)
+    {
+        Trace.Events.Add($"SYNC_BAG_ITEM({runtimeItemId})");
     }
 
     public bool TryConsumeItemByCode(string itemCode, int count = 1)
@@ -457,6 +599,25 @@ public sealed class RecordingScriptContext :
         Trace.Events.Add($"DEL_SKILL({skillId})");
         return removed;
     }
+
+    public int RollbackSkills()
+    {
+        int total = 0;
+        foreach (int lvl in _learnedSkills.Values)
+        {
+            total += lvl;
+        }
+
+        _learnedSkills.Clear();
+        Trace.Events.Add($"ROLLBACK_SKILLS({total})");
+        return total;
+    }
+
+    public void RestoreLife() => Trace.Events.Add("RESTORE_LIFE");
+
+    public void RestoreMana() => Trace.Events.Add("RESTORE_MANA");
+
+    public void RestoreStamina() => Trace.Events.Add("RESTORE_STAMINA");
 
     public bool TryGrantBookSkill(int skillId, ushort baseLevel = 1) => TryLearnSkill(skillId, baseLevel);
 
@@ -577,9 +738,17 @@ public sealed class RecordingScriptContext :
         set => Trace.SwitchActivePlayer(value);
     }
 
-    public bool IsPartyCaptain => Trace.IsCurrentPlayerCaptain;
+    private int? _teamSizeOverride;
 
-    public int GetTeamSize() => Trace.TeamSize;
+    public bool IsPartyCaptain => _teamSizeOverride == 0 ? false : Trace.IsCurrentPlayerCaptain;
+
+    public int GetTeamSize() => _teamSizeOverride ?? Trace.TeamSize;
+
+    public void LeaveParty()
+    {
+        _teamSizeOverride = 0;
+        Trace.Events.Add("LEAVE_PARTY");
+    }
 
     public int GetTeamMemberIndex(int oneBasedMemberOrdinal) =>
         Trace.TeamSize > 0 && (uint)(oneBasedMemberOrdinal - 1) < (uint)Trace.TeamSize
@@ -647,4 +816,12 @@ public sealed class RecordingScriptContext :
     }
 
     public void OpenStoreBox() => Trace.OpenedStoreBox = true;
+
+    public void SyncMiniMapMarker(int mpsX, int mpsY) => Trace.Events.Add($"MINIMAP_OBJ({mpsX},{mpsY})");
+
+    public bool RegisterPlayerEvent(ushort eventId)
+    {
+        Trace.Events.Add($"ADD_PLAYER_EVENT({eventId})");
+        return true;
+    }
 }

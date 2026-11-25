@@ -563,6 +563,16 @@ public sealed class Lua4AstParser
             {
                 SkipFromFunctionHeaderToMatchingEnd(_pos + 1);
             }
+            else if (Current.Kind == Lua4TokenKind.Identifier &&
+                     string.Equals(Current.Text, "inherit", StringComparison.Ordinal) &&
+                     Peek(1).Kind == Lua4TokenKind.LParen)
+            {
+                Advance(); // 'inherit'
+                if (!TrySkipBalancedParensIncludingFunctions())
+                {
+                    return false;
+                }
+            }
             else if (hadFieldChain && Current.Kind is Lua4TokenKind.Nil or Lua4TokenKind.Number or Lua4TokenKind.String)
             {
                 Advance();
@@ -622,6 +632,42 @@ public sealed class Lua4AstParser
                 if (k == Lua4TokenKind.Identifier && Peek(1).Kind == Lua4TokenKind.LParen)
                 {
                     return false;
+                }
+
+                Advance();
+            }
+
+            return false;
+        }
+
+        private bool TrySkipBalancedParensIncludingFunctions()
+        {
+            if (Current.Kind != Lua4TokenKind.LParen)
+            {
+                return false;
+            }
+
+            int parenDepth = 0;
+            while (!IsAtEnd)
+            {
+                if (Current.Kind == Lua4TokenKind.Function)
+                {
+                    SkipFromFunctionHeaderToMatchingEnd(_pos + 1);
+                    continue;
+                }
+
+                if (Current.Kind == Lua4TokenKind.LParen)
+                {
+                    parenDepth++;
+                }
+                else if (Current.Kind == Lua4TokenKind.RParen)
+                {
+                    parenDepth--;
+                    if (parenDepth == 0)
+                    {
+                        Advance();
+                        return true;
+                    }
                 }
 
                 Advance();
@@ -948,6 +994,19 @@ public sealed class Lua4AstParser
         private LuaStatement ParseUpvalueStatement()
         {
             Lua4Token upTok = Expect(Lua4TokenKind.UpvalueIdentifier);
+            if (Current.Kind == Lua4TokenKind.LParen)
+            {
+                List<LuaExpression> args = ParseParenthesizedArgList();
+                var call = new LuaCallExpr("%" + upTok.Text, args, upTok.Line);
+                if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon or Lua4TokenKind.LBracket)
+                {
+                    LuaExpression chained = ParsePostfixContinuation(call);
+                    return CompletePostfixStatement(chained, upTok.Line);
+                }
+
+                return new LuaCallStmt(call, upTok.Line);
+            }
+
             LuaExpression receiver = new LuaUpvalueExpr(upTok.Text, upTok.Line);
             if (Current.Kind is Lua4TokenKind.Dot or Lua4TokenKind.Colon or Lua4TokenKind.LBracket)
             {
@@ -1188,6 +1247,13 @@ public sealed class Lua4AstParser
 
                 if (Current.Kind == Lua4TokenKind.LParen)
                 {
+                    if (expr is LuaUpvalueExpr upv)
+                    {
+                        List<LuaExpression> args = ParseParenthesizedArgList();
+                        expr = new LuaCallExpr("%" + upv.Name, args, upv.Line);
+                        continue;
+                    }
+
                     throw Abort($"unsupported-syntax:indirect-call@line{Current.Line}");
                 }
 
@@ -1253,10 +1319,46 @@ public sealed class Lua4AstParser
                     Advance();
                     return new LuaUpvalueExpr(tok.Text, tok.Line);
                 case Lua4TokenKind.Function:
-                    throw Abort($"unsupported-syntax:anonymous-function@line{tok.Line}");
+                    return ParseAnonFunctionExpr();
                 default:
                     throw Abort($"syntax-error:unexpected-expr-{tok.Kind}({tok.Text})@line{tok.Line}");
             }
+        }
+
+        private LuaAnonFunctionExpr ParseAnonFunctionExpr()
+        {
+            Lua4Token fnTok = Expect(Lua4TokenKind.Function);
+            Expect(Lua4TokenKind.LParen);
+            var parameters = new List<string>();
+            if (Current.Kind != Lua4TokenKind.RParen)
+            {
+                while (true)
+                {
+                    if (Current.Kind == Lua4TokenKind.Dots)
+                    {
+                        throw Abort($"unsupported-syntax:varargs@line{Current.Line}");
+                    }
+
+                    if (Current.Kind != Lua4TokenKind.Identifier)
+                    {
+                        throw Abort($"syntax-error:expected-param-got-{Current.Kind}@line{Current.Line}");
+                    }
+
+                    parameters.Add(Advance().Text);
+                    if (Current.Kind == Lua4TokenKind.Comma)
+                    {
+                        Advance();
+                        continue;
+                    }
+
+                    break;
+                }
+            }
+
+            Expect(Lua4TokenKind.RParen);
+            List<LuaStatement> body = ParseBlockUntil(Lua4TokenKind.End);
+            Expect(Lua4TokenKind.End);
+            return new LuaAnonFunctionExpr(parameters, body, fnTok.Line);
         }
 
         private LuaExpression ParseTableLiteral()

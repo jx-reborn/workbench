@@ -19,4 +19,8 @@ public sealed record CompiledLuaScript(
     IReadOnlyDictionary<string, IReadOnlyList<LuaValueType>>? FunctionReturnTuples = null,
     IReadOnlyDictionary<string, IReadOnlyList<LuaValueType>>? ConstTupleColumnTypes = null,
     IReadOnlyDictionary<string, CompiledAwardNode>? TopLevelAwardNodes = null,
-    IReadOnlyList<string>? IncludedVirtualKeys = null);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<int, CompiledAwardNode>>? TopLevelAwardMaps = null,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<int, IReadOnlyDictionary<string, int>>>? TopLevelIntRecordMaps = null,
+    IReadOnlyList<string>? IncludedVirtualKeys = null,
+    IReadOnlyDictionary<string, IReadOnlyList<(string VarName, ushort TaskId)>>? FunctionPreloadedTaskGlobals = null,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? FunctionLocalTupleTables = null);

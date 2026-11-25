@@ -18,6 +18,7 @@ public sealed class LuaCSharpCodeEmitter
 {
     private readonly IReadOnlyDictionary<int, string> _eventItemCodeByDetailId;
     private readonly PackItemCatalogIndex? _itemCatalogIndex;
+    private IReadOnlyDictionary<string, string>? _currentFnLocalTupleTables;
 
     public LuaCSharpCodeEmitter(
         IReadOnlyDictionary<int, string> eventItemCodeByDetailId,
@@ -236,6 +237,8 @@ public static class GeneratedLuaRuntime
         ExpTl = 5,
         Money = 6,
         Repute = 7,
+        ChestExpAward = 8,
+        BingoBoxExpAward = 9,
     }
 
     public sealed record RuntimeAwardNode(
@@ -250,7 +253,12 @@ public static class GeneratedLuaRuntime
         int? FixedSeries = null,
         int BindStateRaw = 0,
         long NumericAmount = 0,
-        RuntimeAwardNode[]? Children = null);
+        RuntimeAwardNode[]? Children = null,
+        string CatalogItemNameUtf8 = "",
+        string? CallbackKind = null,
+        string? CallbackTitleUtf8 = null,
+        int ExpiredTimeMinutes = 0,
+        int[]? SpecParams = null);
 
     public sealed class DailogBuilder(string? npcName = null)
     {
@@ -606,9 +614,9 @@ public static class GeneratedLuaRuntime
         return code is not null && context.HasBagItem(code) ? 1 : 0;
     }
 
-    public static int GiveAward(IScriptDialogContext context, RuntimeAwardNode node, int awardCount = 1)
+    public static int GiveAward(IScriptDialogContext context, RuntimeAwardNode? node, int awardCount = 1)
     {
-        if (awardCount <= 0)
+        if (node is null || awardCount <= 0)
         {
             return 0;
         }
@@ -660,10 +668,26 @@ public static class GeneratedLuaRuntime
                         _ = LuaRandom(0, 4);
                     }
 
+                    if (string.Equals(node.CallbackKind, "BingoMessage", StringComparison.Ordinal))
+                    {
+                        string catName = string.IsNullOrEmpty(node.CatalogItemNameUtf8) ? node.ItemNameUtf8 : node.CatalogItemNameUtf8;
+                        context.BroadcastGlobalNews(LuaFormat("<color=green>Chúc mừng cao thủ <color=yellow>%s<color=green> đã nhận được <color=yellow><%s><color=green> từ <color=yellow><%s><color>", context.RoleNameUtf8, catName, node.CallbackTitleUtf8 ?? string.Empty));
+                    }
+
                     _ = context.TryGrantEquipmentByCode(node.ItemCode, bindState: bind);
                 }
 
-                context.SendSystemMessage(LuaFormat("Nhận được %d %s.", total, node.ItemNameUtf8));
+                if (string.Equals(node.CallbackKind, "RcnyGoldNews", StringComparison.Ordinal))
+                {
+                    string display = node.CallbackTitleUtf8 ?? node.ItemNameUtf8;
+                    context.SendSystemMessage($"Nhận được {display}.");
+                    context.BroadcastGlobalNews(LuaFormat("<color=green>Chúc mừng cao thủ <color=yellow>%s<color=green> mở bảo rương nhận được <color=yellow>%s<color=green>!<color>", context.RoleNameUtf8, display));
+                }
+                else
+                {
+                    context.SendSystemMessage(LuaFormat("Nhận được %d %s.", total, node.ItemNameUtf8));
+                }
+
                 return 1;
             }
 
@@ -676,6 +700,12 @@ public static class GeneratedLuaRuntime
                     for (int i = 0; i < total; i++)
                     {
                         int sVal = node.ConsumeRandomSeriesRoll ? LuaRandom(0, 4) : (node.FixedSeries ?? 0);
+                        if (string.Equals(node.CallbackKind, "BingoMessage", StringComparison.Ordinal))
+                        {
+                            string catName = string.IsNullOrEmpty(node.CatalogItemNameUtf8) ? node.ItemNameUtf8 : node.CatalogItemNameUtf8;
+                            context.BroadcastGlobalNews(LuaFormat("<color=green>Chúc mừng cao thủ <color=yellow>%s<color=green> đã nhận được <color=yellow><%s><color=green> từ <color=yellow><%s><color>", context.RoleNameUtf8, catName, node.CallbackTitleUtf8 ?? string.Empty));
+                        }
+
                         _ = context.TryGrantEquipmentByCode(node.ItemCode, (ElementSeries)Math.Clamp(sVal, 0, 4), bindState: bind);
                     }
                 }
@@ -690,6 +720,12 @@ public static class GeneratedLuaRuntime
                         }
 
                         int batch = Math.Min(rem, node.MaxStackCount);
+                        if (string.Equals(node.CallbackKind, "BingoMessage", StringComparison.Ordinal))
+                        {
+                            string catName = string.IsNullOrEmpty(node.CatalogItemNameUtf8) ? node.ItemNameUtf8 : node.CatalogItemNameUtf8;
+                            context.BroadcastGlobalNews(LuaFormat("<color=green>Chúc mừng cao thủ <color=yellow>%s<color=green> đã nhận được <color=yellow><%s><color=green> từ <color=yellow><%s><color>", context.RoleNameUtf8, catName, node.CallbackTitleUtf8 ?? string.Empty));
+                        }
+
                         _ = context.TryGrantItemByCode(node.ItemCode, batch, bind);
                         rem -= batch;
                     }
@@ -703,11 +739,31 @@ public static class GeneratedLuaRuntime
                             _ = LuaRandom(0, 4);
                         }
 
+                        if (string.Equals(node.CallbackKind, "BingoMessage", StringComparison.Ordinal))
+                        {
+                            string catName = string.IsNullOrEmpty(node.CatalogItemNameUtf8) ? node.ItemNameUtf8 : node.CatalogItemNameUtf8;
+                            context.BroadcastGlobalNews(LuaFormat("<color=green>Chúc mừng cao thủ <color=yellow>%s<color=green> đã nhận được <color=yellow><%s><color=green> từ <color=yellow><%s><color>", context.RoleNameUtf8, catName, node.CallbackTitleUtf8 ?? string.Empty));
+                        }
+
                         _ = context.TryGrantItemByCode(node.ItemCode, 1, bind);
                     }
                 }
 
                 context.SendSystemMessage(LuaFormat("Nhận được %d %s.", total, node.ItemNameUtf8));
+                return 1;
+            }
+
+            case RuntimeAwardKind.ChestExpAward:
+            {
+                long totalExp = (long)awardCount * node.Count * node.NumericAmount;
+                GrantVngChestExpAward(context, totalExp, node.CallbackTitleUtf8 ?? string.Empty);
+                return 1;
+            }
+
+            case RuntimeAwardKind.BingoBoxExpAward:
+            {
+                long totalExp = (long)awardCount * node.Count * node.NumericAmount;
+                GrantBingoBoxExpAward(context, totalExp, node.CallbackTitleUtf8 ?? string.Empty);
                 return 1;
             }
 
@@ -848,6 +904,8 @@ public static class GeneratedLuaRuntime
 
     public static int LuaMod(int x, int y) => y == 0 ? 0 : x % y;
 
+    public static int LuaMod(long x, long y) => y == 0 ? 0 : unchecked((int)(x % y));
+
     public static double LuaMod(double x, double y) => y == 0.0 ? 0.0 : x % y;
 
     public static string LuaStrSub(string? s, int start, int? endOpt = null)
@@ -955,6 +1013,18 @@ public static class GeneratedLuaRuntime
     public static string FormatLegacyDate(string? format = null)
     {
         DateTime now = ClockOverride.Value ?? DateTime.Now;
+        return FormatDateTime(now, format);
+    }
+
+    public static string FormatTime2String(string? format, double unixSeconds)
+    {
+        long sec = unchecked((long)Math.Truncate(unixSeconds));
+        DateTime dt = DateTimeOffset.FromUnixTimeSeconds(sec).UtcDateTime;
+        return FormatDateTime(dt, format);
+    }
+
+    private static string FormatDateTime(DateTime now, string? format)
+    {
         string fmt = string.IsNullOrEmpty(format) ? "%y-%m-%d %H:%M:%S" : format;
         var sb = new StringBuilder(fmt.Length + 8);
         for (int i = 0; i < fmt.Length; i++)
@@ -1104,6 +1174,284 @@ public static class GeneratedLuaRuntime
 
     public static string ParseCallbackStrArg(string[] args, int index) =>
         index < args.Length ? args[index] : string.Empty;
+
+    public static PriseDialogOption[] BuildDynamicPriseOptions(
+        IReadOnlyList<string> rawOptions,
+        int declaredCount,
+        Func<IScriptDialogContext, string, string[], ValueTask> invokeCallback)
+    {
+        if (declaredCount <= 0 || rawOptions.Count == 0)
+        {
+            return [];
+        }
+
+        int count = Math.Min(declaredCount, rawOptions.Count);
+        var built = new PriseDialogOption[count];
+        for (int i = 0; i < count; i++)
+        {
+            built[i] = ParseSinglePriseOption(rawOptions[i], invokeCallback);
+        }
+
+        return built;
+    }
+
+    public static PriseDialogOption ParseSinglePriseOption(
+        string optionSpec,
+        Func<IScriptDialogContext, string, string[], ValueTask> invokeCallback)
+    {
+        int s1 = optionSpec.IndexOf('/');
+        if (s1 < 0)
+        {
+            return new PriseDialogOption(optionSpec, null);
+        }
+
+        int s2 = optionSpec.IndexOf('/', s1 + 1);
+        int s3 = s2 >= 0 ? optionSpec.IndexOf('/', s2 + 1) : -1;
+        if (s2 >= 0 && s3 > s2)
+        {
+            string display = optionSpec[..s2];
+            string argSeg = optionSpec[(s2 + 1)..s3].Trim();
+            string fnName = optionSpec[(s3 + 1)..].Trim();
+            string[] cbArgs = argSeg.Length > 0 ? argSeg.Split(',', StringSplitOptions.TrimEntries) : [];
+            return fnName.Length > 0
+                ? new PriseDialogOption(display, ctx => invokeCallback(ctx, fnName, cbArgs))
+                : new PriseDialogOption(display, null);
+        }
+
+        DialogOption simple = ParseSingleDialogOption(optionSpec, invokeCallback);
+        return new PriseDialogOption(simple.TextUtf8, simple.Callback);
+    }
+
+    public static int GetBitTask(IScriptDialogContext context, int taskId, int bitPos, int bitCount)
+    {
+        if ((uint)taskId >= 6000u || bitPos < 0 || bitCount <= 0 || bitPos + bitCount > 32)
+        {
+            return 0;
+        }
+
+        uint raw = unchecked((uint)context.GetTask((ushort)taskId));
+        if (raw == 0u)
+        {
+            return 0;
+        }
+
+        uint mask = bitCount == 32 ? 0xFFFFFFFFu : ((1u << bitCount) - 1u);
+        return unchecked((int)((raw >> bitPos) & mask));
+    }
+
+    public static int SetBitTask(IScriptDialogContext context, int taskId, int bitPos, int bitCount, int value)
+    {
+        if ((uint)taskId >= 6000u || bitPos < 0 || bitCount <= 0 || bitPos + bitCount > 32)
+        {
+            return 0;
+        }
+
+        uint cur = unchecked((uint)context.GetTask((ushort)taskId));
+        uint mask = bitCount == 32 ? 0xFFFFFFFFu : ((1u << bitCount) - 1u);
+        uint updated = (cur & ~(mask << bitPos)) | ((unchecked((uint)value) & mask) << bitPos);
+        context.SetTask((ushort)taskId, unchecked((int)updated));
+        return 1;
+    }
+
+    private static readonly Dictionary<string, (ushort TaskId, int StartBit, int BitCount, int MaxVal)> VngChestExpBitTasks = new(StringComparer.Ordinal)
+    {
+        ["Tống Kim Bí Bảo"] = (2705, 1, 7, 50),
+        ["Bảo rương vượt ải"] = (2705, 8, 7, 50),
+        ["Bảo Rương Thủy Tặc"] = (2705, 15, 7, 50),
+        ["Tín Sứ Bảo Rương"] = (2705, 22, 7, 50),
+        ["Viêm Đế Bí Bảo"] = (2706, 1, 7, 50),
+        ["Vệ Trụ Lễ Bao"] = (2706, 8, 7, 50),
+        ["Công Thành Lễ Bao (mới)"] = (2706, 15, 7, 50),
+        ["Thiên Trì Bí Bảo"] = (3080, 1, 7, 50),
+        ["Bảo Rương Kiếm Gia"] = (3080, 9, 7, 50),
+        ["Ngọc Bích Bảo Rương"] = (2706, 22, 7, 50),
+    };
+
+    public static void GrantVngChestExpAward(IScriptDialogContext context, long rawExpValue, string chestNameUtf8)
+    {
+        const int MaxExpPerDay = 50;
+        const ushort TskDay = 2744;
+        if (!VngChestExpBitTasks.TryGetValue(chestNameUtf8, out var taskSpec))
+        {
+            return;
+        }
+
+        int nowYmd = int.Parse(FormatLegacyDate("%Y%m%d"), CultureInfo.InvariantCulture);
+        int curDay = context.GetTask(TskDay);
+        if (nowYmd != curDay)
+        {
+            context.SetTask(TskDay, nowYmd);
+            foreach (var spec in VngChestExpBitTasks.Values)
+            {
+                _ = SetBitTask(context, spec.TaskId, spec.StartBit, spec.BitCount, 0);
+            }
+        }
+        else if (GetBitTask(context, taskSpec.TaskId, taskSpec.StartBit, taskSpec.BitCount) >= taskSpec.MaxVal)
+        {
+            context.SendSystemMessage(LuaFormat("Hôm nay đã nhận đủ <color=yellow>%d <color>triệu kinh nghiệm, không thể nhận thêm.", MaxExpPerDay));
+            return;
+        }
+
+        int usedMillions = GetBitTask(context, taskSpec.TaskId, taskSpec.StartBit, taskSpec.BitCount);
+        long value = rawExpValue;
+        if (usedMillions + (value / 1_000_000.0) > MaxExpPerDay)
+        {
+            value = (long)((MaxExpPerDay - usedMillions) * 1_000_000L);
+        }
+
+        long expBefore = context.Experience;
+        context.GrantExperience(value);
+        long actualExp = Math.Max(0L, context.Experience - expBefore);
+        int nextMillions = Math.Min(MaxExpPerDay, usedMillions + (int)Math.Ceiling(actualExp / 1_000_000.0));
+        _ = SetBitTask(context, taskSpec.TaskId, taskSpec.StartBit, taskSpec.BitCount, nextMillions);
+        if (actualExp < value)
+        {
+            context.SendSystemMessage(LuaFormat("Bạn đã nhận được %d điểm kinh nghiệm (kinh nghiệm không cộng dồn: %d, phần vượt quá cấp hiện tại bị mất)", actualExp, value));
+        }
+        else
+        {
+            context.SendSystemMessage(LuaFormat("Bạn đã nhận được %d điểm kinh nghiệm", actualExp));
+        }
+    }
+
+    public static void GrantBingoBoxExpAward(IScriptDialogContext context, long amount, string boxNameUtf8)
+    {
+        context.GrantExperience(amount);
+        context.SendSystemMessage($"Đạt được kinh nghiệm không thể cộng dồn {amount.ToString(CultureInfo.InvariantCulture)}");
+        context.BroadcastGlobalNews(LuaFormat("<color=green>Chúc mừng cao thủ <color=yellow>%s<color=green> đã nhận được <color=yellow><%s><color=green> từ <color=yellow><%s><color>", context.RoleNameUtf8, $"{amount.ToString(CultureInfo.InvariantCulture)} điểm kinh nghiệm", boxNameUtf8));
+    }
+
+    public static int PlayerFunGetTaskDailyCount(IScriptDialogContext context, int taskId)
+    {
+        int val = context.GetTask((ushort)taskId);
+        int curDate = int.Parse(FormatLegacyDate("%y%m%d"), CultureInfo.InvariantCulture);
+        if (val / 256 != curDate)
+        {
+            val = curDate * 256;
+            context.SetTask((ushort)taskId, val);
+        }
+
+        return val % 256;
+    }
+
+    public static int PlayerFunCheckTaskDaily(IScriptDialogContext context, int taskId, int targetValue, string? failMsg, string? op)
+    {
+        int count = PlayerFunGetTaskDailyCount(context, taskId);
+        bool pass = (op?.Trim()) switch
+        {
+            "<" => count < targetValue,
+            "<=" => count <= targetValue,
+            ">" => count > targetValue,
+            ">=" => count >= targetValue,
+            "==" => count == targetValue,
+            "~=" => count != targetValue,
+            _ => false,
+        };
+        if (pass)
+        {
+            return 1;
+        }
+
+        ShowLibMessage(context, failMsg);
+        return 0;
+    }
+
+    public static int PlayerFunAddTaskDaily(IScriptDialogContext context, int taskId, int delta)
+    {
+        int val = context.GetTask((ushort)taskId);
+        int curDate = int.Parse(FormatLegacyDate("%y%m%d"), CultureInfo.InvariantCulture);
+        if (val / 256 != curDate)
+        {
+            val = curDate * 256;
+        }
+
+        context.SetTask((ushort)taskId, val + delta);
+        return 1;
+    }
+
+    public static int PlayerFunCheckFreeBagCellWH(IScriptDialogContext context, int width, int height, int count, string? failMsg)
+    {
+        if (context.CanFitBagItem((byte)Math.Clamp(width, 1, 10), (byte)Math.Clamp(height, 1, 10)))
+        {
+            return 1;
+        }
+
+        string resolved = string.Equals(failMsg, "default", StringComparison.Ordinal)
+            ? LuaFormat("Để bảo đảm tài sản của đại hiệp, xin hãy để trống %d %dx%d hành trang", count, width, height)
+            : failMsg ?? string.Empty;
+        ShowLibMessage(context, resolved);
+        return 0;
+    }
+
+    private static void ShowLibMessage(IScriptDialogContext context, string? msg)
+    {
+        if (string.IsNullOrEmpty(msg) || string.Equals(msg, "nomsg", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (msg.Contains("<msg>", StringComparison.Ordinal))
+        {
+            context.SendSystemMessage(msg.Replace("<msg>", string.Empty, StringComparison.Ordinal));
+        }
+        else
+        {
+            context.Talk([msg]);
+        }
+    }
+
+    private sealed class ObjBufferSlot
+    {
+        public string LastMessage { get; set; } = string.Empty;
+    }
+
+    private static readonly System.Threading.AsyncLocal<Dictionary<int, ObjBufferSlot>?> CurrentObjBuffers = new();
+    private static readonly System.Threading.AsyncLocal<int> NextObjBufferId = new();
+
+    public static int CreateObjBuffer()
+    {
+        var map = CurrentObjBuffers.Value ??= new Dictionary<int, ObjBufferSlot>();
+        int id = NextObjBufferId.Value + 1;
+        NextObjBufferId.Value = id;
+        map[id] = new ObjBufferSlot();
+        return id;
+    }
+
+    public static void PushObjBufferObject(int handle, string? text)
+    {
+        if (CurrentObjBuffers.Value is { } map && map.TryGetValue(handle, out var slot))
+        {
+            slot.LastMessage = text ?? string.Empty;
+        }
+    }
+
+    public static void RemoteExecuteBroadcast(IScriptDialogContext context, string? scriptPath, string? fnName, int handle)
+    {
+        _ = scriptPath;
+        if (string.Equals(fnName, "broadcast", StringComparison.Ordinal) &&
+            CurrentObjBuffers.Value is { } map &&
+            map.TryGetValue(handle, out var slot))
+        {
+            context.BroadcastGlobalNews(slot.LastMessage);
+        }
+    }
+
+    public static void ReleaseObjBuffer(int handle)
+    {
+        _ = CurrentObjBuffers.Value?.Remove(handle);
+    }
+
+    public static RuntimeAwardNode? GetAwardAt1Based(RuntimeAwardNode[]? arr, int index1Based) =>
+        arr is not null && index1Based >= 1 && index1Based <= arr.Length ? arr[index1Based - 1] : null;
+
+    public static RuntimeAwardNode? GetMapAwardAt(FrozenDictionary<int, RuntimeAwardNode>? map, int key) =>
+        map is not null && map.TryGetValue(key, out RuntimeAwardNode? val) ? val : null;
+
+    public static FrozenDictionary<string, int>? GetIntRecordAt(FrozenDictionary<int, FrozenDictionary<string, int>>? map, int key) =>
+        map is not null && map.TryGetValue(key, out FrozenDictionary<string, int>? val) ? val : null;
+
+    public static int GetFieldInt(FrozenDictionary<string, int>? rec, string fieldName) =>
+        rec is not null && rec.TryGetValue(fieldName, out int val) ? val : 0;
 }
 """;
     }
@@ -1633,6 +1981,11 @@ public static class GeneratedLuaRuntime
             constExprMap[name] = init;
 
             LuaValueType vt = script.TopLevelConstantTypes[name];
+            if (vt == LuaValueType.ClosureHelper)
+            {
+                continue;
+            }
+
             if (init is LuaTableLiteralExpr tbl && vt is LuaValueType.StringArray or LuaValueType.IntArray)
             {
                 topLevelConstArrays[name] = tbl;
@@ -1655,6 +2008,7 @@ public static class GeneratedLuaRuntime
 
         foreach (LuaFunctionDecl fn in script.Program.Functions)
         {
+            _currentFnLocalTupleTables = script.FunctionLocalTupleTables?.GetValueOrDefault(fn.Name);
             bool isEntry = string.Equals(fn.Name, script.EntryFunctionName, StringComparison.Ordinal);
             bool fnAsync = script.FunctionIsAsync[fn.Name];
             LuaValueType retType = script.FunctionReturnTypes[fn.Name];
@@ -1736,7 +2090,19 @@ public static class GeneratedLuaRuntime
 
                 string csName = $"v_{SanitizeIdentifier(kv.Key)}";
                 localVarMap[kv.Key] = csName;
-                sb.AppendLine($"        {ToCSharpType(kv.Value, isMonsterScript)} {csName} = {DefaultValueExpr(kv.Value, isMonsterScript)};");
+                if (kv.Value == LuaValueType.ConstTupleRow &&
+                    _currentFnLocalTupleTables is not null &&
+                    _currentFnLocalTupleTables.TryGetValue(kv.Key, out string? rowTblName) &&
+                    script.ConstTupleColumnTypes is not null &&
+                    script.ConstTupleColumnTypes.TryGetValue(rowTblName, out IReadOnlyList<LuaValueType>? rowCols))
+                {
+                    string tupleCsType = "(" + string.Join(", ", rowCols.Select(c => ToCSharpType(c, isMonsterScript))) + ")";
+                    sb.AppendLine($"        {tupleCsType} {csName} = default;");
+                }
+                else
+                {
+                    sb.AppendLine($"        {ToCSharpType(kv.Value, isMonsterScript)} {csName} = {DefaultValueExpr(kv.Value, isMonsterScript)};");
+                }
             }
 
             var fnScopeTypes = new Dictionary<string, LuaValueType>(locals, StringComparer.Ordinal);
@@ -1746,6 +2112,15 @@ public static class GeneratedLuaRuntime
             }
 
             var fnConstArrays = new Dictionary<string, LuaTableLiteralExpr>(topLevelConstArrays, StringComparer.Ordinal);
+            if (script.FunctionPreloadedTaskGlobals is not null &&
+                script.FunctionPreloadedTaskGlobals.TryGetValue(fn.Name, out IReadOnlyList<(string VarName, ushort TaskId)>? preloadedTasks))
+            {
+                foreach ((string varName, ushort taskId) in preloadedTasks)
+                {
+                    sb.AppendLine($"        {localVarMap[varName]} = context.GetTask({taskId});");
+                }
+            }
+
             int tempCounter = 0;
             bool endsWithReturn = EmitBlock(
                 sb,
@@ -1797,6 +2172,8 @@ public static class GeneratedLuaRuntime
 
             sb.AppendLine("    }");
         }
+
+        _currentFnLocalTupleTables = null;
     }
 
     private string EmitTopLevelConstantType(string constName, LuaValueType vt, CompiledLuaScript script, bool isMonsterScript)
@@ -1856,6 +2233,35 @@ public static class GeneratedLuaRuntime
             return "[" + string.Join(", ", rowStrs) + "]";
         }
 
+        if (vt == LuaValueType.IntKeyedAwardTemplateMap &&
+            script.TopLevelAwardMaps is not null &&
+            script.TopLevelAwardMaps.TryGetValue(constName, out IReadOnlyDictionary<int, CompiledAwardNode>? awardMap))
+        {
+            var pairs = new List<string>(awardMap.Count);
+            foreach (KeyValuePair<int, CompiledAwardNode> kv in awardMap.OrderBy(static x => x.Key))
+            {
+                pairs.Add($"[{kv.Key.ToString(CultureInfo.InvariantCulture)}] = {EmitAwardNodeExpr(kv.Value)}");
+            }
+
+            return $"new Dictionary<int, GeneratedLuaRuntime.RuntimeAwardNode> {{ {string.Join(", ", pairs)} }}.ToFrozenDictionary()";
+        }
+
+        if (vt == LuaValueType.IntKeyedIntRecordMap &&
+            script.TopLevelIntRecordMaps is not null &&
+            script.TopLevelIntRecordMaps.TryGetValue(constName, out IReadOnlyDictionary<int, IReadOnlyDictionary<string, int>>? recMap))
+        {
+            var outerPairs = new List<string>(recMap.Count);
+            foreach (KeyValuePair<int, IReadOnlyDictionary<string, int>> kv in recMap.OrderBy(static x => x.Key))
+            {
+                var innerPairs = kv.Value
+                    .OrderBy(static f => f.Key, StringComparer.Ordinal)
+                    .Select(f => $"[{ToEscapedStringLiteral(f.Key)}] = {f.Value.ToString(CultureInfo.InvariantCulture)}");
+                outerPairs.Add($"[{kv.Key.ToString(CultureInfo.InvariantCulture)}] = new Dictionary<string, int>(StringComparer.Ordinal) {{ {string.Join(", ", innerPairs)} }}.ToFrozenDictionary(StringComparer.Ordinal)");
+            }
+
+            return $"new Dictionary<int, FrozenDictionary<string, int>> {{ {string.Join(", ", outerPairs)} }}.ToFrozenDictionary()";
+        }
+
         if (vt is LuaValueType.IntKeyedIntMap or LuaValueType.IntKeyedStringMap or LuaValueType.IntKeyedIntArrayMap &&
             init is LuaKeyedTableLiteralExpr ktbl)
         {
@@ -1891,6 +2297,8 @@ public static class GeneratedLuaRuntime
             CompiledAwardNodeKind.LeafExpTl => "GeneratedLuaRuntime.RuntimeAwardKind.ExpTl",
             CompiledAwardNodeKind.LeafMoney => "GeneratedLuaRuntime.RuntimeAwardKind.Money",
             CompiledAwardNodeKind.LeafRepute => "GeneratedLuaRuntime.RuntimeAwardKind.Repute",
+            CompiledAwardNodeKind.LeafChestExpAward => "GeneratedLuaRuntime.RuntimeAwardKind.ChestExpAward",
+            CompiledAwardNodeKind.LeafBingoBoxExpAward => "GeneratedLuaRuntime.RuntimeAwardKind.BingoBoxExpAward",
             _ => "GeneratedLuaRuntime.RuntimeAwardKind.Sequential",
         };
 
@@ -1904,8 +2312,14 @@ public static class GeneratedLuaRuntime
         string isEquipLit = node.NumericAmount == 1 && node.Kind == CompiledAwardNodeKind.LeafItem ? "true" : "false";
         string rngLit = node.ConsumeRandomSeriesRoll ? "true" : "false";
         string fixedSeriesLit = node.FixedSeries.HasValue ? node.FixedSeries.Value.ToString(CultureInfo.InvariantCulture) : "null";
+        string catNameLit = ToEscapedStringLiteral(node.CatalogItemNameUtf8 ?? string.Empty);
+        string cbKindLit = node.CallbackKind is not null ? ToEscapedStringLiteral(node.CallbackKind) : "null";
+        string cbTitleLit = node.CallbackTitleUtf8 is not null ? ToEscapedStringLiteral(node.CallbackTitleUtf8) : "null";
+        string specLit = node.SpecParams is { Count: > 0 }
+            ? "[" + string.Join(", ", node.SpecParams.Select(static s => s.ToString(CultureInfo.InvariantCulture))) + "]"
+            : "null";
 
-        return $"new GeneratedLuaRuntime.RuntimeAwardNode({kindName}, RatePercent: {rateLit}, Count: {node.Count}, ItemCode: {ToEscapedStringLiteral(node.ItemCode)}, ItemNameUtf8: {ToEscapedStringLiteral(node.ItemNameUtf8)}, MaxStackCount: {node.MaxStackCount}, IsEquipment: {isEquipLit}, ConsumeRandomSeriesRoll: {rngLit}, FixedSeries: {fixedSeriesLit}, BindStateRaw: {node.BindStateRaw}, NumericAmount: {node.NumericAmount}L)";
+        return $"new GeneratedLuaRuntime.RuntimeAwardNode({kindName}, RatePercent: {rateLit}, Count: {node.Count}, ItemCode: {ToEscapedStringLiteral(node.ItemCode)}, ItemNameUtf8: {ToEscapedStringLiteral(node.ItemNameUtf8)}, MaxStackCount: {node.MaxStackCount}, IsEquipment: {isEquipLit}, ConsumeRandomSeriesRoll: {rngLit}, FixedSeries: {fixedSeriesLit}, BindStateRaw: {node.BindStateRaw}, NumericAmount: {node.NumericAmount}L, CatalogItemNameUtf8: {catNameLit}, CallbackKind: {cbKindLit}, CallbackTitleUtf8: {cbTitleLit}, ExpiredTimeMinutes: {node.ExpiredTimeMinutes}, SpecParams: {specLit})";
     }
 
     private static void EmitScriptCallbackRouter(
@@ -2296,7 +2710,13 @@ public static class GeneratedLuaRuntime
         bool isMonsterScript,
         ref int tempCounter)
     {
-        if (mcall.Receiver is LuaIdentifierExpr { Name: "tbAwardTemplet" })
+        string? recvName = mcall.Receiver switch
+        {
+            LuaIdentifierExpr rid => rid.Name,
+            LuaUpvalueExpr uid => uid.Name,
+            _ => null,
+        };
+        if (recvName is "tbAwardTemplet" or "PlayerFunLib" or "ObjBuffer" or "tbLog" or "tbVngTransLog" or "tbvng_ChestExpAward")
         {
             sb.AppendLine($"{indent}_ = {EmitMemberCallExpression(mcall, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)};");
             return;
@@ -2340,12 +2760,22 @@ public static class GeneratedLuaRuntime
             return $"new GeneratedLuaRuntime.DailogBuilder({argStr})";
         }
 
-        if (mcall.Receiver is LuaIdentifierExpr { Name: "tbAwardTemplet" } && mcall.MemberName is "GiveAwardByList" or "Give")
+        string? recvName = mcall.Receiver switch
+        {
+            LuaIdentifierExpr rid2 => rid2.Name,
+            LuaUpvalueExpr uid2 => uid2.Name,
+            _ => null,
+        };
+        if (recvName == "tbAwardTemplet" && mcall.MemberName is "GiveAwardByList" or "Give")
         {
             string nodeExpr;
             if (mcall.Arguments[0] is LuaIdentifierExpr awardId && constFieldMap.TryGetValue(awardId.Name, out string? fieldRef))
             {
                 nodeExpr = fieldRef;
+            }
+            else if (InferExpressionType(mcall.Arguments[0], script, fnScopeTypes) == LuaValueType.AwardTemplate)
+            {
+                nodeExpr = EmitExpression(mcall.Arguments[0], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
             }
             else
             {
@@ -2365,6 +2795,39 @@ public static class GeneratedLuaRuntime
             }
 
             return $"GeneratedLuaRuntime.GiveAward(context, {nodeExpr}, {countExpr})";
+        }
+
+        if (recvName == "PlayerFunLib")
+        {
+            string AInt(int idx) => EmitIntExpr(mcall.Arguments[idx], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            string AStr(int idx) => EmitAsStringExpression(mcall.Arguments[idx], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            return mcall.MemberName switch
+            {
+                "GetTaskDailyCount" => $"GeneratedLuaRuntime.PlayerFunGetTaskDailyCount(context, {AInt(0)})",
+                "AddTaskDaily" => $"GeneratedLuaRuntime.PlayerFunAddTaskDaily(context, {AInt(0)}, {AInt(1)})",
+                "CheckTaskDaily" => $"GeneratedLuaRuntime.PlayerFunCheckTaskDaily(context, {AInt(0)}, {AInt(1)}, {AStr(2)}, {AStr(3)})",
+                "CheckFreeBagCellWH" => $"GeneratedLuaRuntime.PlayerFunCheckFreeBagCellWH(context, {AInt(0)}, {AInt(1)}, {AInt(2)}, {AStr(3)})",
+                _ => "0",
+            };
+        }
+
+        if (mcall.IsColonCall && recvName == "ObjBuffer" && mcall.MemberName == "PushObject")
+        {
+            string hExpr = EmitIntExpr(mcall.Arguments[0], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            string sExpr = EmitAsStringExpression(mcall.Arguments[1], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            return $"(GeneratedLuaRuntime.PushObjBufferObject({hExpr}, {sExpr}), 0).Item2";
+        }
+
+        if (mcall.IsColonCall && recvName is "tbLog" or "tbVngTransLog")
+        {
+            return "0";
+        }
+
+        if (mcall.IsColonCall && recvName == "tbvng_ChestExpAward" && mcall.MemberName == "ExpAward")
+        {
+            string vExpr = EmitDoubleExpr(mcall.Arguments[0], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            string nExpr = EmitAsStringExpression(mcall.Arguments[1], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            return $"(GeneratedLuaRuntime.GrantVngChestExpAward(context, (long)Math.Truncate({vExpr}), {nExpr}), 0).Item2";
         }
 
         throw new InvalidOperationException($"Unsupported member call expression '{mcall.MemberName}'.");
@@ -2497,6 +2960,51 @@ public static class GeneratedLuaRuntime
                 return;
             }
 
+            if (script.FunctionReturnTuples is not null &&
+                script.FunctionReturnTuples.TryGetValue(singleCall.CalleeName, out IReadOnlyList<LuaValueType>? tupTypes))
+            {
+                int tId = tempCounter++;
+                string tupVar = $"__tup{tId}";
+                string callExpr = EmitCallExpression(singleCall, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript, preserveTuple: true);
+                sb.AppendLine($"{indent}var {tupVar} = {callExpr};");
+                for (int i = 0; i < targetNames.Count && i < tupTypes.Count; i++)
+                {
+                    if (targetNames[i] == "_") continue;
+                    sb.AppendLine($"{indent}{localVarMap[targetNames[i]]} = {tupVar}.Item{i + 1};");
+                }
+
+                return;
+            }
+
+            if (singleCall.CalleeName == "GetTong" && singleCall.Arguments.Count == 0)
+            {
+                string[] tExprs = ["string.Empty", "0"];
+                for (int i = 0; i < targetNames.Count && i < tExprs.Length; i++)
+                {
+                    if (targetNames[i] == "_") continue;
+                    sb.AppendLine($"{indent}{localVarMap[targetNames[i]]} = {tExprs[i]};");
+                }
+
+                return;
+            }
+
+            if (singleCall.CalleeName == "GetItemProp" && singleCall.Arguments.Count == 1)
+            {
+                string idxCode = EmitIntExpr(singleCall.Arguments[0], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                int tId = tempCounter++;
+                string propVar = $"__prop{tId}";
+                sb.AppendLine($"{indent}_ = {idxCode};");
+                sb.AppendLine($"{indent}var {propVar} = (0, 0, context.ParticularType, context.ItemTemplateId > 0 ? 1 : 0, (int)context.Series, (int)context.Lucky);");
+                string[] pExprs = [$"{propVar}.Item1", $"{propVar}.Item2", $"{propVar}.Item3", $"{propVar}.Item4", $"{propVar}.Item5", $"{propVar}.Item6"];
+                for (int i = 0; i < targetNames.Count && i < pExprs.Length; i++)
+                {
+                    if (targetNames[i] == "_") continue;
+                    sb.AppendLine($"{indent}{localVarMap[targetNames[i]]} = {pExprs[i]};");
+                }
+
+                return;
+            }
+
             if (singleCall.CalleeName == "RevID2WXY")
             {
                 int tId = tempCounter++;
@@ -2517,22 +3025,6 @@ public static class GeneratedLuaRuntime
                 {
                     if (targetNames[i] == "_") continue;
                     sb.AppendLine($"{indent}{localVarMap[targetNames[i]]} = {exprs[i]};");
-                }
-
-                return;
-            }
-
-            if (script.FunctionReturnTuples is not null &&
-                script.FunctionReturnTuples.TryGetValue(singleCall.CalleeName, out IReadOnlyList<LuaValueType>? tupTypes))
-            {
-                int tId = tempCounter++;
-                string tupVar = $"__tup{tId}";
-                string callExpr = EmitCallExpression(singleCall, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
-                sb.AppendLine($"{indent}var {tupVar} = {callExpr};");
-                for (int i = 0; i < targetNames.Count && i < tupTypes.Count; i++)
-                {
-                    if (targetNames[i] == "_") continue;
-                    sb.AppendLine($"{indent}{localVarMap[targetNames[i]]} = {tupVar}.Item{i + 1};");
                 }
 
                 return;
@@ -2840,6 +3332,24 @@ public static class GeneratedLuaRuntime
             case "DelMagic":
                 sb.AppendLine($"{indent}_ = context.TryRemoveSkill({EInt(0)});");
                 break;
+            case "RollbackSkill":
+                sb.AppendLine($"{indent}_ = context.RollbackSkills();");
+                break;
+            case "RestoreLife":
+                sb.AppendLine($"{indent}context.RestoreLife();");
+                break;
+            case "RestoreMana":
+                sb.AppendLine($"{indent}context.RestoreMana();");
+                break;
+            case "RestoreStamina":
+                sb.AppendLine($"{indent}context.RestoreStamina();");
+                break;
+            case "ST_SyncMiniMapObj":
+                sb.AppendLine($"{indent}context.SyncMiniMapMarker({EInt(0)}, {EInt(1)});");
+                break;
+            case "AddPlayerEvent":
+                sb.AppendLine($"{indent}_ = context.RegisterPlayerEvent((ushort)({EInt(0)}));");
+                break;
             case "tinsert":
             {
                 LuaValueType lt = InferExpressionType(args[0], script, fnScopeTypes);
@@ -2906,7 +3416,32 @@ public static class GeneratedLuaRuntime
             case "AddStackItem":
             case "DelCommonItem":
             case "ConsumeEquiproomItem":
+            case "ConsumeItem":
+            case "SetBitTask":
+            case "ITEM_SetExpiredTime":
+            case "SetSpecItemParam":
                 sb.AppendLine($"{indent}_ = {EmitCallExpression(call, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)};");
+                break;
+            case "SyncItem":
+                sb.AppendLine($"{indent}context.SyncBagItem((uint)({EInt(0)}));");
+                break;
+            case "OB_Release":
+                sb.AppendLine($"{indent}GeneratedLuaRuntime.ReleaseObjBuffer({EInt(0)});");
+                break;
+            case "RemoteExecute":
+                sb.AppendLine($"{indent}GeneratedLuaRuntime.RemoteExecuteBroadcast(context, {EStr(0)}, {EStr(1)}, {EInt(2)});");
+                break;
+            case "LeaveTeam":
+                sb.AppendLine($"{indent}context.LeaveParty();");
+                break;
+            case "SetCreateTeam":
+                sb.AppendLine($"{indent}context.IsCreateTeamAllowed = ({EInt(0)}) != 0;");
+                break;
+            case "SetDeathScript":
+                sb.AppendLine($"{indent}context.CustomDeathScriptPath = {EStr(0)};");
+                break;
+            case "BT_LeaveBattle":
+                sb.AppendLine($"{indent}// BT_LeaveBattle: ranking/battle UI cleared on exit");
                 break;
             case "SetFightState":
                 sb.AppendLine($"{indent}context.SetFightMode((byte)(({EInt(0)}) != 0 ? 1 : 0));");
@@ -2986,29 +3521,126 @@ public static class GeneratedLuaRuntime
             case "AddMagicPoint":
                 sb.AppendLine($"{indent}context.AddBonusSkillPoints({EInt(0)});");
                 break;
+            case "AddStrg":
+                sb.AppendLine($"{indent}context.AddBaseStrength({EInt(0)});");
+                break;
+            case "AddDex":
+                sb.AppendLine($"{indent}context.AddBaseDexterity({EInt(0)});");
+                break;
+            case "AddVit":
+                sb.AppendLine($"{indent}context.AddBaseVitality({EInt(0)});");
+                break;
+            case "AddEng":
+                sb.AppendLine($"{indent}context.AddBaseEnergy({EInt(0)});");
+                break;
             case "AskClientForNumber":
             {
+                if (args[0] is LuaBinaryExpr { Operator: LuaBinaryOp.Concat, Left: LuaStringExpr askPrefix } askConcat)
+                {
+                    string pfx = askPrefix.DecodedUtf8;
+                    List<(int Suffix, string FnName)> matches = [];
+                    foreach (LuaFunctionDecl fDecl in script.Program.Functions)
+                    {
+                        if (fDecl.Name.Length > pfx.Length &&
+                            fDecl.Name.StartsWith(pfx, StringComparison.Ordinal) &&
+                            int.TryParse(fDecl.Name.AsSpan(pfx.Length), out int sfx))
+                        {
+                            matches.Add((sfx, fDecl.Name));
+                        }
+                    }
+
+                    matches.Sort(static (a, b) => a.Suffix.CompareTo(b.Suffix));
+                    int kId = tempCounter++;
+                    string idxVar = $"__askIdx{kId}";
+                    string castCtx = script.Kind == GeneratedScriptKind.Npc ? "ctx" : $"({ResolveContextInterfaceName(script.Kind)})ctx";
+                    bool anyAsync = matches.Any(m => script.FunctionIsAsync[m.FnName]);
+
+                    sb.AppendLine($"{indent}int {idxVar} = {EmitIntExpr(askConcat.Right, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)};");
+                    sb.AppendLine($"{indent}context.AskClientForNumber({EStr(3)}, {EInt(1)}, {EInt(2)}, {(anyAsync ? "async " : string.Empty)}(ctx, num) =>");
+                    sb.AppendLine($"{indent}{{");
+                    sb.AppendLine($"{indent}    switch ({idxVar})");
+                    sb.AppendLine($"{indent}    {{");
+                    foreach ((int sfx, string fnName) in matches)
+                    {
+                        string mName = MakeFunctionMethodName(scriptIndex, fnName);
+                        bool cbAsync = script.FunctionIsAsync[fnName];
+                        bool cbRet = script.FunctionReturnTypes[fnName] != LuaValueType.Void;
+                        string callExpr = $"{mName}({castCtx}, num, CancellationToken.None)";
+                        if (cbAsync)
+                        {
+                            sb.AppendLine(cbRet
+                                ? $"{indent}        case {sfx}: _ = await {callExpr}; break;"
+                                : $"{indent}        case {sfx}: await {callExpr}; break;");
+                        }
+                        else if (anyAsync)
+                        {
+                            sb.AppendLine(cbRet
+                                ? $"{indent}        case {sfx}: _ = {callExpr}; break;"
+                                : $"{indent}        case {sfx}: await {callExpr}; break;");
+                        }
+                        else
+                        {
+                            sb.AppendLine(cbRet
+                                ? $"{indent}        case {sfx}: _ = {callExpr}; return ValueTask.CompletedTask;"
+                                : $"{indent}        case {sfx}: return {callExpr};");
+                        }
+                    }
+
+                    sb.AppendLine($"{indent}    }}");
+                    if (!anyAsync)
+                    {
+                        sb.AppendLine($"{indent}    return ValueTask.CompletedTask;");
+                    }
+
+                    sb.AppendLine($"{indent}}});");
+                    break;
+                }
+
                 string cbName = ((LuaStringExpr)args[0]).DecodedUtf8.Trim();
                 string methodName = MakeFunctionMethodName(scriptIndex, cbName);
-                string castCtx = script.Kind == GeneratedScriptKind.Npc ? "ctx" : $"({ResolveContextInterfaceName(script.Kind)})ctx";
-                bool cbAsync = script.FunctionIsAsync[cbName];
-                bool cbHasRet = script.FunctionReturnTypes[cbName] != LuaValueType.Void;
-                string lambda = !cbAsync && cbHasRet
-                    ? $"static (ctx, num) => {{ _ = {methodName}({castCtx}, num, CancellationToken.None); return ValueTask.CompletedTask; }}"
-                    : cbAsync && cbHasRet
-                        ? $"static async (ctx, num) => {{ _ = await {methodName}({castCtx}, num, CancellationToken.None); }}"
-                        : $"static (ctx, num) => {methodName}({castCtx}, num, CancellationToken.None)";
+                string castCtxStd = script.Kind == GeneratedScriptKind.Npc ? "ctx" : $"({ResolveContextInterfaceName(script.Kind)})ctx";
+                bool cbAsyncStd = script.FunctionIsAsync[cbName];
+                bool cbHasRetStd = script.FunctionReturnTypes[cbName] != LuaValueType.Void;
+                string lambda = !cbAsyncStd && cbHasRetStd
+                    ? $"static (ctx, num) => {{ _ = {methodName}({castCtxStd}, num, CancellationToken.None); return ValueTask.CompletedTask; }}"
+                    : cbAsyncStd && cbHasRetStd
+                        ? $"static async (ctx, num) => {{ _ = await {methodName}({castCtxStd}, num, CancellationToken.None); }}"
+                        : $"static (ctx, num) => {methodName}({castCtxStd}, num, CancellationToken.None)";
                 sb.AppendLine($"{indent}context.AskClientForNumber({EStr(3)}, {EInt(1)}, {EInt(2)}, {lambda});");
                 break;
             }
             case "NewWorld":
-                sb.AppendLine($"{indent}_ = await context.TeleportPlayerAsync((ushort)({EInt(0)}), ({EInt(1)}) * 32, ({EInt(2)}) * 32, context.CurrentFightMode, cancellationToken);");
+                if (args.Count == 1 &&
+                    args[0] is LuaCallExpr worldTupleCall &&
+                    script.FunctionReturnTuples is not null &&
+                    script.FunctionReturnTuples.TryGetValue(worldTupleCall.CalleeName, out IReadOnlyList<LuaValueType>? worldTup) &&
+                    worldTup.Count >= 3)
+                {
+                    int lId = tempCounter++;
+                    string lv = $"__nw{lId}";
+                    string tupleCallExpr = EmitCallExpression(worldTupleCall, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript, preserveTuple: true);
+                    sb.AppendLine($"{indent}var {lv} = {tupleCallExpr};");
+                    sb.AppendLine(isMonsterScript
+                        ? $"{indent}_ = context.TeleportPlayerAsync((ushort)({lv}.Item1), ({lv}.Item2) * 32, ({lv}.Item3) * 32, context.CurrentFightMode, CancellationToken.None);"
+                        : $"{indent}_ = await context.TeleportPlayerAsync((ushort)({lv}.Item1), ({lv}.Item2) * 32, ({lv}.Item3) * 32, context.CurrentFightMode, cancellationToken);");
+                }
+                else
+                {
+                    sb.AppendLine(isMonsterScript
+                        ? $"{indent}_ = context.TeleportPlayerAsync((ushort)({EInt(0)}), ({EInt(1)}) * 32, ({EInt(2)}) * 32, context.CurrentFightMode, CancellationToken.None);"
+                        : $"{indent}_ = await context.TeleportPlayerAsync((ushort)({EInt(0)}), ({EInt(1)}) * 32, ({EInt(2)}) * 32, context.CurrentFightMode, cancellationToken);");
+                }
+
                 break;
             case "SetPos":
-                sb.AppendLine($"{indent}_ = await context.TeleportPlayerAsync(context.MapId, ({EInt(0)}) * 32, ({EInt(1)}) * 32, context.CurrentFightMode, cancellationToken);");
+                sb.AppendLine(isMonsterScript
+                    ? $"{indent}_ = context.TeleportPlayerAsync(context.MapId, ({EInt(0)}) * 32, ({EInt(1)}) * 32, context.CurrentFightMode, CancellationToken.None);"
+                    : $"{indent}_ = await context.TeleportPlayerAsync(context.MapId, ({EInt(0)}) * 32, ({EInt(1)}) * 32, context.CurrentFightMode, cancellationToken);");
                 break;
             case "ReturnFromPortal":
-                sb.AppendLine($"{indent}_ = await context.TryReturnFromPortalAsync(cancellationToken);");
+                sb.AppendLine(isMonsterScript
+                    ? $"{indent}_ = context.TryReturnFromPortalAsync(CancellationToken.None);"
+                    : $"{indent}_ = await context.TryReturnFromPortalAsync(cancellationToken);");
                 break;
             case "Talk":
             {
@@ -3026,7 +3658,10 @@ public static class GeneratedLuaRuntime
                 if (args[1] is LuaStringExpr cbStr)
                 {
                     string cbName = cbStr.DecodedUtf8.Trim();
-                    if (cbName.Length > 0 && functionsByName.TryGetValue(cbName, out LuaFunctionDecl? cbFn) && cbFn.Body.Count > 0)
+                    if (cbName.Length > 0 &&
+                        LuaScriptSemanticValidator.IsValidLuaIdentifier(cbName) &&
+                        functionsByName.TryGetValue(cbName, out LuaFunctionDecl? cbFn) &&
+                        cbFn.Body.Count > 0)
                     {
                         cbDelegate = BuildZeroArgCallbackDelegateExpr(scriptIndex, script, cbName);
                     }
@@ -3150,6 +3785,30 @@ public static class GeneratedLuaRuntime
                 sb.AppendLine($"{indent}context.{hostMethod}({prompt}, {string.Join(", ", inlineOpts)});");
                 break;
             }
+            case "Prise":
+            {
+                if (args.Count < 2)
+                {
+                    break;
+                }
+
+                string prompt = InferExpressionType(args[0], script, fnScopeTypes) == LuaValueType.String ? EStr(0) : $"({EInt(0)}).ToString(CultureInfo.InvariantCulture)";
+                string routerRef = hasRouter ? $"S{scriptIndex}_InvokeCallback" : "static (_, _, _) => ValueTask.CompletedTask";
+                if (args.Count == 3)
+                {
+                    sb.AppendLine($"{indent}context.Prise({prompt}, GeneratedLuaRuntime.BuildDynamicPriseOptions({E(2)}, {EInt(1)}, {routerRef}));");
+                    break;
+                }
+
+                var priseOpts = new List<string>(3);
+                for (int i = 1; i < 4; i++)
+                {
+                    priseOpts.Add($"GeneratedLuaRuntime.ParseSinglePriseOption({EStr(i)}, {routerRef})");
+                }
+
+                sb.AppendLine($"{indent}context.Prise({prompt}, {string.Join(", ", priseOpts)});");
+                break;
+            }
         }
     }
 
@@ -3265,11 +3924,11 @@ public static class GeneratedLuaRuntime
     {
         string methodName = MakeFunctionMethodName(scriptIndex, call.CalleeName);
         IReadOnlyList<LuaValueType> paramTypes = script.FunctionParamTypes.GetValueOrDefault(call.CalleeName, []);
-        var parts = new List<string>(call.Arguments.Count + 2) { "context" };
-        for (int i = 0; i < call.Arguments.Count; i++)
+        var parts = new List<string>(paramTypes.Count + 2) { "context" };
+        int boundCount = Math.Min(call.Arguments.Count, paramTypes.Count);
+        for (int i = 0; i < boundCount; i++)
         {
-            LuaValueType pt = i < paramTypes.Count ? paramTypes[i] : LuaValueType.Int;
-            parts.Add(EmitAssignableExpression(call.Arguments[i], pt, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript));
+            parts.Add(EmitAssignableExpression(call.Arguments[i], paramTypes[i], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript));
         }
 
         if (!isMonsterScript)
@@ -3342,6 +4001,44 @@ public static class GeneratedLuaRuntime
         return t == LuaValueType.NullableInt ? $"(({raw}) ?? 0)" : raw;
     }
 
+    private string EmitLongExpr(
+        LuaExpression expr,
+        int scriptIndex,
+        CompiledLuaScript script,
+        IReadOnlyDictionary<string, LuaValueType>? fnScopeTypes,
+        IReadOnlyDictionary<string, string> constFieldMap,
+        IReadOnlyDictionary<string, LuaExpression> constExprMap,
+        IReadOnlyDictionary<string, string>? localVarMap,
+        bool isMonsterScript)
+    {
+        if (expr is LuaBinaryExpr bin && bin.Operator is LuaBinaryOp.Add or LuaBinaryOp.Sub or LuaBinaryOp.Mul)
+        {
+            LuaValueType lt = InferExpressionType(bin.Left, script, fnScopeTypes);
+            LuaValueType rt = InferExpressionType(bin.Right, script, fnScopeTypes);
+            if (lt != LuaValueType.Number && rt != LuaValueType.Number)
+            {
+                string ll = EmitLongExpr(bin.Left, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                string rl = EmitLongExpr(bin.Right, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                string opStr = bin.Operator switch
+                {
+                    LuaBinaryOp.Sub => "-",
+                    LuaBinaryOp.Mul => "*",
+                    _ => "+",
+                };
+                return $"({ll} {opStr} {rl})";
+            }
+        }
+
+        LuaValueType t = InferExpressionType(expr, script, fnScopeTypes);
+        if (t == LuaValueType.Number)
+        {
+            string raw = EmitExpression(expr, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            return $"(long)Math.Truncate((double)({raw}))";
+        }
+
+        return $"((long)({EmitIntExpr(expr, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)}))";
+    }
+
     private string EmitDoubleExpr(
         LuaExpression expr,
         int scriptIndex,
@@ -3355,10 +4052,10 @@ public static class GeneratedLuaRuntime
         LuaValueType t = InferExpressionType(expr, script, fnScopeTypes);
         if (t == LuaValueType.Number)
         {
-            return EmitExpression(expr, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+            return $"((double)({EmitExpression(expr, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)}))";
         }
 
-        return $"((double)({EmitIntExpr(expr, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)}))";
+        return $"((double)({EmitLongExpr(expr, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)}))";
     }
 
     private string EmitBoolCondition(
@@ -3391,6 +4088,11 @@ public static class GeneratedLuaRuntime
         if (t == LuaValueType.NullableInt)
         {
             return $"({raw}).HasValue";
+        }
+
+        if (t is LuaValueType.AwardTemplate or LuaValueType.IntFieldRecord)
+        {
+            return $"({raw} is not null)";
         }
 
         return $"({raw} is var _)";
@@ -3479,10 +4181,38 @@ public static class GeneratedLuaRuntime
                 throw new InvalidOperationException($"Unbound identifier '{id.Name}'.");
 
             case LuaTableLiteralExpr tbl:
+                if (InferExpressionType(tbl, script, fnScopeTypes) == LuaValueType.LocalAwardArray)
+                {
+                    var tempValidator = new LuaScriptSemanticValidator(_eventItemCodeByDetailId, _itemCatalogIndex);
+                    var nodeStrs = new List<string>(tbl.Elements.Count);
+                    foreach (LuaExpression el in tbl.Elements)
+                    {
+                        _ = tempValidator.TryCompileAwardNode(el, constExprMap, out CompiledAwardNode? compiledNode, out _);
+                        nodeStrs.Add(EmitAwardNodeExpr(compiledNode!));
+                    }
+
+                    return "[" + string.Join(", ", nodeStrs) + "]";
+                }
+
                 return "[" + string.Join(", ", tbl.Elements.Select(e => EmitExpression(e, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript))) + "]";
 
             case LuaIndexExpr idx:
             {
+                if (idx.Target is LuaIdentifierExpr rowVarId &&
+                    _currentFnLocalTupleTables is not null &&
+                    _currentFnLocalTupleTables.TryGetValue(rowVarId.Name, out string? rowTblName) &&
+                    script.ConstTupleColumnTypes is not null &&
+                    script.ConstTupleColumnTypes.TryGetValue(rowTblName, out IReadOnlyList<LuaValueType>? rowCols) &&
+                    LuaScriptSemanticValidator.TryEvalConstantInt(idx.Index, constExprMap, out int rowCol1Based) &&
+                    rowCol1Based >= 1 &&
+                    rowCol1Based <= rowCols.Count)
+                {
+                    string rowVarCs = localVarMap![rowVarId.Name];
+                    LuaValueType rowColType = rowCols[rowCol1Based - 1];
+                    string rowItemAccess = $"{rowVarCs}.Item{rowCol1Based}";
+                    return rowColType == LuaValueType.String ? $"({rowItemAccess} ?? string.Empty)" : rowItemAccess;
+                }
+
                 if (idx.Target is LuaIndexExpr rowIdxExpr &&
                     rowIdxExpr.Target is LuaIdentifierExpr tupleTblId &&
                     script.ConstTupleColumnTypes is not null &&
@@ -3496,6 +4226,15 @@ public static class GeneratedLuaRuntime
                     return colType == LuaValueType.String ? $"({itemAccess} ?? string.Empty)" : itemAccess;
                 }
 
+                if (idx.Target is LuaIdentifierExpr outerTblId &&
+                    script.ConstTupleColumnTypes is not null &&
+                    script.ConstTupleColumnTypes.ContainsKey(outerTblId.Name))
+                {
+                    string tblField = constFieldMap[outerTblId.Name];
+                    string rExpr = EmitIntExpr(idx.Index, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                    return $"GeneratedLuaRuntime.GetRowAt1Based({tblField}, {rExpr})";
+                }
+
                 LuaValueType targetType = InferExpressionType(idx.Target, script, fnScopeTypes);
                 string targetCode = EmitExpression(idx.Target, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
                 string indexCode = EmitIntExpr(idx.Index, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
@@ -3504,8 +4243,17 @@ public static class GeneratedLuaRuntime
                     LuaValueType.IntKeyedIntMap => $"GeneratedLuaRuntime.GetMapIntOrNull({targetCode}, {indexCode})",
                     LuaValueType.IntKeyedStringMap => $"GeneratedLuaRuntime.GetMapStrOrEmpty({targetCode}, {indexCode})",
                     LuaValueType.IntKeyedIntArrayMap => $"GeneratedLuaRuntime.GetMapIntArrOrEmpty({targetCode}, {indexCode})",
+                    LuaValueType.IntKeyedAwardTemplateMap => $"GeneratedLuaRuntime.GetMapAwardAt({targetCode}, {indexCode})",
+                    LuaValueType.LocalAwardArray => $"GeneratedLuaRuntime.GetAwardAt1Based({targetCode}, {indexCode})",
+                    LuaValueType.IntKeyedIntRecordMap => $"GeneratedLuaRuntime.GetIntRecordAt({targetCode}, {indexCode})",
                     _ => $"GeneratedLuaRuntime.GetAt1Based({targetCode}, {indexCode})",
                 };
+            }
+
+            case LuaMemberAccessExpr macc:
+            {
+                string recvCode = EmitExpression(macc.Target, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                return $"GeneratedLuaRuntime.GetFieldInt({recvCode}, {ToEscapedStringLiteral(macc.FieldName)})";
             }
 
             case LuaMemberCallExpr mcall:
@@ -3550,6 +4298,13 @@ public static class GeneratedLuaRuntime
                     return $"(({le}) ?? ({re}))";
                 }
 
+                if (bin.Operator == LuaBinaryOp.Or && lt == LuaValueType.String && rt == LuaValueType.String)
+                {
+                    string ls = EmitAsStringExpression(bin.Left, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                    string rs = EmitAsStringExpression(bin.Right, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                    return $"(({ls}) ?? ({rs}))";
+                }
+
                 if (bin.Operator is LuaBinaryOp.And or LuaBinaryOp.Or)
                 {
                     string lb = EmitBoolCondition(bin.Left, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
@@ -3560,6 +4315,22 @@ public static class GeneratedLuaRuntime
 
                 if (bin.Operator is LuaBinaryOp.Eq or LuaBinaryOp.Neq)
                 {
+                    if (lt == LuaValueType.Bool && LuaScriptSemanticValidator.TryEvalConstantInt(bin.Right, constExprMap, out int rBit) && rBit is 0 or 1)
+                    {
+                        string lb = EmitBoolCondition(bin.Left, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                        return rBit == 1
+                            ? (bin.Operator == LuaBinaryOp.Eq ? lb : $"(!({lb}))")
+                            : (bin.Operator == LuaBinaryOp.Eq ? "false" : "true");
+                    }
+
+                    if (rt == LuaValueType.Bool && LuaScriptSemanticValidator.TryEvalConstantInt(bin.Left, constExprMap, out int lBit) && lBit is 0 or 1)
+                    {
+                        string rb = EmitBoolCondition(bin.Right, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
+                        return lBit == 1
+                            ? (bin.Operator == LuaBinaryOp.Eq ? rb : $"(!({rb}))")
+                            : (bin.Operator == LuaBinaryOp.Eq ? "false" : "true");
+                    }
+
                     if (lt == LuaValueType.Nil && rt == LuaValueType.Nil)
                     {
                         return bin.Operator == LuaBinaryOp.Eq ? "true" : "false";
@@ -3667,7 +4438,8 @@ public static class GeneratedLuaRuntime
         IReadOnlyDictionary<string, string> constFieldMap,
         IReadOnlyDictionary<string, LuaExpression> constExprMap,
         IReadOnlyDictionary<string, string>? localVarMap,
-        bool isMonsterScript)
+        bool isMonsterScript,
+        bool preserveTuple = false)
     {
         string E(int idx) => EmitExpression(call.Arguments[idx], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
         string EInt(int idx) => EmitIntExpr(call.Arguments[idx], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
@@ -3677,12 +4449,19 @@ public static class GeneratedLuaRuntime
         if (script.FunctionReturnTypes.ContainsKey(call.CalleeName))
         {
             string invoke = BuildHelperInvocationExpr(call, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript);
-            if (isMonsterScript)
+            if (!isMonsterScript && script.FunctionIsAsync[call.CalleeName])
             {
-                return invoke;
+                invoke = $"(await {invoke})";
             }
 
-            return script.FunctionIsAsync[call.CalleeName] ? $"(await {invoke})" : invoke;
+            if (!preserveTuple &&
+                script.FunctionReturnTuples is not null &&
+                script.FunctionReturnTuples.ContainsKey(call.CalleeName))
+            {
+                return $"({invoke}).Item1";
+            }
+
+            return invoke;
         }
 
         switch (call.CalleeName)
@@ -3719,11 +4498,39 @@ public static class GeneratedLuaRuntime
             case "GetTeamSize": return "context.GetTeamSize()";
             case "GetTeamMember": return $"context.GetTeamMemberIndex({EInt(0)})";
             case "IsCaptain": return "(context.IsPartyCaptain ? 1 : 0)";
+            case "GetExp": return "((int)Math.Min(int.MaxValue, context.Experience))";
+            case "GetLucky": return "(int)context.Lucky";
+            case "GetProp": return "(int)context.UnallocatedAttributePoints";
+            case "GetMagicPoint": return "(int)context.UnallocatedSkillPoints";
+            case "GetTripMode": return "0";
+            case "ST_GetTransLifeCount": return "0";
+            case "OB_Create": return "GeneratedLuaRuntime.CreateObjBuffer()";
+            case "LeaveTeam": return "(context.LeaveParty(), 1).Item2";
+            case "BT_LeaveBattle": return "0";
             case "SetFaction": return $"GeneratedLuaRuntime.SetPlayerFaction(context, {EStr(0)})";
-            case "IsMyItem": return $"(((uint)({EInt(0)}) == context.RuntimeItemId) ? 1 : 0)";
+            case "IsMyItem": return $"(context.IsOwnedBagItem((uint)({EInt(0)})) ? 1 : 0)";
             case "RemoveItemByIndex": return $"(context.TryRemoveBagItemByRuntimeId((uint)({EInt(0)})) ? 1 : 0)";
+            case "GetItemName": return $"context.GetBagItemNameUtf8((uint)({EInt(0)}))";
+            case "GetItemProp": return "context.ParticularType";
+            case "ITEM_GetExpiredTime": return $"(int)(context.GetBagItemExpirationUnixSeconds((uint)({EInt(0)})) ?? 0u)";
+            case "ITEM_SetExpiredTime":
+            {
+                string timeArg = call.Arguments.Count >= 3 ? EInt(2) : "0";
+                return $"(context.TrySetBagItemExpirationDate((uint)({EInt(0)}), {EInt(1)}, {timeArg}) ? 1 : 0)";
+            }
+            case "FormatTime2String":
+            {
+                string tsExpr = call.Arguments.Count >= 2 ? EDbl(1) : "(double)GeneratedLuaRuntime.GetCurServerTime()";
+                return $"GeneratedLuaRuntime.FormatTime2String({EStr(0)}, {tsExpr})";
+            }
+            case "GetItemParam": return $"context.GetBagItemSpecParam((uint)({EInt(0)}), {EInt(1)})";
+            case "SetSpecItemParam": return $"(context.TrySetBagItemSpecParam((uint)({EInt(0)}), {EInt(1)}, {EInt(2)}) ? 1 : 0)";
+            case "GetBitTask": return $"GeneratedLuaRuntime.GetBitTask(context, {EInt(0)}, {EInt(1)}, {EInt(2)})";
+            case "SetBitTask": return $"GeneratedLuaRuntime.SetBitTask(context, {EInt(0)}, {EInt(1)}, {EInt(2)}, {EInt(3)})";
             case "GetWorldPos": return "(int)context.MapId";
             case "GetPlayerRev": return "(int)context.RevivalMapId";
+            case "GetLeavePos": return "0";
+            case "GetTong": return "string.Empty";
             case "RevID2WXY":
                 return call.Arguments.Count == 1
                     ? "(int)context.ResolveRevivalPosition(context.RevivalMapId, context.RevivalPointId).MapId"
@@ -3740,6 +4547,17 @@ public static class GeneratedLuaRuntime
             case "GetTaskTemp": return $"context.GetTempTask((ushort)({EInt(0)}))";
             case "GetGlbValue": return $"context.GetGlobalValue({EInt(0)})";
             case "HaveMagic": return $"context.GetLearnedSkillLevel({EInt(0)})";
+            case "RollbackSkill": return "context.RollbackSkills()";
+            case "AddPlayerEvent": return $"(context.RegisterPlayerEvent((ushort)({EInt(0)})) ? 1 : 0)";
+            case "HaveCommonItem":
+            {
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[0], constExprMap, out int g);
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], constExprMap, out int d);
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], constExprMap, out int p);
+                return _itemCatalogIndex!.TryResolveByGdp(g, d, p, out PackItemEntry itemEntry)
+                    ? $"(context.HasBagItem({ToEscapedStringLiteral(itemEntry.Code)}) ? 1 : 0)"
+                    : "0";
+            }
             case "CheckStoreBoxState": return $"(context.IsExpandableBoxUnlocked((byte)({EInt(0)})) ? 1 : 0)";
             case "Pay": return $"(context.TryPayMoney({EInt(0)}) ? 1 : 0)";
             case "GetByte": return $"GeneratedLuaRuntime.GetByte({EInt(0)}, {EInt(1)})";
@@ -3766,7 +4584,7 @@ public static class GeneratedLuaRuntime
             case "mod":
                 return InferExpressionType(call, script, fnScopeTypes) == LuaValueType.Number
                     ? $"GeneratedLuaRuntime.LuaMod({EDbl(0)}, {EDbl(1)})"
-                    : $"GeneratedLuaRuntime.LuaMod({EInt(0)}, {EInt(1)})";
+                    : $"GeneratedLuaRuntime.LuaMod({EmitLongExpr(call.Arguments[0], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)}, {EmitLongExpr(call.Arguments[1], scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript)})";
             case "min":
                 return InferExpressionType(call, script, fnScopeTypes) == LuaValueType.Number
                     ? $"Math.Min({EDbl(0)}, {EDbl(1)})"
@@ -3858,11 +4676,21 @@ public static class GeneratedLuaRuntime
                 _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], constExprMap, out int lv);
                 if (LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], constExprMap, out int p))
                 {
-                    _ = _itemCatalogIndex!.TryResolveByGdpl(g, d, p, lv, out PackItemEntry itemEntry);
+                    if (!_itemCatalogIndex!.TryResolveByGdpl(g, d, p, lv, out PackItemEntry itemEntry))
+                    {
+                        return "0";
+                    }
+
                     string litCode = ToEscapedStringLiteral(itemEntry.Code);
                     if (g == 0)
                     {
                         string seriesArg = $"(ElementSeries)Math.Clamp({EInt(4)}, 0, 4)";
+                        if (call.Arguments.Count >= 12)
+                        {
+                            string magArr = $"stackalloc int[] {{ {EInt(6)}, {EInt(7)}, {EInt(8)}, {EInt(9)}, {EInt(10)}, {EInt(11)} }}";
+                            return $"(context.TryGrantEquipmentByCode({litCode}, {seriesArg}, {magArr}) ? 1 : 0)";
+                        }
+
                         return $"(context.TryGrantEquipmentByCode({litCode}, {seriesArg}) ? 1 : 0)";
                     }
 
@@ -3885,11 +4713,11 @@ public static class GeneratedLuaRuntime
                 if (LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], constExprMap, out int p))
                 {
                     _ = _itemCatalogIndex!.TryResolveByGdpl(g, d, p, lv, out PackItemEntry itemEntry);
-                    return $"(context.TryGrantItemByCode({ToEscapedStringLiteral(itemEntry.Code)}, {EInt(0)}) ? 1 : 0)";
+                    return $"(context.TryGrantItemByCode({ToEscapedStringLiteral(itemEntry.Code)}, Math.Max(1, {EInt(0)})) ? 1 : 0)";
                 }
 
                 string gdplSwitch = BuildDynamicParticularSwitchLambda(g, d, lv, call.Arguments[3], constExprMap);
-                return $"(GeneratedLuaRuntime.TryGrantMappedItem(context, {EInt(3)}, {gdplSwitch}, {EInt(0)}) ? 1 : 0)";
+                return $"(GeneratedLuaRuntime.TryGrantMappedItem(context, {EInt(3)}, {gdplSwitch}, Math.Max(1, {EInt(0)})) ? 1 : 0)";
             }
             case "DelCommonItem":
             {
@@ -3927,10 +4755,65 @@ public static class GeneratedLuaRuntime
                 string gdplSwitch = BuildDynamicParticularSwitchLambda(g, d, lv, call.Arguments[3], constExprMap);
                 return $"(GeneratedLuaRuntime.TryConsumeMappedItem(context, {EInt(3)}, {gdplSwitch}, {EInt(0)}) ? 1 : 0)";
             }
+            case "CalcItemCount":
+            {
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[1], constExprMap, out int g);
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], constExprMap, out int d);
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[4], constExprMap, out int lv);
+                string countExpr;
+                if (LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], constExprMap, out int p))
+                {
+                    _ = _itemCatalogIndex!.TryResolveByGdpl(g, d, p, lv, out PackItemEntry itemEntry);
+                    countExpr = $"context.GetBagItemCount({ToEscapedStringLiteral(itemEntry.Code)})";
+                }
+                else
+                {
+                    string gdplSwitch = BuildDynamicParticularSwitchLambda(g, d, lv, call.Arguments[3], constExprMap);
+                    countExpr = $"GeneratedLuaRuntime.GetMappedItemCount(context, {EInt(3)}, {gdplSwitch})";
+                }
+
+                return $"(({EInt(0)}) == 3 ? {countExpr} : 0)";
+            }
+            case "ConsumeItem":
+            {
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[2], constExprMap, out int g);
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[3], constExprMap, out int d);
+                _ = LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[5], constExprMap, out int lv);
+                string consumeExpr;
+                if (LuaScriptSemanticValidator.TryEvalConstantInt(call.Arguments[4], constExprMap, out int p))
+                {
+                    _ = _itemCatalogIndex!.TryResolveByGdpl(g, d, p, lv, out PackItemEntry itemEntry);
+                    consumeExpr = $"(context.TryConsumeItemByCode({ToEscapedStringLiteral(itemEntry.Code)}, {EInt(1)}) ? 1 : -1)";
+                }
+                else
+                {
+                    string gdplSwitch = BuildDynamicParticularSwitchLambda(g, d, lv, call.Arguments[4], constExprMap);
+                    consumeExpr = $"(GeneratedLuaRuntime.TryConsumeMappedItem(context, {EInt(4)}, {gdplSwitch}, {EInt(1)}) ? 1 : -1)";
+                }
+
+                return $"(({EInt(0)}) == 3 ? {consumeExpr} : -1)";
+            }
             case "NewWorld":
-                return $"((await context.TeleportPlayerAsync((ushort)({EInt(0)}), ({EInt(1)}) * 32, ({EInt(2)}) * 32, context.CurrentFightMode, cancellationToken)) ? 1 : 0)";
+                if (call.Arguments.Count == 1 &&
+                    call.Arguments[0] is LuaCallExpr worldTupleCall &&
+                    script.FunctionReturnTuples is not null &&
+                    script.FunctionReturnTuples.TryGetValue(worldTupleCall.CalleeName, out IReadOnlyList<LuaValueType>? worldTup) &&
+                    worldTup.Count >= 3)
+                {
+                    string tupleCallExpr = EmitCallExpression(worldTupleCall, scriptIndex, script, fnScopeTypes, constFieldMap, constExprMap, localVarMap, isMonsterScript, preserveTuple: true);
+                    string tpCall = isMonsterScript
+                        ? $"((_ = context.TeleportPlayerAsync((ushort)(__nw.Item1), (__nw.Item2) * 32, (__nw.Item3) * 32, context.CurrentFightMode, CancellationToken.None)), 1).Item2"
+                        : $"((await context.TeleportPlayerAsync((ushort)(__nw.Item1), (__nw.Item2) * 32, (__nw.Item3) * 32, context.CurrentFightMode, cancellationToken)) ? 1 : 0)";
+                    return $"(({tupleCallExpr}) is var __nw ? {tpCall} : 0)";
+                }
+
+                return isMonsterScript
+                    ? $"((_ = context.TeleportPlayerAsync((ushort)({EInt(0)}), ({EInt(1)}) * 32, ({EInt(2)}) * 32, context.CurrentFightMode, CancellationToken.None)), 1).Item2"
+                    : $"((await context.TeleportPlayerAsync((ushort)({EInt(0)}), ({EInt(1)}) * 32, ({EInt(2)}) * 32, context.CurrentFightMode, cancellationToken)) ? 1 : 0)";
             case "ReturnFromPortal":
-                return "((await context.TryReturnFromPortalAsync(cancellationToken)) ? 1 : 0)";
+                return isMonsterScript
+                    ? "((_ = context.TryReturnFromPortalAsync(CancellationToken.None)), 1).Item2"
+                    : "((await context.TryReturnFromPortalAsync(cancellationToken)) ? 1 : 0)";
             default:
                 throw new InvalidOperationException($"Unsupported call expression '{call.CalleeName}'.");
         }
@@ -3988,8 +4871,11 @@ public static class GeneratedLuaRuntime
         var arms = new List<string>();
         foreach (int rowId in cands.Distinct().OrderBy(static x => x))
         {
-            _ = _itemCatalogIndex!.TryResolveGoldEquipByRowId(rowId, out PackItemEntry entry);
-            arms.Add($"{rowId} => {ToEscapedStringLiteral(entry.Code)}");
+            if (_itemCatalogIndex!.TryResolveGoldEquipByRowId(rowId, out PackItemEntry entry) &&
+                !string.IsNullOrEmpty(entry.Code))
+            {
+                arms.Add($"{rowId} => {ToEscapedStringLiteral(entry.Code)}");
+            }
         }
 
         arms.Add("_ => null");
@@ -3998,19 +4884,22 @@ public static class GeneratedLuaRuntime
 
     private string BuildDynamicParticularSwitchLambda(int g, int d, int lv, LuaExpression pExpr, IReadOnlyDictionary<string, LuaExpression> constExprMap)
     {
-        _ = LuaScriptSemanticValidator.TryExtractConstTableIntCandidates(pExpr, constExprMap, out List<int> cands);
+        _ = LuaScriptSemanticValidator.TryExtractConstTableIntCandidates(pExpr, constExprMap, out List<int> cands, _currentFnLocalTupleTables);
         var arms = new List<string>();
         foreach (int p in cands.Distinct().OrderBy(static x => x))
         {
-            _ = _itemCatalogIndex!.TryResolveByGdpl(g, d, p, lv, out PackItemEntry entry);
-            arms.Add($"{p} => {ToEscapedStringLiteral(entry.Code)}");
+            if (_itemCatalogIndex!.TryResolveByGdpl(g, d, p, lv, out PackItemEntry entry) &&
+                !string.IsNullOrEmpty(entry.Code))
+            {
+                arms.Add($"{p} => {ToEscapedStringLiteral(entry.Code)}");
+            }
         }
 
         arms.Add("_ => null");
         return $"static v => v switch {{ {string.Join(", ", arms)} }}";
     }
 
-    private static LuaValueType InferExpressionType(
+    private LuaValueType InferExpressionType(
         LuaExpression expr,
         CompiledLuaScript script,
         IReadOnlyDictionary<string, LuaValueType>? fnScopeTypes)
@@ -4055,6 +4944,18 @@ public static class GeneratedLuaRuntime
 
                 return LuaValueType.Int;
             case LuaIndexExpr idx:
+                if (idx.Target is LuaIdentifierExpr rowVarId &&
+                    _currentFnLocalTupleTables is not null &&
+                    _currentFnLocalTupleTables.TryGetValue(rowVarId.Name, out string? rowTblName) &&
+                    script.ConstTupleColumnTypes is not null &&
+                    script.ConstTupleColumnTypes.TryGetValue(rowTblName, out IReadOnlyList<LuaValueType>? rowCols) &&
+                    LuaScriptSemanticValidator.TryEvalConstantInt(idx.Index, out int rowCol1) &&
+                    rowCol1 >= 1 &&
+                    rowCol1 <= rowCols.Count)
+                {
+                    return rowCols[rowCol1 - 1];
+                }
+
                 if (idx.Target is LuaIndexExpr inner &&
                     inner.Target is LuaIdentifierExpr tupId &&
                     script.ConstTupleColumnTypes is not null &&
@@ -4066,14 +4967,27 @@ public static class GeneratedLuaRuntime
                     return cols[col1 - 1];
                 }
 
+                if (idx.Target is LuaIdentifierExpr outerTupId &&
+                    script.ConstTupleColumnTypes is not null &&
+                    script.ConstTupleColumnTypes.ContainsKey(outerTupId.Name))
+                {
+                    return LuaValueType.ConstTupleRow;
+                }
+
                 return InferExpressionType(idx.Target, script, fnScopeTypes) switch
                 {
                     LuaValueType.StringArray or LuaValueType.StringList or LuaValueType.IntKeyedStringMap => LuaValueType.String,
                     LuaValueType.IntKeyedIntMap => LuaValueType.NullableInt,
                     LuaValueType.Int2DArray or LuaValueType.IntKeyedIntArrayMap => LuaValueType.IntArray,
                     LuaValueType.String2DArray => LuaValueType.StringArray,
+                    LuaValueType.LocalAwardArray or LuaValueType.IntKeyedAwardTemplateMap => LuaValueType.AwardTemplate,
+                    LuaValueType.IntKeyedIntRecordMap => LuaValueType.IntFieldRecord,
                     _ => LuaValueType.Int,
                 };
+            case LuaMemberAccessExpr:
+                return LuaValueType.Int;
+            case LuaTableLiteralExpr tbl when tbl.Elements.Count > 0 && tbl.Elements[0] is LuaKeyedTableLiteralExpr:
+                return LuaValueType.LocalAwardArray;
             case LuaMemberCallExpr mcall:
                 return mcall.Receiver is LuaIdentifierExpr { Name: "DailogClass" } && mcall.MemberName == "new"
                     ? LuaValueType.DialogBuilder
@@ -4090,6 +5004,11 @@ public static class GeneratedLuaRuntime
                 if (bin.Operator == LuaBinaryOp.Or && lt == LuaValueType.NullableInt && rt == LuaValueType.Int)
                 {
                     return LuaValueType.Int;
+                }
+
+                if (bin.Operator == LuaBinaryOp.Or && lt == LuaValueType.String && rt == LuaValueType.String)
+                {
+                    return LuaValueType.String;
                 }
 
                 if (bin.Operator is LuaBinaryOp.Or or LuaBinaryOp.And or LuaBinaryOp.Eq or LuaBinaryOp.Neq or LuaBinaryOp.Lt or LuaBinaryOp.Le or LuaBinaryOp.Gt or LuaBinaryOp.Ge)
@@ -4127,7 +5046,7 @@ public static class GeneratedLuaRuntime
 
                 return call.CalleeName switch
                 {
-                    "GetName" or "GetAccount" or "GetNpcName" or "NpcName2Replace" or "GetFaction" or "GetLastAddFaction" or "tostring" or "strsub" or "strlower" or "strupper" or "format" or "GetLocalDate" or "date" => LuaValueType.String,
+                    "GetName" or "GetAccount" or "GetNpcName" or "NpcName2Replace" or "GetFaction" or "GetLastAddFaction" or "GetItemName" or "FormatTime2String" or "GetTong" or "tostring" or "strsub" or "strlower" or "strupper" or "format" or "GetLocalDate" or "date" => LuaValueType.String,
                     "tonumber" => LuaValueType.NullableInt,
                     "abs" when call.Arguments.Count == 1 && InferExpressionType(call.Arguments[0], script, fnScopeTypes) == LuaValueType.Number => LuaValueType.Number,
                     "mod" or "min" or "max" when call.Arguments.Count == 2 &&
@@ -4216,11 +5135,15 @@ public static class GeneratedLuaRuntime
             LuaValueType.IntKeyedIntMap => "FrozenDictionary<int, int>",
             LuaValueType.IntKeyedStringMap => "FrozenDictionary<int, string>",
             LuaValueType.IntKeyedIntArrayMap => "FrozenDictionary<int, int[]>",
+            LuaValueType.IntKeyedAwardTemplateMap => "FrozenDictionary<int, GeneratedLuaRuntime.RuntimeAwardNode>",
+            LuaValueType.IntKeyedIntRecordMap => "FrozenDictionary<int, FrozenDictionary<string, int>>",
+            LuaValueType.IntFieldRecord => "FrozenDictionary<string, int>?",
             LuaValueType.StringList => "List<string>",
             LuaValueType.IntList => "List<int>",
+            LuaValueType.LocalAwardArray => "GeneratedLuaRuntime.RuntimeAwardNode[]",
             LuaValueType.DialogOptionList => "List<DialogOption>",
             LuaValueType.DialogBuilder => "GeneratedLuaRuntime.DailogBuilder",
-            LuaValueType.AwardTemplate => "GeneratedLuaRuntime.RuntimeAwardNode",
+            LuaValueType.AwardTemplate => "GeneratedLuaRuntime.RuntimeAwardNode?",
             LuaValueType.SyncCallback => isMonsterScript ? "Action<IScriptCombatContext>" : "Func<IScriptDialogContext, CancellationToken, ValueTask>",
             _ => "void",
         };
@@ -4240,11 +5163,15 @@ public static class GeneratedLuaRuntime
             LuaValueType.IntKeyedIntMap => "FrozenDictionary<int, int>.Empty",
             LuaValueType.IntKeyedStringMap => "FrozenDictionary<int, string>.Empty",
             LuaValueType.IntKeyedIntArrayMap => "FrozenDictionary<int, int[]>.Empty",
+            LuaValueType.IntKeyedAwardTemplateMap => "FrozenDictionary<int, GeneratedLuaRuntime.RuntimeAwardNode>.Empty",
+            LuaValueType.IntKeyedIntRecordMap => "FrozenDictionary<int, FrozenDictionary<string, int>>.Empty",
+            LuaValueType.IntFieldRecord => "null",
             LuaValueType.StringList => "new List<string>()",
             LuaValueType.IntList => "new List<int>()",
+            LuaValueType.LocalAwardArray => "[]",
             LuaValueType.DialogOptionList => "new List<DialogOption>()",
             LuaValueType.DialogBuilder => "new GeneratedLuaRuntime.DailogBuilder()",
-            LuaValueType.AwardTemplate => "new GeneratedLuaRuntime.RuntimeAwardNode(GeneratedLuaRuntime.RuntimeAwardKind.Sequential)",
+            LuaValueType.AwardTemplate => "null",
             LuaValueType.SyncCallback => isMonsterScript ? "static _ => { }" : "static (_, _) => ValueTask.CompletedTask",
             _ => "default",
         };

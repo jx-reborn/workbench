@@ -12,6 +12,8 @@ public enum CompiledAwardNodeKind
     LeafExpTl,
     LeafMoney,
     LeafRepute,
+    LeafChestExpAward,
+    LeafBingoBoxExpAward,
 }
 
 /// <summary>
@@ -28,4 +30,9 @@ public sealed record CompiledAwardNode(
     int? FixedSeries = null,
     int BindStateRaw = 0,
     long NumericAmount = 0,
-    IReadOnlyList<CompiledAwardNode>? Children = null);
+    IReadOnlyList<CompiledAwardNode>? Children = null,
+    string? CatalogItemNameUtf8 = null,
+    string? CallbackKind = null,
+    string? CallbackTitleUtf8 = null,
+    int ExpiredTimeMinutes = 0,
+    IReadOnlyList<int>? SpecParams = null);

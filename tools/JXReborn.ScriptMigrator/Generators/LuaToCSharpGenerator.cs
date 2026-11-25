@@ -167,7 +167,8 @@ public sealed partial class LuaToCSharpGenerator
             }
 
             string expectedEntry = kind == GeneratedScriptKind.Monster ? "OnDeath" : "main";
-            LuaLinkResult linkResult = linker.LinkAndTreeShake(entry.CanonicalScriptPath, parseResult.Program, expectedEntry);
+            LuaProgram entryProgram = EnsureZeroByteTrapEntrypoint(kind, parseResult.Program);
+            LuaLinkResult linkResult = linker.LinkAndTreeShake(entry.CanonicalScriptPath, entryProgram, expectedEntry);
             if (!linkResult.IsSuccess || linkResult.LinkedProgram is null)
             {
                 manualQueue.Add(new ManualMigrationQueueItem(
@@ -264,6 +265,13 @@ public sealed partial class LuaToCSharpGenerator
         return result;
     }
 
+    public static LuaProgram EnsureZeroByteTrapEntrypoint(GeneratedScriptKind kind, LuaProgram program) =>
+        kind == GeneratedScriptKind.Trap &&
+        program.Functions.Count == 0 &&
+        program.TopLevelStatements.Count == 0
+            ? new LuaProgram([], [new LuaFunctionDecl("main", [], [], 1)])
+            : program;
+
     private static HashSet<GeneratedScriptKind> ResolveTargetKinds(string filter) =>
         filter switch
         {
@@ -322,12 +330,12 @@ public sealed partial class LuaToCSharpGenerator
             return GeneratedScriptKind.Monster;
         }
 
-        if (hasMain &&
-            (lowerUtf8.Contains("/npc/", StringComparison.Ordinal) ||
-             lowerUtf8.Contains("/职能npc/", StringComparison.Ordinal) ||
-             lowerUtf8.Contains("/路人npc/", StringComparison.Ordinal) ||
-             lowerUtf8.Contains("/对话npc/", StringComparison.Ordinal) ||
-             mapNpcs.Contains(utf8ScriptPath)))
+        bool isNpcPath = lowerUtf8.Contains("/npc/", StringComparison.Ordinal) ||
+                         lowerUtf8.Contains("/职能npc/", StringComparison.Ordinal) ||
+                         lowerUtf8.Contains("/路人npc/", StringComparison.Ordinal) ||
+                         lowerUtf8.Contains("/对话npc/", StringComparison.Ordinal);
+        if ((hasMain && (isNpcPath || mapNpcs.Contains(utf8ScriptPath))) ||
+            (!hasOnDeath && mapNpcs.Contains(utf8ScriptPath)))
         {
             return GeneratedScriptKind.Npc;
         }
