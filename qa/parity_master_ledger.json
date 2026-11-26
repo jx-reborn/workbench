@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "updated_at_utc": "2026-11-26T16:57:50.248367+00:00",
+  "updated_at_utc": "2026-11-26T18:25:19.535553+00:00",
   "overall": {
     "total_items": 231,
     "zero_drift_locked": 11,
@@ -1156,6 +1156,17 @@
           "gate2_unit_sim": true,
           "gate3_wire_capture": true,
           "gate4_live_proxy": true
+        },
+        "locked_evidence": {
+          "verified_at_utc": "2026-11-26T18:24:50.533958+00:00",
+          "gate1_static_scenario_sha256": "8a1e1af5b6fed3213d301eecd00f1b567cdeb03a41beaf005df55e8594de1ca1",
+          "gate2_dotnet_test_passed": true,
+          "gate2_test_project": "workbench/qa/JXReborn.WireParityProxy.Tests/JXReborn.WireParityProxy.Tests.csproj",
+          "gate2_test_filter": "FullyQualifiedName~WireParityScenarioAndPathfinderTests",
+          "gate4_report_path": "workbench/artifacts/scenario-runs/053/wf-iter-1/scenario-report.json",
+          "gate4_report_sha256": "9260c08af1fa38a2bc9083f1e6db8921d87bd18d0f5fc9103b2dada8a119b46b",
+          "gate4_steps_passed": 216,
+          "gate4_warning_findings": 368
         }
       },
       {

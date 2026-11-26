@@ -79,8 +79,12 @@ FRAMEWORK_INCLUDE_PREFIXES = (
     "script/vng_lib/",
     "script/class/",
     "script/ui/",
+    "script/misc/",
     "script/activitysys/functionlib.lua",
     "script/activitysys/playerfunlib.lua",
+    "script/activitysys/g_activity.lua",
+    "script/activitysys/npcfunlib.lua",
+    "script/activitysys/npcdailog.lua",
     "script/task/system/task_string.lua",
 )
 

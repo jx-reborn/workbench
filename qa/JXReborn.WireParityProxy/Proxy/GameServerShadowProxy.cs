@@ -74,8 +74,20 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
             ? parsed
             : IPAddress.Loopback;
 
-        _listener = new TcpListener(bindIp, _options.GameServerListenPort);
-        _listener.Start();
+        var candidate = new TcpListener(bindIp, _options.GameServerListenPort);
+        try
+        {
+            candidate.Start();
+            _listener = candidate;
+        }
+        catch (SocketException) when (_options.GameServerListenPort > 0 && !_options.HasExplicitGameServerPort)
+        {
+            candidate.Stop();
+            var fallback = new TcpListener(bindIp, 0);
+            fallback.Start();
+            _listener = fallback;
+        }
+
         _boundPort = ((IPEndPoint)_listener.LocalEndpoint).Port;
         _acceptLoop = Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
     }

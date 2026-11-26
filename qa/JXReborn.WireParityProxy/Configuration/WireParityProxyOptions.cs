@@ -75,6 +75,12 @@ public sealed class WireParityProxyOptions
 
     public bool KeepAliveAfterScenario { get; set; }
 
+    internal bool HasExplicitBishopPort { get; set; }
+
+    internal bool HasExplicitGameServerPort { get; set; }
+
+    internal bool HasExplicitDashboardPort { get; set; }
+
     public string PrimaryBackendName => SwapPrimary ? "reborn-server" : "legacy-linux";
 
     public string ShadowBackendName => SwapPrimary ? "legacy-linux" : "reborn-server";
@@ -127,6 +133,7 @@ public sealed class WireParityProxyOptions
                     if (int.TryParse(Next(), out int bishopPort))
                     {
                         options.BishopListenPort = bishopPort;
+                        options.HasExplicitBishopPort = true;
                     }
 
                     break;
@@ -134,6 +141,7 @@ public sealed class WireParityProxyOptions
                     if (int.TryParse(Next(), out int gsPort))
                     {
                         options.GameServerListenPort = gsPort;
+                        options.HasExplicitGameServerPort = true;
                     }
 
                     break;
@@ -141,6 +149,7 @@ public sealed class WireParityProxyOptions
                     if (int.TryParse(Next(), out int dashPort))
                     {
                         options.DashboardPort = dashPort;
+                        options.HasExplicitDashboardPort = true;
                     }
 
                     break;
@@ -258,6 +267,24 @@ public sealed class WireParityProxyOptions
 
             options.InteractiveWindow = false;
             options.OpenBrowserOnStandalone = false;
+
+            if (!options.KeepAliveAfterScenario)
+            {
+                if (!options.HasExplicitDashboardPort)
+                {
+                    options.DashboardPort = 0;
+                }
+
+                if (!options.HasExplicitBishopPort)
+                {
+                    options.BishopListenPort = 0;
+                }
+
+                if (!options.HasExplicitGameServerPort)
+                {
+                    options.GameServerListenPort = 0;
+                }
+            }
         }
 
         return options;

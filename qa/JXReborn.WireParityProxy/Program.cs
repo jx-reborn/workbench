@@ -68,35 +68,65 @@ try
         logOut.WriteLine("[WireParityProxy] Single game.exe + driver attached.");
     }
 
-    string dashboardUrl = $"http://{options.BindHost}:{options.DashboardPort}";
-    WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-    builder.WebHost.UseUrls(dashboardUrl);
-    builder.Logging.SetMinimumLevel(LogLevel.Warning);
+    WebApplication BuildWebApp(int dashboardPort)
+    {
+        WebApplicationBuilder webBuilder = WebApplication.CreateBuilder(args);
+        webBuilder.WebHost.UseUrls($"http://{options.BindHost}:{dashboardPort}");
+        webBuilder.Logging.SetMinimumLevel(LogLevel.Warning);
 
-    var mcpDispatcher = new WireParityMcpToolDispatcher(
-        options,
-        bishopProxy,
-        gameServerProxy,
-        driverBridge,
-        globalFindings,
-        standalone);
+        var dispatcher = new WireParityMcpToolDispatcher(
+            options,
+            bishopProxy,
+            gameServerProxy,
+            driverBridge,
+            globalFindings,
+            standalone);
 
-    WebApplication app = builder.Build();
-    WireParityDashboardEndpoints.Map(app, options, bishopProxy, gameServerProxy, globalFindings, standalone, mcpDispatcher);
+        WebApplication builtApp = webBuilder.Build();
+        WireParityDashboardEndpoints.Map(builtApp, options, bishopProxy, gameServerProxy, globalFindings, standalone, dispatcher);
+        return builtApp;
+    }
 
-    logOut.WriteLine($"[WireParityProxy] Dashboard  : {dashboardUrl}");
+    async Task<(WebApplication App, WireParityMcpToolDispatcher Dispatcher, string Url)> StartDashboardAsync()
+    {
+        int targetPort = options.DashboardPort;
+        WebApplication candidateApp = BuildWebApp(targetPort);
+        try
+        {
+            await candidateApp.StartAsync();
+        }
+        catch (IOException) when (targetPort > 0 && !options.HasExplicitDashboardPort)
+        {
+            await candidateApp.DisposeAsync();
+            candidateApp = BuildWebApp(0);
+            await candidateApp.StartAsync();
+        }
+
+        string resolvedUrl = candidateApp.Urls.FirstOrDefault() ?? $"http://{options.BindHost}:{targetPort}";
+        var resolvedDispatcher = new WireParityMcpToolDispatcher(
+            options,
+            bishopProxy,
+            gameServerProxy,
+            driverBridge,
+            globalFindings,
+            standalone);
+        return (candidateApp, resolvedDispatcher, resolvedUrl);
+    }
 
     if (options.McpMode)
     {
-        await app.StartAsync();
+        var (app, mcpDispatcher, dashboardUrl) = await StartDashboardAsync();
+        logOut.WriteLine($"[WireParityProxy] Dashboard  : {dashboardUrl}");
         var mcpHost = new WireParityMcpStdioHost(mcpDispatcher);
         logOut.WriteLine("[WireParityProxy] MCP stdio server ready.");
         await mcpHost.RunAsync(Console.In, Console.Out);
         await app.StopAsync();
+        await app.DisposeAsync();
     }
     else if (!string.IsNullOrWhiteSpace(options.ScenarioPath))
     {
-        await app.StartAsync();
+        var (app, _, dashboardUrl) = await StartDashboardAsync();
+        logOut.WriteLine($"[WireParityProxy] Dashboard  : {dashboardUrl}");
         string fullScenarioPath = Path.GetFullPath(options.ScenarioPath);
         string scenarioJson = await File.ReadAllTextAsync(fullScenarioPath);
         WireParityScenario scenario = JsonSerializer.Deserialize<WireParityScenario>(scenarioJson)
@@ -123,6 +153,7 @@ try
         else
         {
             await app.StopAsync();
+            await app.DisposeAsync();
             if (runReport.StepFailures > 0)
             {
                 Environment.ExitCode = 1;
@@ -131,13 +162,16 @@ try
     }
     else
     {
+        var (app, _, dashboardUrl) = await StartDashboardAsync();
+        logOut.WriteLine($"[WireParityProxy] Dashboard  : {dashboardUrl}");
         logOut.WriteLine("[WireParityProxy] Press Ctrl+C to stop, export reports, and clean up.");
         if (options.StandaloneMode && options.OpenBrowserOnStandalone && options.InteractiveWindow)
         {
             TryOpenBrowser(dashboardUrl);
         }
 
-        await app.RunAsync();
+        await app.WaitForShutdownAsync();
+        await app.DisposeAsync();
     }
 }
 finally

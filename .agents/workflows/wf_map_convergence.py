@@ -18,6 +18,8 @@ Orchestrates isolated Worker Agents through 5 mechanical gates:
 import asyncio
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -95,7 +97,17 @@ def find_map_scenario(mid: int) -> Path | None:
     return matches[0] if matches else None
 
 
-def analyze_run_findings(run_dir: Path) -> dict:
+def load_map_inventory_lines(mid: int) -> list[tuple[int, int, str]]:
+    _, inv_text = run_cmd([PY, str(AUDIT_MAP_PY), "inventory", "--map", str(mid)])
+    pts: list[tuple[int, int, str]] = []
+    for ln in inv_text.splitlines():
+        m = re.search(r"\((\d+)\s*,\s*(\d+)\)", ln)
+        if m:
+            pts.append((int(m.group(1)), int(m.group(2)), ln.strip()))
+    return pts
+
+
+def analyze_run_findings(run_dir: Path, mid: int = 0) -> dict:
     report_path = run_dir / "scenario-report.json"
     if not report_path.is_file():
         return {"valid": False, "reason": f"Missing {report_path}"}
@@ -148,6 +160,16 @@ def analyze_run_findings(run_dir: Path) -> dict:
     ]
 
     sorted_clusters = sorted(clusters.values(), key=lambda c: (-c["count"], c["cluster_key"]))
+    if sorted_clusters and mid > 0:
+        inv_pts = load_map_inventory_lines(mid)
+        for cl in sorted_clusters[:8]:
+            repro = cl.get("repro") or {}
+            ppos = repro.get("playerPos") if isinstance(repro, dict) else None
+            if isinstance(ppos, list) and len(ppos) == 2 and inv_pts:
+                tx, ty = int(ppos[0]) // 32, int(ppos[1]) // 32
+                ranked = sorted(inv_pts, key=lambda it: (it[0] - tx) ** 2 + (it[1] - ty) ** 2)[:5]
+                cl["player_tile"] = [tx, ty]
+                cl["nearest_ground_truth_entities"] = [r[2] for r in ranked]
     return {
         "valid": True,
         "report_path": str(report_path),
@@ -219,7 +241,7 @@ runs_root = WORKBENCH / "artifacts" / "scenario-runs" / f"{map_id:03d}"
 
 if reuse_existing_clean_run and runs_root.is_dir():
     for cand in sorted(runs_root.rglob("scenario-report.json"), key=lambda p: p.stat().st_mtime, reverse=True):
-        cand_analysis = analyze_run_findings(cand.parent)
+        cand_analysis = analyze_run_findings(cand.parent, map_id)
         if (
             cand_analysis["valid"]
             and cand_analysis["total_steps"] > 0
@@ -236,10 +258,13 @@ if not dry_run_gates_only and latest_analysis is None:
     for iteration in range(1, max_fix_iterations + 1):
         phase(f"Phase 2 (Iter {iteration}): Live T=0 Dual-Run Map {map_id:03d}")
         iter_dir = runs_root / f"wf-iter-{iteration}"
+        if iter_dir.exists():
+            shutil.rmtree(iter_dir, ignore_errors=True)
         iter_dir.mkdir(parents=True, exist_ok=True)
 
-        # Clean ONLY sandbox container `legacy-oracle-test` for deterministic T=0 state
+        # Clean ONLY sandbox container `legacy-oracle-test` + volume `legacy-oracle-test-v1` for deterministic T=0 state
         run_cmd(["wslc", "remove", "-f", "legacy-oracle-test"])
+        run_cmd(["wslc", "volume", "remove", "legacy-oracle-test-v1"])
 
         proxy_cmd = [
             "dotnet",
@@ -257,8 +282,13 @@ if not dry_run_gates_only and latest_analysis is None:
         ]
         p_code, p_out = run_cmd(proxy_cmd, cwd=WORKBENCH)
         run_cmd(["wslc", "remove", "-f", "legacy-oracle-test"])
+        run_cmd(["wslc", "volume", "remove", "legacy-oracle-test-v1"])
 
-        latest_analysis = analyze_run_findings(iter_dir)
+        latest_analysis = analyze_run_findings(iter_dir, map_id)
+        if not latest_analysis.get("valid"):
+            raise RuntimeError(
+                f"WireParityProxy failed to produce scenario-report.json (exit={p_code}):\n{p_out[-4000:]}"
+            )
         log(
             f"Iter {iteration} Result: steps={latest_analysis.get('passed_steps')}/{latest_analysis.get('total_steps')}, "
             f"stepFailures={latest_analysis.get('step_failures')}, protoViolations={latest_analysis.get('protocol_violations')}, "
@@ -404,6 +434,14 @@ if not dry_run_gates_only and latest_analysis is None:
             if g_code != 0:
                 raise RuntimeError(f"Double-Blind Holdout GREEN Gate FAILED:\n{g_out}")
             log(f"[Double-Blind Holdout GREEN Verified] {red_plan['test_filter']} passed cleanly.")
+
+            # Always rebuild `pack-tieudaotu/dist/server/` (`server.pack` + `scripts/JXReborn.Packs.TieuDaoTu.dll`)
+            # before the next live standalone run so C# script and JSON data fixes take effect immediately.
+            pc_proj = SERVER / "tools" / "JXReborn.PackCompiler" / "JXReborn.PackCompiler.csproj"
+            pc_code, pc_out = run_cmd(["dotnet", "run", "--project", str(pc_proj), "--", "--pack", str(PACK)])
+            if pc_code != 0:
+                raise RuntimeError(f"PackCompiler rebuild failed after Phase 4:\n{pc_out}")
+            log("[PackCompiler] Rebuilt server.pack and script layer DLL.")
         finally:
             set_tdd_phase(None)
 

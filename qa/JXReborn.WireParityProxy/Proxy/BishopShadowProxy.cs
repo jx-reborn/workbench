@@ -72,8 +72,20 @@ public sealed class BishopShadowProxy : IAsyncDisposable
             ? parsed
             : IPAddress.Loopback;
 
-        _listener = new TcpListener(bindIp, _options.BishopListenPort);
-        _listener.Start();
+        var candidate = new TcpListener(bindIp, _options.BishopListenPort);
+        try
+        {
+            candidate.Start();
+            _listener = candidate;
+        }
+        catch (SocketException) when (_options.BishopListenPort > 0 && !_options.HasExplicitBishopPort)
+        {
+            candidate.Stop();
+            var fallback = new TcpListener(bindIp, 0);
+            fallback.Start();
+            _listener = fallback;
+        }
+
         _boundPort = ((IPEndPoint)_listener.LocalEndpoint).Port;
         _acceptLoop = Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
     }
