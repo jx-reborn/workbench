@@ -22,3 +22,7 @@ trigger: always_on
 7. **Quy Chuẩn Đặt Tên & Cấu Trúc Test `.NET / xUnit`**:
    - Tuân thủ `1 type / file`, `sealed` concrete test class, đặt trong thư mục con số nhiều theo domain (không đặt ở thư mục gốc của `.Tests.csproj`).
    - Tên hàm `[Fact]` / `[Theory]` bắt buộc theo mẫu `<Subject>_<Condition>_Should<ExpectedOutcome>` và không chứa các từ khóa tiến trình bị cấm (`Spec\d+`, `Phase\d+`, `Adversarial`, `Challenger`, `Empirical`, `RegressionTests`, `DomainTests`).
+8. **Cô Lập Mù Đôi Giữa QA và Coder (Double-Blind Clean-Room & Holdout Isolation)**:
+   - Trong các workflow đa Agent, QA (người viết test) và Coder (người viết code sản xuất) chỉ giao tiếp qua **Clean-Room Spec** và **Public Interfaces/Contracts** (`Primitives`, `Contracts`, `IScriptDialogContext`, chữ ký interface):
+     - **Blind QA**: Cấm đọc phần thân cài đặt sản xuất (`src/`) khi thiết kế kỳ vọng test (tránh thiên kiến xác nhận theo bug có sẵn của Coder).
+     - **Blind Coder**: Cấm đọc `legacy-server/`, `legacy-client/`, `*.capture.json`, `*.oracle.json`, và cấm đọc mã nguồn bài test Holdout của QA (bài test mới phải được cất vào Holdout Vault ngoài workspace trong suốt pha `GREEN`; nếu trượt chỉ trả về triệu chứng hành vi đã lọc bỏ giá trị `Expected` cụ thể để chống học tủ / hardcode theo đề thi).

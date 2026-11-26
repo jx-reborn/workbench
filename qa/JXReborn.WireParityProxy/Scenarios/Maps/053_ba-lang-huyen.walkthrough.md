@@ -74,12 +74,13 @@ Do `gm_set_level` chỉ tăng cấp một chiều, kịch bản chia tách chặ
 
 ## 6. `Open Gaps` & Kết quả Kiểm chứng Live E2E `T=0`
 
-### Kết quả thực thi Live E2E (`wpp-20261123-104859-3262f3`)
+### Kết quả thực thi Live E2E & Hội tụ Parity (`mui3-zero-crit-verified` / `wpp-20261124-141509-a8bf70`)
 - **Kiểm toán tĩnh (`audit_map_scenario.py audit --strict`)**: `PASS` — `39/39` `DialogNPCs`, `11/11` `MapObjects`, `8/8` `Traps`, `3/3` nhóm `ScriptedMonsters`, `0` lỗ hổng địa hình / biên `3x3 Region AOI` / nhánh trạng thái & giao dịch.
-- **Thực thi Live E2E `T=0` ([scenario-report.json](../../../../artifacts/scenario-runs/053/scenario-report.json))**:
+- **Thực thi Live E2E `T=0` ([scenario-report.json](../../../../artifacts/scenario-runs/053/mui3-zero-crit-verified/scenario-report.json))**:
   - `TotalSteps`: **216/216 `OK`** (`StepFailures = 0`, `ProtocolViolations = 0`)
   - `LSIM / Checksum Errors`: **0**
-  - `Parity Findings`: **2.588** (`2.228` Critical, `360` Warning) cùng **658** gói `captures/*.capture.json` phục vụ phân tích sửa lỗi parity.
+  - `Critical Findings`: **`0`** (giảm từ `2.228` Critical ở lần đo baseline `wpp-20261123-104859-3262f3` về **`0`**; `356` Warning còn lại đều là gói AOI tuần tra bất đồng bộ và biến thiên ngẫu nhiên hợp lệ `.RandomPool` / `.AmbientCombatVariance`).
+  - `Parity Master Ledger`: Đã kiểm chứng đủ 4 Cổng qua `wf_map_convergence.py` và khóa **`zero_drift_locked`** (`maps_world::map_053`).
 
 ### Open Gaps (Ngoài phạm vi chạy E2E thời gian thực)
 - **Nhánh chờ Timer 1 giờ của Ông chủ tửu điếm (`Task 38` Byte 1 = `40 -> 60 -> 80` qua `SetTimer` + `tw_ontime.lua`)**: Kịch bản E2E đã kiểm chứng bước chuyển `20 -> 40`; phần nộp 3 dược liệu `(116, 135, 144)` từ Vũ Lăng Sơn và chờ hết bộ đếm thời gian `GetRestSec(1)` phù hợp kiểm chứng ở tầng `ZoneSimulationHarness` (L2) với đồng hồ tua nhanh thay vì chờ 1 giờ thực.

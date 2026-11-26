@@ -1,0 +1,5103 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at_utc": "2026-11-26T14:49:14.041083+00:00",
+  "overall": {
+    "total_items": 231,
+    "zero_drift_locked": 11,
+    "completion_percent": 4.76,
+    "script_corpus_metrics": {
+      "total_active_lua_files": null,
+      "accounted_lua_files": 3545,
+      "unaccounted_lua_files": 3615,
+      "broken_script_paths": 0
+    }
+  },
+  "summary": {
+    "engine_mechanics": {
+      "pending": 3,
+      "ground_truth_extracted": 2,
+      "scenario_audited": 48,
+      "in_tdd_fix": 0,
+      "zero_drift_locked": 1,
+      "total": 54
+    },
+    "maps_world": {
+      "pending": 134,
+      "ground_truth_extracted": 0,
+      "scenario_audited": 0,
+      "in_tdd_fix": 1,
+      "zero_drift_locked": 1,
+      "total": 136
+    },
+    "factions_skills": {
+      "pending": 0,
+      "ground_truth_extracted": 9,
+      "scenario_audited": 1,
+      "in_tdd_fix": 0,
+      "zero_drift_locked": 0,
+      "total": 10
+    },
+    "quests_items_events": {
+      "pending": 10,
+      "ground_truth_extracted": 0,
+      "scenario_audited": 8,
+      "in_tdd_fix": 4,
+      "zero_drift_locked": 9,
+      "total": 31
+    }
+  },
+  "domains": {
+    "engine_mechanics": [
+      {
+        "id": "combat.damage.energy_damage",
+        "title": "combat.damage.energy_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.energy_damage.json (KNpc::GetEngergyDamage @ 0x080927e0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.player.get_energy_damage",
+        "title": "combat.player.get_energy_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/player/KPlayer_GetEngergyDamage.cpp (KPlayer::GetEngergyDamage @ 0x080bf2a0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs",
+          "src/JXReborn.ZoneEngine/PlayerSessions/PlayerZoneState.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.physics_attrib_damage",
+        "title": "combat.damage.physics_attrib_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.physics_attrib_damage.json (KNpc::CalcPhysicsAttribDamage @ 0x080925f0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.player.get_weapon_enhance",
+        "title": "combat.player.get_weapon_enhance",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/player/KPlayer_GetWeaponEnhance.cpp (KPlayer::GetWeaponEnhance @ 0x080c3bb0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.cold_attrib_damage",
+        "title": "combat.damage.cold_attrib_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.cold_attrib_damage.json (KNpc::CalcColdAttribDamage @ 0x08092810)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.fire_attrib_damage",
+        "title": "combat.damage.fire_attrib_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.fire_attrib_damage.json (KNpc::CalcFireAttribDamage @ 0x08092c10)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.light_attrib_damage",
+        "title": "combat.damage.light_attrib_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.light_attrib_damage.json (KNpc::CalcLightAttribDamage @ 0x08092960)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.poison_attrib_damage",
+        "title": "combat.damage.poison_attrib_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.poison_attrib_damage.json (KNpc::CalcPoisonAttribDamage @ 0x08092a90)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.mix_poison_damage",
+        "title": "combat.damage.mix_poison_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/KNpcAttribModify_MixPoisonDamage.cpp (KNpcAttribModify::MixPoisonDamage @ 0x080b07f0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.weapon_damage",
+        "title": "combat.damage.weapon_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.weapon_damage.json (KItemList::GetWeaponDamage @ 0x08077d70)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs",
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.calc_cur_res",
+        "title": "combat.damage.calc_cur_res",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/KNpc_CalcCurRes.cpp (KNpc::CalcCurRes @ 0x08090320)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.modify_all_max_res",
+        "title": "combat.damage.modify_all_max_res",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/KNpc_ModifyAllMaxRes.cpp (KNpc::ModifyAllMaxRes @ 0x08091b90)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.resistance_and_mitigation",
+        "title": "combat.damage.resistance_and_mitigation",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.resistance_and_mitigation.json (KNpc::CalcDamage @ 0x0809e790)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.damage.shields_and_return_damage",
+        "title": "combat.damage.shields_and_return_damage",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/damage/combat.damage.shields_and_return_damage.json (KNpc::CalcDamage @ 0x0809e790)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.hit_check.check_hit_target",
+        "title": "combat.hit_check.check_hit_target",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/hit_check/KNpc_CheckHitTarget.cpp (KNpc::CheckHitTarget @ 0x080951b0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.state.do_hurt",
+        "title": "combat.state.do_hurt",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/state/KNpc_DoHurt.cpp (KNpc::DoHurt @ 0x08099270)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.receive_damage.block_and_enhance_hit",
+        "title": "combat.receive_damage.block_and_enhance_hit",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/receive_damage/KNpc_ReceiveDamage_BlockAndEnhanceHit.cpp (KNpc::ReceiveDamage @ 0x080a1dd0 Part 1)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.receive_damage.series_conquer_and_hit_check",
+        "title": "combat.receive_damage.series_conquer_and_hit_check",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/receive_damage/KNpc_ReceiveDamage_SeriesConquerAndHitCheck.cpp (KNpc::ReceiveDamage @ 0x080a1dd0 Part 2)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.receive_damage.elemental_damage_pipeline",
+        "title": "combat.receive_damage.elemental_damage_pipeline",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/receive_damage/KNpc_ReceiveDamage_ElementalDamagePipeline.cpp (KNpc::ReceiveDamage @ 0x080a1dd0 Part 3)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.receive_damage.leech_knockback_fatally_stun",
+        "title": "combat.receive_damage.leech_knockback_fatally_stun",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/receive_damage/KNpc_ReceiveDamage_LeechKnockBackFatallyStun.cpp (KNpc::ReceiveDamage @ 0x080a1dd0 Part 4)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Resolution.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.state.add_poison_state",
+        "title": "combat.state.add_poison_state",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/state/KNpc_AddPoisonState.cpp (KNpc::AddPoisonState @ 0x08091c10)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityStatusEffectState.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.death_pk_abrade.knpc_deathpunish_player_exp_and_money",
+        "title": "combat.death_pk_abrade.knpc_deathpunish_player_exp_and_money",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/combat/death_pk_abrade/KNpc_DeathPunish_PlayerExpAndMoney.cpp (KNpc::DeathPunish @ 0x08098140)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/PvpDeathPenaltyCalculator.cs",
+          "src/JXReborn.ZoneEngine/WorldZones/MapZoneWorker.Combat.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDeathLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_physics_damage_v",
+        "title": "attrib_modify.add_physics_damage_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (KNpcAttribModify::AddPhysicsDamageV @ 0x080ae7f0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Combat/CombatDamageCalculator.Payloads.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_cold_damage_v",
+        "title": "attrib_modify.add_cold_damage_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (KNpcAttribModify::AddColdDamageV @ 0x080ae930)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_fire_damage_v",
+        "title": "attrib_modify.add_fire_damage_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (KNpcAttribModify::AddFireDamageV @ 0x080ae8f0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_lighting_damage_v",
+        "title": "attrib_modify.add_lighting_damage_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (KNpcAttribModify::AddLightingDamageV @ 0x080ae8b0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_poison_damage_v",
+        "title": "attrib_modify.add_poison_damage_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (KNpcAttribModify::AddPoisonDamageV @ 0x080ae820)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_poison_magic_v",
+        "title": "attrib_modify.add_poison_magic_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (KNpcAttribModify::AddPoisonMagicV @ 0x080ad680)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_elemental_magic_v",
+        "title": "attrib_modify.add_elemental_magic_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (AddPhysicsMagicV @ 0x080ad710, AddColdMagicV @ 0x080ad7d0, AddFireMagicV @ 0x080ad790, AddLightingMagicV @ 0x080ad750)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.static_magic_shield_v",
+        "title": "attrib_modify.static_magic_shield_v",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_ShieldsAndReturns.cpp (KNpcAttribModify::StaticMagicShieldV @ 0x080acfe0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Items/PlayerInventoryGrid.EquipmentStats.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.static_magic_shield_p",
+        "title": "attrib_modify.static_magic_shield_p",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_ShieldsAndReturns.cpp (KNpcAttribModify::StaticMagicShieldP @ 0x080b1000)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs",
+          "src/JXReborn.ZoneEngine/Combat/SkillStateEffectApplier.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/AttribModifyLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.add_physics_damage_p",
+        "title": "attrib_modify.add_physics_damage_p",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_DamageAndAttack.cpp (KNpcAttribModify::AddPhysicsDamageP @ 0x080b18a0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/EntityCombatModifiers.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatDamageLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "attrib_modify.sorb_damage_p_and_yan_p",
+        "title": "attrib_modify.sorb_damage_p_and_yan_p",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/attrib_modify/KNpcAttribModify_ShieldsAndReturns.cpp (SorbDamageP @ 0x080acf80, SorbDamageYanP @ 0x080acc90)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/PlayerSessions/PlayerZoneState.cs",
+          "src/JXReborn.ZoneEngine/NpcEntities/NpcZoneState.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/CombatResolutionLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "items.kitemlist_sync_item_bind_state",
+        "title": "items.kitemlist_sync_item_bind_state",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "ground_truth_extracted",
+        "legacy_ref": "discovery/Items/KItemList_SyncAndInventory.cpp (KItemList::SyncItemBindState @ 0x08076390)",
+        "server_files": [
+          "src/JXReborn.Adapter.Legacy/Packets/SyncItemBindStateS2CPacket.cs"
+        ],
+        "test_files": [],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.death.killed_by_npc",
+        "title": "combat.death.killed_by_npc",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "pending",
+        "legacy_ref": "discovery/combat/death/KNpc_KilledByNpc.cpp (KNpc::KilledByNpc @ 0x0809e460)",
+        "server_files": [],
+        "test_files": [],
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "combat.death_pk_abrade.kitemlist_abrade",
+        "title": "combat.death_pk_abrade.kitemlist_abrade",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "ground_truth_extracted",
+        "legacy_ref": "discovery/combat/death_pk_abrade/KItemList_Abrade.cpp (KItemList::Abrade @ 0x0807d830)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Items/EquipmentAbrasionCalculator.cs"
+        ],
+        "test_files": [],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "npc_ai_path_sync.knpcfindpath_checkbarrier",
+        "title": "npc_ai_path_sync.knpcfindpath_checkbarrier",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "pending",
+        "legacy_ref": "discovery/npc_ai_path_sync/KNpcFindPath_CheckAndDirect.cpp (KNpcFindPath::CheckBarrier @ 0x080b30f0)",
+        "server_files": [],
+        "test_files": [],
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "npc_ai_path_sync.knpcfindpath_getdir_obstacle_wall_follow",
+        "title": "npc_ai_path_sync.knpcfindpath_getdir_obstacle_wall_follow",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "pending",
+        "legacy_ref": "discovery/npc_ai_path_sync/KNpcFindPath_GetDir_ObstacleWallFollow.cpp (KNpcFindPath::GetDir @ 0x080b3170)",
+        "server_files": [],
+        "test_files": [],
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kskill_castzone_circle_clip",
+        "title": "traps.kskill_castzone_circle_clip",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KSkill_CastZone.cpp (KSkill::CastZone @ 0x08107340)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kskill_castzone_grid_origin",
+        "title": "traps.kskill_castzone_grid_origin",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KSkill_CastZone.cpp (KSkill::CastZone @ 0x08107340)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kmissle_activate_launcher_left_map",
+        "title": "traps.kmissle_activate_launcher_left_map",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KMissle_TrapLifecycleAndCollision.cpp (KMissle::Activate @ 0x0808de30)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.TickAndSpawns.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kmissle_activate_autoexplode_collide_event",
+        "title": "traps.kmissle_activate_autoexplode_collide_event",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KMissle_TrapLifecycleAndCollision.cpp (KMissle::Activate @ 0x0808de30) & KMissle_StepFlyAndNearestCollision.cpp (KMissle::StepFly @ 0x0808cbd0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.TickAndSpawns.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kmissle_processcollision_damage_interval_boundary",
+        "title": "traps.kmissle_processcollision_damage_interval_boundary",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KMissle_TrapLifecycleAndCollision.cpp (KMissle::ProcessCollision @ 0x0808c950) & KMissle_PrePareFlyAndOnFly.cpp (KMissle::OnFly @ 0x0808d8e0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.Collision.cs",
+          "src/JXReborn.ZoneEngine/Combat/ActiveMissileSlot.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kmissle_onfly_stand_recollision",
+        "title": "traps.kmissle_onfly_stand_recollision",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KMissle_PrePareFlyAndOnFly.cpp (KMissle::OnFly @ 0x0808d8e0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/ActiveMissileSlot.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kregion_loadservertrap_bounds",
+        "title": "traps.kregion_loadservertrap_bounds",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KRegion_MapTraps.cpp (KRegion::LoadServerTrap @ 0x080fa780)",
+        "server_files": [
+          "src/JXReborn.GameAssets/WorldMaps/RegionTrapGrid.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/WorldZones/MapTrapLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kregion_dynamic_map_traps",
+        "title": "traps.kregion_dynamic_map_traps",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KRegion_MapTraps.cpp (KRegion::AddTrap @ 0x080fad40, DelTrap @ 0x080faca0, GetTrap @ 0x080fa6e0, ClearAllTrap @ 0x080facf0, GetTrapCount @ 0x080f8d50)",
+        "server_files": [
+          "src/JXReborn.GameAssets/WorldMaps/RegionTrapGrid.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/WorldZones/MapTrapLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.knpc_checktrap_latching",
+        "title": "traps.knpc_checktrap_latching",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "zero_drift_locked",
+        "legacy_ref": "discovery/traps/KNpc_And_KObj_Traps.cpp (KNpc::CheckTrap @ 0x08093770)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/WorldZones/MapZoneWorker.Movement.cs",
+          "src/JXReborn.ZoneEngine/WorldZones/MapZoneWorker.Combat.cs",
+          "src/JXReborn.ZoneEngine/WorldZones/MapZoneWorker.Session.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/WorldZones/NpcCheckTrapLatchingParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        },
+        "locked_evidence": {
+          "verified_at_utc": "2026-11-26T14:48:47.214311+00:00",
+          "gate1_decompile_ref": "discovery/traps/KNpc_And_KObj_Traps.cpp (KNpc::CheckTrap @ 0x08093770)",
+          "gate2_dotnet_test_passed": true,
+          "gate2_test_project": "server/tests/JXReborn.ZoneEngine.Tests/JXReborn.ZoneEngine.Tests.csproj",
+          "gate2_test_filter": "FullyQualifiedName~NpcCheckTrapLatchingParityTests"
+        }
+      },
+      {
+        "id": "traps.kmissle_height_gate",
+        "title": "traps.kmissle_height_gate",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KMissle_TrapLifecycleAndCollision.cpp (KMissle::CheckCollision @ 0x0808ca60)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.TickAndSpawns.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kmissle_dovanish_silent_flag",
+        "title": "traps.kmissle_dovanish_silent_flag",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KMissle_TrapLifecycleAndCollision.cpp (KMissle::DoVanish @ 0x0808c540)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.TickAndSpawns.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kskill_onmissleevent_level_and_origin",
+        "title": "traps.kskill_onmissleevent_level_and_origin",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KSkill_MissleAttribsAndEvents.cpp (KSkill::OnMissleEvent @ 0x081057e0)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.Collision.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "traps.kmissle_dovanish_on_collide",
+        "title": "traps.kmissle_dovanish_on_collide",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/traps/KMissle_TrapLifecycleAndCollision.cpp (KMissle::DoCollision @ 0x0808c670)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/Combat/MissileSimulationTickSystem.Collision.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapAndMissileLegacyParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "data_loaders.npc.init_npc_base_and_level_data",
+        "title": "data_loaders.npc.init_npc_base_and_level_data",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/data_loaders/KNpcTemplate_InitNpcBaseData.cpp (0x080bb000) & KNpcTemplate_InitNpcLevelData.cpp (0x080b8fb0)",
+        "server_files": [
+          "src/JXReborn.GameAssets/Snapshots/GameAssetsSnapshotLoader.NpcsAndPlayers.cs",
+          "src/JXReborn.GameAssets/NpcTemplates/NpcCombatScalingTemplate.cs",
+          "src/JXReborn.ZoneEngine/NpcEntities/NpcZoneState.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.GameAssets.Tests/Snapshots/DataPipelineParityTests.cs",
+          "tests/JXReborn.GameAssets.Tests/NpcTemplates/NpcCombatScalingLegacyParityTests.cs",
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapCastAndNpcScalingParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "data_loaders.skill.can_cast_skill_range_bypass",
+        "title": "data_loaders.skill.can_cast_skill_range_bypass",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "discovery/data_loaders/KSkill_CanCastSkill.cpp (KSkill::CanCastSkill @ 0x08101010)",
+        "server_files": [
+          "src/JXReborn.ZoneEngine/WorldZones/MapZoneWorker.Combat.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.ZoneEngine.Tests/Combat/TrapCastAndNpcScalingParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "data_loaders.snapshot.stale_pack_schema_guard",
+        "title": "data_loaders.snapshot.stale_pack_schema_guard",
+        "wave": "wave0_binary_mechanics",
+        "priority": 5,
+        "status": "scenario_audited",
+        "legacy_ref": "JXReborn Tier 2 MemoryPack SchemaVersion + SHA256 guard",
+        "server_files": [
+          "src/JXReborn.GameAssets/Snapshots/GameAssetsSnapshotLoader.cs"
+        ],
+        "test_files": [
+          "tests/JXReborn.GameAssets.Tests/Snapshots/DataPipelineParityTests.cs"
+        ],
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      }
+    ],
+    "maps_world": [
+      {
+        "id": "map_053",
+        "map_id": 53,
+        "name": "Ba Lăng huyện",
+        "legacy_dir": "两湖区\\巴陵县",
+        "wave": "wave1_starter_villages",
+        "priority": 10,
+        "status": "zero_drift_locked",
+        "evidence": {
+          "scenario_path": "workbench/qa/JXReborn.WireParityProxy/Scenarios/Maps/053_ba-lang-huyen.scenario.json",
+          "walkthrough_path": "workbench/qa/JXReborn.WireParityProxy/Scenarios/Maps/053_ba-lang-huyen.walkthrough.md",
+          "latest_run_report": "workbench/artifacts/scenario-runs/053/mui3-zero-crit-verified/scenario-report.json",
+          "step_failures": 0,
+          "critical_findings": 0,
+          "warning_findings": 356,
+          "protocol_violations": 0,
+          "verified_at_utc": "2026-11-26T09:19:43.171783+00:00",
+          "gate1_static_scenario_sha256": "8a1e1af5b6fed3213d301eecd00f1b567cdeb03a41beaf005df55e8594de1ca1",
+          "gate2_dotnet_test_passed": true,
+          "gate2_test_project": "workbench/qa/JXReborn.WireParityProxy.Tests/JXReborn.WireParityProxy.Tests.csproj",
+          "gate2_test_filter": "FullyQualifiedName~WireParityScenarioAndPathfinderTests",
+          "gate4_report_path": "workbench/artifacts/scenario-runs/053/mui3-zero-crit-verified/scenario-report.json",
+          "gate4_report_sha256": "6f23c17b3764bfd39260e4b12fa73bee2b32f294b46fc94812d524610f4b736b",
+          "gate4_steps_passed": 216,
+          "gate4_warning_findings": 356
+        },
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "map_057",
+        "map_id": 57,
+        "name": "Hoành Sơn đại đình",
+        "legacy_dir": "两湖区\\衡山派\\衡山大厅",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_078",
+        "map_id": 78,
+        "name": "Tương Dương",
+        "legacy_dir": "中原南区\\襄阳\\襄阳",
+        "wave": "wave2_major_cities",
+        "priority": 20,
+        "status": "in_tdd_fix",
+        "evidence": {
+          "scenario_path": "workbench/qa/JXReborn.WireParityProxy/Scenarios/Maps/078_tuong-duong.scenario.json",
+          "walkthrough_path": null,
+          "latest_run_report": "workbench/artifacts/scenario-runs/078/scenario-report.json",
+          "step_failures": 0,
+          "critical_findings": 6161,
+          "warning_findings": 949,
+          "protocol_violations": 0
+        },
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_079",
+        "map_id": 79,
+        "name": "Mật đạo Nha môn Tương Dương",
+        "legacy_dir": "中原南区\\襄阳\\襄阳城衙门秘道",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_080",
+        "map_id": 80,
+        "name": "Dương Châu",
+        "legacy_dir": "中原南区\\扬州",
+        "wave": "wave2_major_cities",
+        "priority": 20,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_081",
+        "map_id": 81,
+        "name": "Võ Đang phái",
+        "legacy_dir": "中原南区\\武当派\\武当派",
+        "wave": "wave3_sect_headquarters",
+        "priority": 30,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_082",
+        "map_id": 82,
+        "name": "Mê cung Đáy giếng",
+        "legacy_dir": "中原南区\\武当派\\井底迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_083",
+        "map_id": 83,
+        "name": "Hỏa Lang động",
+        "legacy_dir": "中原南区\\武当派\\火狼洞迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_084",
+        "map_id": 84,
+        "name": "Tử Tiêu đại điện",
+        "legacy_dir": "中原南区\\武当派\\紫霄大殿",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_085",
+        "map_id": 85,
+        "name": "Thập Phương điện",
+        "legacy_dir": "中原南区\\武当派\\十方殿",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_086",
+        "map_id": 86,
+        "name": "Phụ Mẫu điện",
+        "legacy_dir": "中原南区\\武当派\\父母殿",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_087",
+        "map_id": 87,
+        "name": "Long Hổ điện",
+        "legacy_dir": "中原南区\\武当派\\龙虎殿",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_088",
+        "map_id": 88,
+        "name": "Nhã thất 1",
+        "legacy_dir": "中原南区\\武当派\\雅室1",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_089",
+        "map_id": 89,
+        "name": "Nhã thất 2",
+        "legacy_dir": "中原南区\\武当派\\雅室2",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_090",
+        "map_id": 90,
+        "name": "Phục Ngưu Sơn Đông",
+        "legacy_dir": "中原南区\\伏牛山\\伏牛山东",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_091",
+        "map_id": 91,
+        "name": "Mê cung Kê Quán động",
+        "legacy_dir": "中原南区\\伏牛山\\鸡冠洞迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_092",
+        "map_id": 92,
+        "name": "Thục Cương sơn",
+        "legacy_dir": "中原南区\\蜀冈山\\蜀冈山",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_093",
+        "map_id": 93,
+        "name": "Tiến Cúc động",
+        "legacy_dir": "中原南区\\蜀冈山\\荐菊洞密宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_094",
+        "map_id": 94,
+        "name": "Linh Cốc động",
+        "legacy_dir": "中原南区\\蜀冈山\\灵谷洞密宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_101",
+        "map_id": 101,
+        "name": "Đạo Hương thôn",
+        "legacy_dir": "中原南区\\稻香村",
+        "wave": "wave1_starter_villages",
+        "priority": 10,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_102",
+        "map_id": 102,
+        "name": "Thánh động tầng 2",
+        "legacy_dir": "中原北区\\天忍教\\天忍教圣洞二层密室",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_103",
+        "map_id": 103,
+        "name": "Thiếu Lâm phái",
+        "legacy_dir": "中原北区\\少林派\\少林派",
+        "wave": "wave3_sect_headquarters",
+        "priority": 30,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_104",
+        "map_id": 104,
+        "name": "Tàng Kinh Các",
+        "legacy_dir": "中原北区\\少林派\\藏经阁",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_105",
+        "map_id": 105,
+        "name": "Đạt Ma Đường",
+        "legacy_dir": "中原北区\\少林派\\达摩堂",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_106",
+        "map_id": 106,
+        "name": "Đại Hùng bảo điện",
+        "legacy_dir": "中原北区\\少林派\\大雄宝殿",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_107",
+        "map_id": 107,
+        "name": "Thiếu Lâm Đệ tử phòng",
+        "legacy_dir": "中原北区\\少林派\\弟子房1",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_108",
+        "map_id": 108,
+        "name": "Thiếu Lâm Đệ tử phòng",
+        "legacy_dir": "中原北区\\少林派\\弟子房2",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_109",
+        "map_id": 109,
+        "name": "Phương trượng Thiền phòng",
+        "legacy_dir": "中原北区\\少林派\\方丈禅室",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_110",
+        "map_id": 110,
+        "name": "La Hán Đường",
+        "legacy_dir": "中原北区\\少林派\\罗汉堂",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_111",
+        "map_id": 111,
+        "name": "Mộc Nhân Hạng",
+        "legacy_dir": "中原北区\\少林派\\木人巷",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_112",
+        "map_id": 112,
+        "name": "Thiên Phật điện",
+        "legacy_dir": "中原北区\\少林派\\千佛殿",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_113",
+        "map_id": 113,
+        "name": "Mật thất Thiếu Lâm",
+        "legacy_dir": "中原北区\\少林派\\少林密室",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_114",
+        "map_id": 114,
+        "name": "108 La Hán trận",
+        "legacy_dir": "中原北区\\少林派\\一百零八罗汉阵",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_115",
+        "map_id": 115,
+        "name": "Cái Bang",
+        "legacy_dir": "中原南区\\丐帮\\丐帮",
+        "wave": "wave3_sect_headquarters",
+        "priority": 30,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_116",
+        "map_id": 116,
+        "name": "Tường Vân động tầng 1",
+        "legacy_dir": "中原南区\\丐帮\\地下迷宫一层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_117",
+        "map_id": 117,
+        "name": "Tường Vân động tầng 2",
+        "legacy_dir": "中原南区\\丐帮\\地下迷宫二层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_118",
+        "map_id": 118,
+        "name": "Tường Vân động tầng 3",
+        "legacy_dir": "中原南区\\丐帮\\地下迷宫三层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_119",
+        "map_id": 119,
+        "name": "Tường Vân động tầng 4",
+        "legacy_dir": "中原南区\\丐帮\\地下迷宫四层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_120",
+        "map_id": 120,
+        "name": "Tường Vân động tầng 5",
+        "legacy_dir": "中原南区\\丐帮\\地下迷宫五层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_122",
+        "map_id": 122,
+        "name": "Hoàng Hà Nguyên Đầu",
+        "legacy_dir": "西北北区\\黄河源头\\黄河源头",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_123",
+        "map_id": 123,
+        "name": "Lão Hổ động",
+        "legacy_dir": "西北北区\\黄河源头\\老虎洞迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_124",
+        "map_id": 124,
+        "name": "Cán Viên động",
+        "legacy_dir": "西北北区\\黄河源头\\轩辕洞迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_125",
+        "map_id": 125,
+        "name": "Lưu Tiên động tầng 1",
+        "legacy_dir": "西北北区\\黄河源头\\留仙洞一层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_126",
+        "map_id": 126,
+        "name": "Lưu Tiên động tầng 2",
+        "legacy_dir": "西北北区\\黄河源头\\留仙洞二层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_127",
+        "map_id": 127,
+        "name": "Lưu Tiên động tầng 3",
+        "legacy_dir": "西北北区\\黄河源头\\留仙洞三层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_128",
+        "map_id": 128,
+        "name": "Lưu Tiên động tầng 4",
+        "legacy_dir": "西北北区\\黄河源头\\留仙洞四层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_129",
+        "map_id": 129,
+        "name": "Lưu Tiên động tầng 5",
+        "legacy_dir": "西北北区\\黄河源头\\留仙洞五层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_130",
+        "map_id": 130,
+        "name": "Lưu Tiên động tầng 6",
+        "legacy_dir": "西北北区\\黄河源头\\留仙洞六层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_145",
+        "map_id": 145,
+        "name": "Tuyết Báo động tầng 1",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞一层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_146",
+        "map_id": 146,
+        "name": "Tuyết Báo động tầng 2",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞二层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_147",
+        "map_id": 147,
+        "name": "Tuyết Báo động tầng 3",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞三层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_148",
+        "map_id": 148,
+        "name": "Tuyết Báo động tầng 4",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞四层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_149",
+        "map_id": 149,
+        "name": "Tuyết Báo động tầng 5",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞五层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_150",
+        "map_id": 150,
+        "name": "Tuyết Báo động tầng 6",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞六层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_151",
+        "map_id": 151,
+        "name": "Tuyết Báo động tầng 7",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞七层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_152",
+        "map_id": 152,
+        "name": "Tuyết Báo động tầng 8",
+        "legacy_dir": "西北北区\\药王谷\\雪豹洞八层",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_199",
+        "map_id": 199,
+        "name": "Vũ Lăng động",
+        "legacy_dir": "两湖区\\武陵洞迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_200",
+        "map_id": 200,
+        "name": "Cổ Dương động",
+        "legacy_dir": "西北北区\\古阳洞迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_205",
+        "map_id": 205,
+        "name": "Dương Trung động",
+        "legacy_dir": "中原南区\\阳中洞迷宫",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_208",
+        "map_id": 208,
+        "name": "Đại lao",
+        "legacy_dir": "中原南区\\大牢",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_209",
+        "map_id": 209,
+        "name": "Diễn võ trường",
+        "legacy_dir": "中原南区\\yanwuchang",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_232",
+        "map_id": 232,
+        "name": "Nơi ở Chu Vân Tuyền",
+        "legacy_dir": "中原南区\\伏牛山\\周云泉居所",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_233",
+        "map_id": 233,
+        "name": "Nơi ở Mạc Không Nguyệt",
+        "legacy_dir": "中原南区\\蜀冈山\\map_mokongkejusuo",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_236",
+        "map_id": 236,
+        "name": "Đào Hoa đảo (2)",
+        "legacy_dir": "江南区\\桃花岛",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_237",
+        "map_id": 237,
+        "name": "Đào Hoa đảo (3)",
+        "legacy_dir": "江南区\\桃花岛",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_246",
+        "map_id": 246,
+        "name": "Tẩy Tủy đảo (5)",
+        "legacy_dir": "特殊用地\\梦境",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_247",
+        "map_id": 247,
+        "name": "Tẩy Tủy đảo (6)",
+        "legacy_dir": "特殊用地\\梦境",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_289",
+        "map_id": 289,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_290",
+        "map_id": 290,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_291",
+        "map_id": 291,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_292",
+        "map_id": 292,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_293",
+        "map_id": 293,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_294",
+        "map_id": 294,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_295",
+        "map_id": 295,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_296",
+        "map_id": 296,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_297",
+        "map_id": 297,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_298",
+        "map_id": 298,
+        "name": "Tẩy Tủy đảo sơn động (5)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_299",
+        "map_id": 299,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_300",
+        "map_id": 300,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_301",
+        "map_id": 301,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_302",
+        "map_id": 302,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_303",
+        "map_id": 303,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_304",
+        "map_id": 304,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_305",
+        "map_id": 305,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_306",
+        "map_id": 306,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_307",
+        "map_id": 307,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_308",
+        "map_id": 308,
+        "name": "Tẩy Tủy đảo sơn động (6)",
+        "legacy_dir": "特殊用地\\梦境山洞",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_319",
+        "map_id": 319,
+        "name": "Lâm Du Quan",
+        "legacy_dir": "东北区\\临渝关",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_320",
+        "map_id": 320,
+        "name": "Chân núi Trường Bạch",
+        "legacy_dir": "东北区\\长白山\\长白山脚",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_324",
+        "map_id": 324,
+        "name": "Điểm báo danh Tống Kim (trung cấp)",
+        "legacy_dir": "特殊用地\\宋金报名点",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_327",
+        "map_id": 327,
+        "name": "Khu vực bình nguyên (trung cấp)",
+        "legacy_dir": "特殊用地\\平原战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_330",
+        "map_id": 330,
+        "name": "Khu vực Hà Tân (trung cấp)",
+        "legacy_dir": "特殊用地\\河滨战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_336",
+        "map_id": 336,
+        "name": "Phong Lăng độ",
+        "legacy_dir": "中原北区\\风陵渡",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_337",
+        "map_id": 337,
+        "name": "Bến thuyền 1",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_338",
+        "map_id": 338,
+        "name": "Bến thuyền 2",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_339",
+        "map_id": 339,
+        "name": "Bến thuyền 3",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_341",
+        "map_id": 341,
+        "name": "Mạc Bắc Thảo Nguyên",
+        "legacy_dir": "东北区\\漠北草原",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_345",
+        "map_id": 345,
+        "name": "Thành trấn (trung cấp)",
+        "legacy_dir": "特殊用地\\城镇战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_348",
+        "map_id": 348,
+        "name": "Sơn cốc (trung cấp)",
+        "legacy_dir": "特殊用地\\山谷战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_351",
+        "map_id": 351,
+        "name": "Thâm lâm (trung cấp)",
+        "legacy_dir": "特殊用地\\森林战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_354",
+        "map_id": 354,
+        "name": "Doanh trại (trung cấp)",
+        "legacy_dir": "特殊用地\\营寨战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_358",
+        "map_id": 358,
+        "name": "Đơn đấu Bình nguyên (Trung cấp)",
+        "legacy_dir": "特殊用地\\平原单挑战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_361",
+        "map_id": 361,
+        "name": "Đơn đấu Hà tân (Trung cấp)",
+        "legacy_dir": "特殊用地\\河滨单挑战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_364",
+        "map_id": 364,
+        "name": "Đơn đấu Thâm lâm (Trung cấp)",
+        "legacy_dir": "特殊用地\\森林单挑战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_367",
+        "map_id": 367,
+        "name": "Đơn đấu Sơn cốc (Trung cấp)",
+        "legacy_dir": "特殊用地\\山谷单挑战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_370",
+        "map_id": 370,
+        "name": "Đơn đấu Thành trấn (Trung cấp)",
+        "legacy_dir": "特殊用地\\城镇单挑战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_373",
+        "map_id": 373,
+        "name": "Đơn đấu Doanh trại (Trung cấp)",
+        "legacy_dir": "特殊用地\\营寨单挑战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_376",
+        "map_id": 376,
+        "name": "Chiến trường Tống Kim cũ (trung cấp)",
+        "legacy_dir": "中原北区\\宋金战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_379",
+        "map_id": 379,
+        "name": "Xung phong (Trung cấp)",
+        "legacy_dir": "特殊用地\\冲锋战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_382",
+        "map_id": 382,
+        "name": "Thâm lâm (trung cấp)",
+        "legacy_dir": "特殊用地\\新密林战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_385",
+        "map_id": 385,
+        "name": "Cầu ranh giới (trung cấp)",
+        "legacy_dir": "特殊用地\\界桥战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_387",
+        "map_id": 387,
+        "name": "Phong Kỳ (60-89)",
+        "legacy_dir": "特殊用地\\任务用地\\信使任务\\风之骑",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_388",
+        "map_id": 388,
+        "name": "Phong Kỳ (90-119)",
+        "legacy_dir": "特殊用地\\任务用地\\信使任务\\风之骑",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_389",
+        "map_id": 389,
+        "name": "Phong Kỳ (trên 120)",
+        "legacy_dir": "特殊用地\\任务用地\\信使任务\\风之骑",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_392",
+        "map_id": 392,
+        "name": "Sơn Thần miếu (trên 120)",
+        "legacy_dir": "特殊用地\\任务用地\\信使任务\\山神庙",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_395",
+        "map_id": 395,
+        "name": "Thiên Bảo khố (trên 120)",
+        "legacy_dir": "特殊用地\\任务用地\\信使任务\\千宝库",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_418",
+        "map_id": 418,
+        "name": "Thuyền Rồng sơ cấp (3)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_419",
+        "map_id": 419,
+        "name": "Thuyền Rồng sơ cấp (4)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_428",
+        "map_id": 428,
+        "name": "Thuyền Rồng cao cấp (5)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_429",
+        "map_id": 429,
+        "name": "Thuyền Rồng cao cấp (6)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_430",
+        "map_id": 430,
+        "name": "Thuyền Rồng cao cấp (7)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_431",
+        "map_id": 431,
+        "name": "Thuyền Rồng cao cấp (8)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_443",
+        "map_id": 443,
+        "name": "Thuyền Rồng sơ cấp (12)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_454",
+        "map_id": 454,
+        "name": "Thuyền Rồng cao cấp (23)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_455",
+        "map_id": 455,
+        "name": "Thuyền Rồng cao cấp (24)",
+        "legacy_dir": "中原北区\\渡船",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_468",
+        "map_id": 468,
+        "name": "Thách thức thời gian (Sơ cấp 5)",
+        "legacy_dir": "特殊用地\\杀手的试炼",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_488",
+        "map_id": 488,
+        "name": "Thách thức thời gian (Cao cấp 9)",
+        "legacy_dir": "特殊用地\\杀手的试炼",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_489",
+        "map_id": 489,
+        "name": "Thách thức thời gian (Cao cấp 10)",
+        "legacy_dir": "特殊用地\\杀手的试炼",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_512",
+        "map_id": 512,
+        "name": "Vân Trung Đạo",
+        "legacy_dir": "特殊用地\\任务用地\\同伴教育任务\\云中道",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_523",
+        "map_id": 523,
+        "name": "Minh Nguyệt trấn (Tương Dương)",
+        "legacy_dir": "特殊用地\\明月镇",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_524",
+        "map_id": 524,
+        "name": "Minh Nguyệt trấn (Dương Châu)",
+        "legacy_dir": "特殊用地\\明月镇",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_584",
+        "map_id": 584,
+        "name": "Nơi chuẩn bị những hoạt động dịp xuân",
+        "legacy_dir": "特殊用地\\春节地图",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_585",
+        "map_id": 585,
+        "name": "Khu vực hoạt động dịp xuân",
+        "legacy_dir": "特殊用地\\春节地图",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_605",
+        "map_id": 605,
+        "name": "Võ Lâm Đệ Nhất Bang",
+        "legacy_dir": "特殊用地\\新密林战场",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_608",
+        "map_id": 608,
+        "name": "Khu vực chuẩn bị",
+        "legacy_dir": "特殊用地\\卫国战争\\烽火连城报名点",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "map_609",
+        "map_id": 609,
+        "name": "Khu vực chuẩn bị",
+        "legacy_dir": "特殊用地\\卫国战争\\烽火连城报名点",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "pending",
+        "evidence": {
+          "scenario_path": null,
+          "walkthrough_path": null,
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      }
+    ],
+    "factions_skills": [
+      {
+        "id": "faction_shaolin",
+        "title": "Thiếu Lâm (Map 103, Series 0)",
+        "faction_slug": "shaolin",
+        "series": 0,
+        "hq_map_id": 103,
+        "legacy_script_dir": "\\script\\中原北区\\少林派",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_tianwang",
+        "title": "Thiên Vương Bang (Map 59, Series 0)",
+        "faction_slug": "tianwang",
+        "series": 0,
+        "hq_map_id": 59,
+        "legacy_script_dir": "\\script\\两湖区\\天王帮",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_tangmen",
+        "title": "Đường Môn (Map 25, Series 1)",
+        "faction_slug": "tangmen",
+        "series": 1,
+        "hq_map_id": 25,
+        "legacy_script_dir": "\\script\\西南北区\\唐门",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_wudu",
+        "title": "Ngũ Độc Giáo (Map 183, Series 1)",
+        "faction_slug": "wudu",
+        "series": 1,
+        "hq_map_id": 183,
+        "legacy_script_dir": "\\script\\西南南区\\五毒教",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_emei",
+        "title": "Nga My (Map 13, Series 2)",
+        "faction_slug": "emei",
+        "series": 2,
+        "hq_map_id": 13,
+        "legacy_script_dir": "\\script\\西南北区\\峨嵋派",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_cuiyan",
+        "title": "Thúy Yên Môn (Map 154, Series 2)",
+        "faction_slug": "cuiyan",
+        "series": 2,
+        "hq_map_id": 154,
+        "legacy_script_dir": "\\script\\西南南区\\翠烟门",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_gaibang",
+        "title": "Cái Bang (Map 115, Series 3)",
+        "faction_slug": "gaibang",
+        "series": 3,
+        "hq_map_id": 115,
+        "legacy_script_dir": "\\script\\中原北区\\丐帮",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_tianren",
+        "title": "Thiên Nhẫn Giáo (Map 49, Series 3)",
+        "faction_slug": "tianren",
+        "series": 3,
+        "hq_map_id": 49,
+        "legacy_script_dir": "\\script\\中原北区\\天忍教",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "faction_wudang",
+        "title": "Võ Đang (Map 81, Series 4)",
+        "faction_slug": "wudang",
+        "series": 4,
+        "hq_map_id": 81,
+        "legacy_script_dir": "\\script\\中原南区\\武当派",
+        "wave": "wave2_ten_factions",
+        "priority": 15,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "faction_kunlun",
+        "title": "Côn Lôn (Map 131, Series 4)",
+        "faction_slug": "kunlun",
+        "series": 4,
+        "hq_map_id": 131,
+        "legacy_script_dir": "\\script\\西北北区\\昆仑派",
+        "wave": "wave2_ten_factions",
+        "priority": 25,
+        "status": "ground_truth_extracted",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      }
+    ],
+    "quests_items_events": [
+      {
+        "id": "journey_j01",
+        "kind": "differential_journey",
+        "journey_id": "J01",
+        "title": "Auth, All Series/Genders & Starter Villages",
+        "test_class": "DifferentialParityWorldTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j02a",
+        "kind": "differential_journey",
+        "journey_id": "J02A",
+        "title": "Town Obstacle Navigation, Speed & Gate FightMode",
+        "test_class": "DifferentialParityMovementAndDialogTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j03",
+        "kind": "differential_journey",
+        "journey_id": "J03",
+        "title": "Static NPC Dialog & Unfunded Travel Guard",
+        "test_class": "DifferentialParityMovementAndDialogTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j02b",
+        "kind": "differential_journey",
+        "journey_id": "J02B",
+        "title": "Boundary Portal & Cross-Map Handoff",
+        "test_class": "DifferentialParityPortalHandoffTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j04",
+        "kind": "differential_journey",
+        "journey_id": "J04",
+        "title": "Combat, Monster AI, Progression & Loot",
+        "test_class": "DifferentialParityCombatAndLootTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j05",
+        "kind": "differential_journey",
+        "journey_id": "J05",
+        "title": "PK, Camp State Machine & Sparring",
+        "test_class": "DifferentialParityPkAndSparringTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j06",
+        "kind": "differential_journey",
+        "journey_id": "J06",
+        "title": "Factions, Skills & Point Allocation",
+        "test_class": "DifferentialParityFactionAndSkillTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j07",
+        "kind": "differential_journey",
+        "journey_id": "J07",
+        "title": "Inventory, Equipment, Potions & Durability",
+        "test_class": "DifferentialParityInventoryAndEquipTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j08",
+        "kind": "differential_journey",
+        "journey_id": "J08",
+        "title": "Multi-Channel Chat & System Broadcasts",
+        "test_class": "DifferentialParityChatChannelTests",
+        "wave": "wave1_journeys_j01_j08",
+        "priority": 8,
+        "status": "zero_drift_locked",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "journey_j09",
+        "kind": "differential_journey",
+        "journey_id": "J09",
+        "title": "NPC Shops & Equipment Repair (`017`)",
+        "test_class": "DifferentialParityNpcShopTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "journey_j10",
+        "kind": "differential_journey",
+        "journey_id": "J10",
+        "title": "Repository Box & Revival Binding (`018`)",
+        "test_class": "DifferentialParityRepositoryBoxTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "journey_j11",
+        "kind": "differential_journey",
+        "journey_id": "J11",
+        "title": "Party Lifecycle & Team Aura (`019`)",
+        "test_class": "DifferentialParityPartyTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "journey_j12",
+        "kind": "differential_journey",
+        "journey_id": "J12",
+        "title": "Social Graph: Friends & Enemies (`020`)",
+        "test_class": "DifferentialParitySocialGraphTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "journey_j13",
+        "kind": "differential_journey",
+        "journey_id": "J13",
+        "title": "Zero-Dupe P2P Player Trade (`021`)",
+        "test_class": "DifferentialParityPlayerTradeTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "journey_j14",
+        "kind": "differential_journey",
+        "journey_id": "J14",
+        "title": "Personal City Stalls (`022`)",
+        "test_class": "DifferentialParityPlayerStallTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "journey_j15",
+        "kind": "differential_journey",
+        "journey_id": "J15",
+        "title": "Purple Equipment Crafting (`023`)",
+        "test_class": "DifferentialParityPurpleCraftingTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "journey_j16",
+        "kind": "differential_journey",
+        "journey_id": "J16",
+        "title": "Guilds, Quests & Missions (`024`–`028`)",
+        "test_class": "DifferentialParityEndgameMissionTests",
+        "wave": "wave2_journeys_j09_j16",
+        "priority": 18,
+        "status": "scenario_audited",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_031",
+        "kind": "migration_spec",
+        "spec_id": "031",
+        "spec_dir": "specs/031-tooling-lua-audit-and-utf8-ledger",
+        "title": "Spec 031 (031-tooling-lua-audit-and-utf8-ledger)",
+        "lua_scope": "All `7,185` `.lua` files (`skill/` 926, `npclevelscript/` 58, `trap/` 752 audit)",
+        "wave": "wave0_lua_migration",
+        "priority": 12,
+        "status": "in_tdd_fix",
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_032",
+        "kind": "migration_spec",
+        "spec_id": "032",
+        "spec_dir": "specs/032-core-scripting-hooks-and-modals",
+        "title": "Spec 032 (032-core-scripting-hooks-and-modals)",
+        "lua_scope": "Core API gaps (`AskClientFor*`, `GiveItemUI`, `0x72`, `OnDeath`/`OnTimer`, `AddNpc`, `GetByte`/`Bit`)",
+        "wave": "wave0_lua_migration",
+        "priority": 12,
+        "status": "in_tdd_fix",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_033",
+        "kind": "migration_spec",
+        "spec_id": "033",
+        "spec_dir": "specs/033-scripts-world-hubs-and-ambient",
+        "title": "Spec 033 (033-scripts-world-hubs-and-ambient)",
+        "lua_scope": "9 regions (`npc/` `1,019`, `obj/` `278`, custom `trap/`) + service NPCs in `global/`",
+        "wave": "wave1_lua_migration",
+        "priority": 17,
+        "status": "in_tdd_fix",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_034",
+        "kind": "migration_spec",
+        "spec_id": "034",
+        "spec_dir": "specs/034-scripts-consumables-and-chests",
+        "title": "Spec 034 (034-scripts-consumables-and-chests)",
+        "lua_scope": "Active `item/` (`635`, excl. `noscript.lua`) + `shop/`",
+        "wave": "wave1_lua_migration",
+        "priority": 17,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_035",
+        "kind": "migration_spec",
+        "spec_id": "035",
+        "spec_dir": "specs/035-scripts-existing-modules-wiring",
+        "title": "Spec 035 (035-scripts-existing-modules-wiring)",
+        "lua_scope": "Scripts wiring into `017`–`028` (`global/`, `item/`, `task/newtask/master*`, `smeltsystem/`)",
+        "wave": "wave1_lua_migration",
+        "priority": 17,
+        "status": "in_tdd_fix",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_036",
+        "kind": "migration_spec",
+        "spec_id": "036",
+        "spec_dir": "specs/036-scripts-ten-sects-quests",
+        "title": "Spec 036 (036-scripts-ten-sects-quests)",
+        "lua_scope": "10-sect quest NPCs across 9 regions + `shitu/` (`6`)",
+        "wave": "wave2_lua_migration",
+        "priority": 22,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_037",
+        "kind": "migration_spec",
+        "spec_id": "037",
+        "spec_dir": "specs/037-scripts-storyline-quests",
+        "title": "Spec 037 (037-scripts-storyline-quests)",
+        "lua_scope": "`task/newtask/` (main/branch), `task/newbie/`, `task/fresh/`, `task/lv120skill/`, `task/system/`",
+        "wave": "wave2_lua_migration",
+        "priority": 22,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_038",
+        "kind": "migration_spec",
+        "spec_id": "038",
+        "spec_dir": "specs/038-module-killer-and-messenger",
+        "title": "Spec 038 (038-module-killer-and-messenger)",
+        "lua_scope": "`task/tollgate/` (`69`: `killer/` & `messenger/`) + `task/killmonster/`, `task/random/`",
+        "wave": "wave2_lua_migration",
+        "priority": 22,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_039",
+        "kind": "migration_spec",
+        "spec_id": "039",
+        "spec_dir": "specs/039-module-ferry-and-arenas",
+        "title": "Spec 039 (039-module-ferry-and-arenas)",
+        "lua_scope": "`missions/fengling_ferry/` (`11`), `missions/bw/` (`10`), `bairenleitai/` (`10`), `huashanqunzhan/` (`26`), `new_qiecuo/` (`4`)",
+        "wave": "wave3_lua_migration",
+        "priority": 27,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_040",
+        "kind": "migration_spec",
+        "spec_id": "040",
+        "spec_dir": "specs/040-module-leaguematch-and-defence",
+        "title": "Spec 040 (040-module-leaguematch-and-defence)",
+        "lua_scope": "`missions/leaguematch/` (`42` active), `newcitydefence/` (`71`), `citydefence/` (`24`), `championship/` (`24`), `freshman_match/` (`24`)",
+        "wave": "wave3_lua_migration",
+        "priority": 27,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_041",
+        "kind": "migration_spec",
+        "spec_id": "041",
+        "spec_dir": "specs/041-module-citywar-and-dungeons",
+        "title": "Spec 041 (041-module-citywar-and-dungeons)",
+        "lua_scope": "`missions/citywar_*` (`46`), `sevencity/` (`16` active), `tong/` (`65`), `yandibaozang/` (`24`), `tianchimijing/` (`46`), `maze/` (`48`), `dragonboat/` (`9`), `datusha/` (`9`), `qianchonglou/` (`11`)",
+        "wave": "wave3_lua_migration",
+        "priority": 27,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_042",
+        "kind": "migration_spec",
+        "spec_id": "042",
+        "spec_dir": "specs/042-module-translife-and-150skills",
+        "title": "Spec 042 (042-module-translife-and-150skills)",
+        "lua_scope": "`task/metempsychosis/` (`7`), `task/150skilltask/` (`61`), `changefeature/` (`9`), `honor/` (`6`), `task/equipex/` (`1`)",
+        "wave": "wave4_lua_migration",
+        "priority": 32,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_043",
+        "kind": "migration_spec",
+        "spec_id": "043",
+        "spec_dir": "specs/043-module-companion-partners",
+        "title": "Spec 043 (043-module-companion-partners)",
+        "lua_scope": "`task/partner/` (`88`), `partner/` (`4`), `partner_*` items",
+        "wave": "wave4_lua_migration",
+        "priority": 32,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      },
+      {
+        "id": "spec_044",
+        "kind": "migration_spec",
+        "spec_id": "044",
+        "spec_dir": "specs/044-module-activity-and-events",
+        "title": "Spec 044 (044-module-activity-and-events)",
+        "lua_scope": "`activitysys/` (`461`), `event/` (`429`), `vng_event/` (`195`), `sukien_nam/` (`34`), `vng_feature/` (`20`), `huoyuedu/` (`3`), `offline_benguyet/` (`2`), `flipcard/` (`2`), etc.",
+        "wave": "wave4_lua_migration",
+        "priority": 32,
+        "status": "pending",
+        "gates": {
+          "gate1_static": false,
+          "gate2_unit_sim": false,
+          "gate3_wire_capture": false,
+          "gate4_live_proxy": false
+        }
+      }
+    ]
+  }
+}
