@@ -452,4 +452,39 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
         Assert.Single(mixedFindings);
         Assert.Equal(FindingSeverity.Critical, mixedFindings[0].Severity);
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_WhenSubWorldBroadcastsAmbientSyncWeather0x8F_ShouldIgnoreStochasticBackgroundWeatherFrame()
+    {
+        // Ground Truth:
+        // - Binary evidence: server1/jx_linux_y KSubWorld::Activate broadcasts 2-byte SYNC_WEATHER [0x8F, btWeather]
+        //   and gInitClientProtocolSize nProtocolSize[0x4E] = 2 (opcode 0x4E + 0x41 = 0x8F).
+        // - Live capture: 101_207_DefeatWoodenStake101_S915.capture.json (C2S 0x4C 4C90CD0000D07201006971B301)
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        byte[] runC2s = Convert.FromHexString("4C90CD0000D07201006971B301");
+        var c2s = new JxWireFrame(ProtocolOpcodes.c2s_npcrun, runC2s, now, 915);
+        var window = new WireActionWindow(915, "Step915_C2S_0x4C", c2s, c2s.DecryptedPayload, false, null);
+
+        byte[] npcRunS2c = new byte[13];
+        npcRunS2c[0] = ProtocolOpcodes.s2c_npcrun;
+        byte[] syncWeather2B = [0x8F, 0x01];
+
+        IReadOnlyList<ParityFinding> findings = differ.CompareWindow(
+            window,
+            primaryS2c:
+            [
+                new(ProtocolOpcodes.s2c_npcrun, npcRunS2c, now, 1),
+                new(0x8F, syncWeather2B, now, 2),
+            ],
+            shadowS2c:
+            [
+                new(ProtocolOpcodes.s2c_npcrun, npcRunS2c, now, 1),
+            ],
+            mapId: 101,
+            playerMpsX: 52624,
+            playerMpsY: 94928);
+
+        Assert.Empty(findings);
+    }
 }

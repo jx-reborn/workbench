@@ -165,7 +165,8 @@ public sealed class WireParityScenarioAndPathfinderTests
         {
             ("053_ba-lang-huyen.scenario.json", 53, 25),
             ("054_nam-nhac-tran.scenario.json", 54, 40),
-            ("078_tuong-duong.scenario.json", 78, 40)
+            ("078_tuong-duong.scenario.json", 78, 40),
+            ("101_dao-huong-thon.scenario.json", 101, 40)
         })
         {
             string fullPath = Path.Combine(mapsScenarioDir, fileName);
@@ -430,5 +431,111 @@ public sealed class WireParityScenarioAndPathfinderTests
         Assert.Equal(10, counts.GetProperty("objectsCovered").GetInt32());
         Assert.Equal(5, counts.GetProperty("trapsTotal").GetInt32());
         Assert.Equal(5, counts.GetProperty("trapsCovered").GetInt32());
+    }
+
+    [Fact]
+    public void DaoHuongThonScenario_WhenAuditedStrictlyAgainstLegacyGroundTruth_ShouldHave100PercentCoverage()
+    {
+        string mapsScenarioDir = FindScenarioMapsDirectory();
+        string scenarioPath = Path.Combine(mapsScenarioDir, "101_dao-huong-thon.scenario.json");
+        Assert.True(File.Exists(scenarioPath), $"Missing scenario file: {scenarioPath}");
+
+        DirectoryInfo? workbenchRoot = new(mapsScenarioDir);
+        while (workbenchRoot is not null && !File.Exists(Path.Combine(workbenchRoot.FullName, ".agents", "skills", "khao-sat-ban-do", "scripts", "audit_map_scenario.py")))
+        {
+            workbenchRoot = workbenchRoot.Parent;
+        }
+
+        Assert.NotNull(workbenchRoot);
+        string auditScript = Path.Combine(workbenchRoot.FullName, ".agents", "skills", "khao-sat-ban-do", "scripts", "audit_map_scenario.py");
+
+        var psi = new ProcessStartInfo("python", $"\"{auditScript}\" audit --scenario \"{scenarioPath}\" --strict --json")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using Process proc = Process.Start(psi)!;
+        string stdout = proc.StandardOutput.ReadToEnd();
+        string stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit();
+
+        Assert.False(string.IsNullOrWhiteSpace(stdout), $"Auditor produced empty output. STDERR:\n{stderr}");
+        using JsonDocument doc = JsonDocument.Parse(stdout);
+        JsonElement root = doc.RootElement;
+
+        Assert.True(
+            proc.ExitCode == 0 && root.GetProperty("passed").GetBoolean(),
+            $"Dao Huong Thon scenario failed strict 100% Ground-Truth coverage audit:\n{stdout}\n{stderr}");
+
+        JsonElement counts = root.GetProperty("counts");
+        Assert.Equal(38, counts.GetProperty("dialogNpcsTotal").GetInt32());
+        Assert.Equal(38, counts.GetProperty("dialogNpcsCovered").GetInt32());
+        Assert.Equal(6, counts.GetProperty("objectsTotal").GetInt32());
+        Assert.Equal(6, counts.GetProperty("objectsCovered").GetInt32());
+        Assert.Equal(12, counts.GetProperty("trapsTotal").GetInt32());
+        Assert.Equal(12, counts.GetProperty("trapsCovered").GetInt32());
+        Assert.Equal(3, counts.GetProperty("scriptedMonsterGroupsTotal").GetInt32());
+        Assert.Equal(3, counts.GetProperty("scriptedMonsterGroupsCovered").GetInt32());
+    }
+
+    [Fact]
+    public void ShouldUseShortLocalWalkForGmTeleport_OnMap101CrossWallAndTownSquarePairs_ShouldRejectDetoursAndAllowOpenSquare()
+    {
+        IMapCatalog? mapCatalog = ProxyMapCatalogLoader.TryGetDefault();
+        Assert.NotNull(mapCatalog);
+        using ProxyClientPakObstacleReader? pakObstacles = ProxyClientPakObstacleReader.TryOpenFromTemplate();
+        Assert.NotNull(pakObstacles);
+
+        // 1. Cross-wall Step 11 (1587,3246 inside Nam Mon -> 1566,3269 outside Nam Mon): 350-tile detour must NOT walk around village walls!
+        Assert.False(WireScenarioRunner.ShouldUseShortLocalWalkForGmTeleport(
+            currentMapId: 101,
+            currentMpsX: (1587 * 32) + 16,
+            currentMpsY: (3246 * 32) + 16,
+            currentFightMode: 0,
+            mapId: 101,
+            tileX: 1566,
+            tileY: 3269,
+            mapCatalog: mapCatalog,
+            clientPakObstacles: pakObstacles));
+
+        // 2. Wilderness Step 115 Hub8 (1617,3279) -> Hub9 (1672,3295) outside village (> 52 tiles): must NOT walk across wilderness!
+        Assert.False(WireScenarioRunner.ShouldUseShortLocalWalkForGmTeleport(
+            currentMapId: 101,
+            currentMpsX: (1617 * 32) + 16,
+            currentMpsY: (3279 * 32) + 16,
+            currentFightMode: 1,
+            mapId: 101,
+            tileX: 1672,
+            tileY: 3295,
+            mapCatalog: mapCatalog,
+            clientPakObstacles: pakObstacles));
+
+        // 3. Unobstructed same/adjacent-region hops on Map 101 (Steps 2, 39, 60, 72, 208) must walk directly so Legacy NewWorld same-3x3-region silent SetPos is avoided:
+        (int FromX, int FromY, int Fight, int ToX, int ToY)[] directLocalWalkPairs =
+        [
+            (1689, 3153, 0, 1682, 3133), // Step 2: spawn -> StorageBox1
+            (1909, 3198, 0, 1915, 3216), // Step 39: Signpost2 -> DuongChau portal
+            (1793, 3175, 0, 1799, 3194), // Step 60: East1Gate -> East2Gate
+            (1759, 3237, 0, 1729, 3275), // Step 72: East3Gate -> East4Gate
+            (1650, 2963, 1, 1665, 2958), // Step 208: Wooden Stake -> Vo Su (FightMode=1)
+        ];
+        Assert.NotEmpty(directLocalWalkPairs);
+        foreach (var pair in directLocalWalkPairs)
+        {
+            Assert.True(
+                WireScenarioRunner.ShouldUseShortLocalWalkForGmTeleport(
+                    currentMapId: 101,
+                    currentMpsX: (pair.FromX * 32) + 16,
+                    currentMpsY: (pair.FromY * 32) + 16,
+                    currentFightMode: pair.Fight,
+                    mapId: 101,
+                    tileX: pair.ToX,
+                    tileY: pair.ToY,
+                    mapCatalog: mapCatalog,
+                    clientPakObstacles: pakObstacles),
+                $"Expected unobstructed local walk from ({pair.FromX},{pair.FromY})[fight={pair.Fight}] to ({pair.ToX},{pair.ToY}) to be accepted.");
+        }
     }
 }

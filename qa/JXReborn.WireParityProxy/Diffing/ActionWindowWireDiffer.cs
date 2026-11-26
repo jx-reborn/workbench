@@ -25,7 +25,9 @@ public sealed class ActionWindowWireDiffer
         // and carries Vietnamese TCVN3 vs Legacy GBK NPC name lengths (+2..+7B); wire/state parity is enforced by ProtocolSafetyGate & ProxyShadowClientState.
         ProtocolOpcodes.s2c_syncnpc,
         // Asynchronous s3relay/Lua CityWar summary broadcast (4 + 115*N bytes), unrelated to the enclosing C2S action window.
-        ProtocolOpcodes.s2c_synccitysummary
+        ProtocolOpcodes.s2c_synccitysummary,
+        // Asynchronous map-wide ambient weather roll (2 bytes [0x8F, weatherId]), unrelated to the enclosing C2S action window.
+        ProtocolOpcodes.s2c_syncweather
     ];
 
     // Tick-asynchronous AOI patrol/appearance frames and legacy-only login subsystem dumps (KFileSyncGS 0xC8,

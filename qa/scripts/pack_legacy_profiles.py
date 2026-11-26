@@ -1214,7 +1214,12 @@ function GMT_OnTpCoordY(nY)
         local nMap = GMT_GetTmp("tp_map")
         local nX = GMT_GetTmp("tp_x")
         if SubWorldID2Idx(nMap) >= 0 then
-            NewWorld(nMap, nX, nY)
+            local nCurW, _, _ = GetWorldPos()
+            if nCurW == nMap then
+                SetPos(nX, nY)
+            else
+                NewWorld(nMap, nX, nY)
+            end
             SetFightState(0)
         else
             Msg2Player({L("Bản đồ chưa được nạp trên máy chủ này.")})

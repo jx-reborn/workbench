@@ -313,4 +313,47 @@ public sealed class SemanticDiffEngineTests
         StepComparisonResult wrongNumberResult = engine.Compare(194, "Step194_C2S_0x6E", "C2S 0x6E", legacyRolled, rebornWrongNumber);
         Assert.Contains(wrongNumberResult.Findings, static f => f.FieldPath == "Dialog.Prompt" && f.Severity == FindingSeverity.Critical);
     }
+
+    [Fact]
+    public void Compare_OnTieuLanTask66RandomRingTierReward_ShouldClassifyPoolAsWarningWhileKeepingMissingRingCritical()
+    {
+        // Ground truth: legacy-server/bin/server1/script/中原南区/稻香村/npc/稻香村_小兰对话.lua lines 17..39:
+        // Task 66 turn-in ("Thật cảm ơn huynh! Ta có một chiếc nhẫn, xin huynh nhận cho!") rolls random(0,3)==0 ->
+        // 25% AddItem(0,3,0,2,...) (Cảm Lãm Thạch Giới Chỉ Lv2) vs 75% AddItem(0,3,0,1,...) (Hoàng Ngọc Giới Chỉ Lv1).
+        var engine = new SemanticDiffEngine();
+        const string TieuLanTurnInPrompt = "Thật cảm ơn huynh! Ta có một chiếc nhẫn, xin huynh nhận cho!";
+
+        WorldDomSnapshot legacyLv2Ring = TestSnapshotFactory.Create(
+            mapId: 101,
+            dialog: TestSnapshotFactory.CreateDialog(TieuLanTurnInPrompt),
+            items: [TestSnapshotFactory.CreateItem(serverItemId: 501, place: 3, genre: 0, detail: 3, particular: 0, level: 2, series: 1)]);
+        WorldDomSnapshot rebornLv1Ring = TestSnapshotFactory.Create(
+            mapId: 101,
+            dialog: TestSnapshotFactory.CreateDialog(TieuLanTurnInPrompt),
+            items: [TestSnapshotFactory.CreateItem(serverItemId: 901, place: 3, genre: 0, detail: 3, particular: 0, level: 1, series: 3)]);
+
+        StepComparisonResult turnInResult = engine.Compare(190, "TurnInTieuLanTask66", "C2S 0x6E", legacyLv2Ring, rebornLv1Ring);
+        Assert.NotEmpty(turnInResult.Findings);
+        Assert.DoesNotContain(turnInResult.Findings, static f => f.Severity == FindingSeverity.Critical);
+        Assert.Contains(turnInResult.Findings, static f => f.FieldPath == "Inventory.RandomRewardPool" && f.Severity == FindingSeverity.Warning);
+
+        // Subsequent step after closing dialog must not snowball into Critical inventory diff
+        WorldDomSnapshot legacyAfterClose = TestSnapshotFactory.Create(
+            mapId: 101,
+            items: [TestSnapshotFactory.CreateItem(serverItemId: 501, place: 3, genre: 0, detail: 3, particular: 0, level: 2, series: 1)]);
+        WorldDomSnapshot rebornAfterClose = TestSnapshotFactory.Create(
+            mapId: 101,
+            items: [TestSnapshotFactory.CreateItem(serverItemId: 901, place: 3, genre: 0, detail: 3, particular: 0, level: 1, series: 3)]);
+        StepComparisonResult nextStepResult = engine.Compare(191, "CloseTieuLanTurnInTalk", "C2S 0x5F", legacyAfterClose, rebornAfterClose, legacyLv2Ring, rebornLv1Ring);
+        Assert.DoesNotContain(nextStepResult.Findings, static f => f.Severity == FindingSeverity.Critical);
+
+        // Genuine bug (Reborn grants no ring at all) MUST remain Critical!
+        var freshEngine = new SemanticDiffEngine();
+        WorldDomSnapshot rebornMissingRing = TestSnapshotFactory.Create(
+            mapId: 101,
+            dialog: TestSnapshotFactory.CreateDialog(TieuLanTurnInPrompt),
+            items: []);
+        StepComparisonResult missingResult = freshEngine.Compare(190, "MissingRingBug", "C2S 0x6E", legacyLv2Ring, rebornMissingRing);
+        Assert.Contains(missingResult.Findings, static f => f.Category == FindingCategory.Inventory && f.Severity == FindingSeverity.Critical);
+    }
 }

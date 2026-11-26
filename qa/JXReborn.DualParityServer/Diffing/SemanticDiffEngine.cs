@@ -15,6 +15,7 @@ public sealed partial class SemanticDiffEngine
     private readonly Dictionary<string, (string LegacyValue, string RebornValue)> _activeStateDiscrepancies = new(StringComparer.Ordinal);
     private long? _acknowledgedMoneyOffset;
     private long? _acknowledgedExpOffset;
+    private bool _acknowledgedTieuLanRingSwap;
     private int _nextFindingSequence;
 
     public SemanticDiffEngine(DiffOptions? options = null)
@@ -29,6 +30,7 @@ public sealed partial class SemanticDiffEngine
             _activeStateDiscrepancies.Clear();
             _acknowledgedMoneyOffset = null;
             _acknowledgedExpOffset = null;
+            _acknowledgedTieuLanRingSwap = false;
         }
     }
 
@@ -151,7 +153,7 @@ public sealed partial class SemanticDiffEngine
 
         if (_options.CompareInventory)
         {
-            CompareInventory(legacyAfter.Items, rebornAfter.Items, AddFinding);
+            CompareInventory(legacyAfter.Items, rebornAfter.Items, legacyAfter.Dialog, rebornAfter.Dialog, AddFinding);
         }
 
         if (_options.CompareSystemMessages)
@@ -457,19 +459,80 @@ public sealed partial class SemanticDiffEngine
         }
     }
 
-    private static void CompareInventory(
+    private void CompareInventory(
         IReadOnlyList<InventoryItemSnapshot> legacyItems,
         IReadOnlyList<InventoryItemSnapshot> rebornItems,
+        DialogSnapshot legacyDialog,
+        DialogSnapshot rebornDialog,
         Action<FindingSeverity, FindingCategory, string, string, string> addFinding)
     {
+        const string TieuLanLv1RingKey = "Place3:(0,3,0,Lv1)";
+        const string TieuLanLv2RingKey = "Place3:(0,3,0,Lv2)";
+        const string TieuLanTurnInPrompt = "Thật cảm ơn huynh! Ta có một chiếc nhẫn, xin huynh nhận cho!";
+
         (Dictionary<string, int> legacyCounts, Dictionary<string, SortedDictionary<int, int>> legacySeries) = AggregateInventoryByTemplateAndSeries(legacyItems);
         (Dictionary<string, int> rebornCounts, Dictionary<string, SortedDictionary<int, int>> rebornSeries) = AggregateInventoryByTemplateAndSeries(rebornItems);
+
+        legacyCounts.TryGetValue(TieuLanLv1RingKey, out int lRing1);
+        legacyCounts.TryGetValue(TieuLanLv2RingKey, out int lRing2);
+        rebornCounts.TryGetValue(TieuLanLv1RingKey, out int rRing1);
+        rebornCounts.TryGetValue(TieuLanLv2RingKey, out int rRing2);
+
+        bool skipTieuLanRingTierKeys = false;
+        if (lRing1 + lRing2 == rRing1 + rRing2 &&
+            lRing1 != rRing1 &&
+            Math.Abs(lRing1 - rRing1) == 1)
+        {
+            bool isTieuLanTurnIn = legacyDialog.IsOpen &&
+                rebornDialog.IsOpen &&
+                string.Equals(NormalizeText(legacyDialog.Prompt), TieuLanTurnInPrompt, StringComparison.Ordinal) &&
+                string.Equals(NormalizeText(rebornDialog.Prompt), TieuLanTurnInPrompt, StringComparison.Ordinal);
+
+            bool wasAcknowledged;
+            lock (_stateLock)
+            {
+                if (isTieuLanTurnIn)
+                {
+                    _acknowledgedTieuLanRingSwap = true;
+                }
+
+                wasAcknowledged = _acknowledgedTieuLanRingSwap;
+            }
+
+            if (isTieuLanTurnIn)
+            {
+                addFinding(
+                    FindingSeverity.Warning,
+                    FindingCategory.Inventory,
+                    "Inventory.RandomRewardPool",
+                    $"Lv1={lRing1},Lv2={lRing2}",
+                    $"Lv1={rRing1},Lv2={rRing2}");
+                skipTieuLanRingTierKeys = true;
+            }
+            else if (wasAcknowledged)
+            {
+                skipTieuLanRingTierKeys = true;
+            }
+        }
+        else if (lRing1 == rRing1 && lRing2 == rRing2)
+        {
+            lock (_stateLock)
+            {
+                _acknowledgedTieuLanRingSwap = false;
+            }
+        }
 
         var allKeys = new SortedSet<string>(legacyCounts.Keys, StringComparer.Ordinal);
         allKeys.UnionWith(rebornCounts.Keys);
 
         foreach (string key in allKeys)
         {
+            if (skipTieuLanRingTierKeys &&
+                (string.Equals(key, TieuLanLv1RingKey, StringComparison.Ordinal) ||
+                 string.Equals(key, TieuLanLv2RingKey, StringComparison.Ordinal)))
+            {
+                continue;
+            }
             legacyCounts.TryGetValue(key, out int legacyQty);
             rebornCounts.TryGetValue(key, out int rebornQty);
             if (legacyQty != rebornQty)

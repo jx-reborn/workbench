@@ -895,6 +895,7 @@ public sealed class WireScenarioRunner
         for (int nIdx = 0; nIdx < numbers.Count; nIdx++)
         {
             bool isLastInput = nIdx == numbers.Count - 1;
+            snap = await WireNpcDialogCrawler.WaitTicksAsync(client, 2, cancellationToken).ConfigureAwait(false);
             uint seqBefore = WireNpcDialogCrawler.MaxS2cSeq(snap);
             _ = await client.SubmitInputNumberAsync(numbers[nIdx], cancellationToken).ConfigureAwait(false);
             if (!isLastInput)
@@ -912,6 +913,80 @@ public sealed class WireScenarioRunner
         }
     }
 
+    public static bool ShouldUseShortLocalWalkForGmTeleport(
+        int currentMapId,
+        int currentMpsX,
+        int currentMpsY,
+        int currentFightMode,
+        int mapId,
+        int tileX,
+        int tileY,
+        IMapCatalog? mapCatalog,
+        ProxyClientPakObstacleReader? clientPakObstacles)
+    {
+        _ = currentFightMode;
+        if (currentMapId != mapId)
+        {
+            return false;
+        }
+
+        int targetMpsX = (tileX * 32) + 16;
+        int targetMpsY = (tileY * 32) + 16;
+        double straightDistMps = WireNpcDialogCrawler.Distance(currentMpsX, currentMpsY, targetMpsX, targetMpsY);
+        if (straightDistMps > 52 * 32)
+        {
+            return false;
+        }
+
+        if (mapCatalog is null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<(int MpsX, int MpsY)> waypoints;
+        try
+        {
+            waypoints = ProxyMapPathfinder.FindWaypointsNearPosition(
+                mapCatalog,
+                (ushort)mapId,
+                currentMpsX,
+                currentMpsY,
+                targetMpsX,
+                targetMpsY,
+                stopRadiusCells: 1,
+                clientPakObstacles: clientPakObstacles,
+                maxFallbackRadiusCells: 2);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        if (waypoints.Count == 0)
+        {
+            return false;
+        }
+
+        (int endX, int endY) = waypoints[^1];
+        if (WireNpcDialogCrawler.Distance(endX, endY, targetMpsX, targetMpsY) > 96.0)
+        {
+            return false;
+        }
+
+        double pathLengthMps = 0.0;
+        int curX = currentMpsX;
+        int curY = currentMpsY;
+        for (int i = 0; i < waypoints.Count; i++)
+        {
+            pathLengthMps += WireNpcDialogCrawler.Distance(curX, curY, waypoints[i].MpsX, waypoints[i].MpsY);
+            curX = waypoints[i].MpsX;
+            curY = waypoints[i].MpsY;
+        }
+
+        double maxAllowedPathMps = Math.Min(64 * 32, Math.Max(22 * 32, straightDistMps * 1.6));
+        return pathLengthMps <= maxAllowedPathMps;
+    }
+
     private async Task GmTeleportToCoordsAsync(
         JxHeadlessClient client,
         int mapId,
@@ -919,53 +994,102 @@ public sealed class WireScenarioRunner
         int tileY,
         CancellationToken cancellationToken)
     {
+        int targetMpsX = (tileX * 32) + 16;
+        int targetMpsY = (tileY * 32) + 16;
         WorldDomSnapshot preSnap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
         if (preSnap.Player.MapId == mapId &&
-            WireNpcDialogCrawler.Distance(preSnap.Player.MpsX, preSnap.Player.MpsY, tileX * 32, tileY * 32) <= 60 * 32)
+            WireNpcDialogCrawler.Distance(preSnap.Player.MpsX, preSnap.Player.MpsY, targetMpsX, targetMpsY) <= 64.0)
+        {
+            return;
+        }
+
+        if (ShouldUseShortLocalWalkForGmTeleport(
+            preSnap.Player.MapId,
+            preSnap.Player.MpsX,
+            preSnap.Player.MpsY,
+            preSnap.Player.FightMode,
+            mapId,
+            tileX,
+            tileY,
+            _mapCatalog,
+            _clientPakObstacles))
         {
             try
             {
                 await WireNpcDialogCrawler.WalkNearPositionAsync(
                     client,
                     (ushort)mapId,
-                    (tileX * 32) + 16,
-                    (tileY * 32) + 16,
+                    targetMpsX,
+                    targetMpsY,
                     _mapCatalog,
                     _clientPakObstacles,
                     stopRadiusCells: 1,
                     cancellationToken).ConfigureAwait(false);
                 WorldDomSnapshot afterWalk = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
                 if (afterWalk.Player.MapId == mapId &&
-                    WireNpcDialogCrawler.Distance(afterWalk.Player.MpsX, afterWalk.Player.MpsY, tileX * 32, tileY * 32) <= 128.0)
+                    WireNpcDialogCrawler.Distance(afterWalk.Player.MpsX, afterWalk.Player.MpsY, targetMpsX, targetMpsY) <= 96.0)
                 {
                     return;
                 }
             }
             catch (InvalidOperationException)
             {
-                // Fall back to GM coordinate teleport if short local walk is blocked by closed gates or terrain.
+                // Fall back to GM coordinate teleport if short local walk is blocked.
             }
 
             preSnap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        if (preSnap.Player.Doing != 0)
+        // In Legacy jx_linux_y, NewWorld() onto the SAME SubWorld within the client's 3x3 loaded KRegion grid
+        // (16x32 tiles = 512x1024 MPS per region) updates server coordinates without sending s2c_syncworld (0x4F)
+        // or s2c_syncpos (0xC5). Bouncing through a cross-SubWorld preset first forces full SubWorld/Pos sync.
+        if (preSnap.Player.MapId == mapId &&
+            Math.Abs((preSnap.Player.MpsX >> 9) - (tileX >> 4)) <= 1 &&
+            Math.Abs((preSnap.Player.MpsY >> 10) - (tileY >> 5)) <= 1)
         {
-            _ = await client.MoveToAsync(preSnap.Player.MpsX, preSnap.Player.MpsY, mode: 1, cancellationToken: cancellationToken).ConfigureAwait(false);
-            _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 8, cancellationToken).ConfigureAwait(false);
+            int bouncePresetOption = mapId == 53 ? 1 : 0;
+            ushort bounceMapId = mapId == 53 ? (ushort)78 : (ushort)53;
+            await InvokeGmMenuPathAsync(client, [5, bouncePresetOption], cancellationToken).ConfigureAwait(false);
+            preSnap = await client.WaitUntilAsync(
+                s => s.Player.InWorld && s.Player.SyncReady && s.Player.MapId == bounceMapId,
+                TimeSpan.FromSeconds(10),
+                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        await InvokeGmNumberSequenceAsync(client, [5, 8], [mapId, tileX, tileY], expectMapChange: true, cancellationToken)
-            .ConfigureAwait(false);
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            if (attempt > 0)
+            {
+                await WireNpcDialogCrawler.CloseDialogSafelyAsync(client, cancellationToken).ConfigureAwait(false);
+                preSnap = await client.GetStateAsync(cancellationToken).ConfigureAwait(false);
+            }
 
-        _ = await client.WaitUntilAsync(
-            s => s.Player.InWorld &&
-                 s.Player.SyncReady &&
-                 s.Player.MapId == mapId &&
-                 Math.Abs(s.Player.MpsX - (tileX * 32)) <= 96 &&
-                 Math.Abs(s.Player.MpsY - (tileY * 32)) <= 96,
-            TimeSpan.FromSeconds(10),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (preSnap.Player.Doing > 1)
+            {
+                _ = await client.MoveToAsync(preSnap.Player.MpsX, preSnap.Player.MpsY, mode: 1, cancellationToken: cancellationToken).ConfigureAwait(false);
+                _ = await WireNpcDialogCrawler.WaitTicksAsync(client, 8, cancellationToken).ConfigureAwait(false);
+            }
+
+            try
+            {
+                await InvokeGmNumberSequenceAsync(client, [5, 8], [mapId, tileX, tileY], expectMapChange: true, cancellationToken)
+                    .ConfigureAwait(false);
+
+                _ = await client.WaitUntilAsync(
+                    s => s.Player.InWorld &&
+                         s.Player.SyncReady &&
+                         s.Player.MapId == mapId &&
+                         Math.Abs(s.Player.MpsX - (tileX * 32)) <= 96 &&
+                         Math.Abs(s.Player.MpsY - (tileY * 32)) <= 96,
+                    TimeSpan.FromSeconds(10),
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                break;
+            }
+            catch (TimeoutException) when (attempt == 0)
+            {
+                _logOut.WriteLine($"[WireScenario]   retrying GM teleport ({mapId}, {tileX}, {tileY}) after transient modal timeout...");
+            }
+        }
 
         await WireNpcDialogCrawler.WaitTicksAsync(client, 20, cancellationToken).ConfigureAwait(false);
     }

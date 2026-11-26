@@ -1,0 +1,1893 @@
+{
+  "name": "DaoHuongThonFullGroundTruthSurvey",
+  "mapId": 101,
+  "description": "100% Legacy Ground-Truth deterministic Set-Cover & E2E survey for Dao Huong Thon (Map 101) and linked Maps 78/80/205: 38/38 active DialogNPCs, 6/6 MapObjects (2 storage boxes RevPos 47/48, 1 ladder board ShowLadder(4,2,3,13,24), village stele, 2 signposts), 12/12 Traps (9 bidirectional gates 0<->1 + 3 cross-map portals Lv1 blocked vs Lv20 unlocked), Tasks 73/71/66, Task 32 Lightfoot (real Wooden Stake/Sandbag/Wooden Dummy OnDeath), real shop purchase & box money deposit/withdraw.",
+  "account": "gm_dh_01",
+  "password": "123456",
+  "roleName": "KhaoSat101",
+  "nativePlaceId": 101,
+  "autoExportFailingCaptures": true,
+  "steps": [
+    {
+      "name": "LoginMap101Lv1",
+      "type": "login",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "notes": "T=0 character creation on Dao Huong Thon (Map 101) at Level 1."
+    },
+    {
+      "name": "TeleportStorageBox1RevPos47",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1682,
+      "tileY": 3133
+    },
+    {
+      "name": "ClickStorageBox1RevPos47",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1683,
+      "tileY": 3133,
+      "dataId": 1,
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseStorageBox1RevPos47",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportNoticeBoard2Ladder",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1627,
+      "tileY": 3206
+    },
+    {
+      "name": "ClickNoticeBoard2Ladder",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1630,
+      "tileY": 3204,
+      "dataId": 4,
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseNoticeBoard2Ladder",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportStorageBox2RevPos48",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1587,
+      "tileY": 3246
+    },
+    {
+      "name": "ClickStorageBox2RevPos48",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1588,
+      "tileY": 3246,
+      "dataId": 1,
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseStorageBox2RevPos48",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportVillageSteleDaoHuong",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1566,
+      "tileY": 3269
+    },
+    {
+      "name": "ClickVillageSteleDaoHuong",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1567,
+      "tileY": 3269,
+      "dataId": 7,
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseVillageSteleDaoHuong",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportXaPhuLv1Block",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1622,
+      "tileY": 3097
+    },
+    {
+      "name": "CheckXaPhuLv1Block",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1623,
+      "tileY": 3097,
+      "npcName": "Xa phu",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseXaPhuLv1Block",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportToDaiMaLv1Lore",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1600,
+      "tileY": 3145
+    },
+    {
+      "name": "CheckToDaiMaLv1Lore",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1600,
+      "tileY": 3146,
+      "npcName": "Tô đại ma",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseToDaiMaLv1Lore",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportDaTauLv1Block",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1677,
+      "tileY": 3143
+    },
+    {
+      "name": "CheckDaTauLv1Block",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1678,
+      "tileY": 3143,
+      "npcName": "Dã Tẩu",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseDaTauLv1Block",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportTieuLanLv1Lore",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1653,
+      "tileY": 3307
+    },
+    {
+      "name": "CheckTieuLanLv1Lore",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1654,
+      "tileY": 3307,
+      "npcName": "Tiểu Lan",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseTieuLanLv1Lore",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportVoSuLv1Block",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1665,
+      "tileY": 2958
+    },
+    {
+      "name": "CheckVoSuLv1Block",
+      "type": "interact_npc",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1666,
+      "tileY": 2958,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectVoSuLv1BlockOpt2",
+      "type": "select_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "optionIndex": 2
+    },
+    {
+      "name": "CloseVoSuLv1Block",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportSignpost1TuongDuong",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1339,
+      "tileY": 3389
+    },
+    {
+      "name": "ClickSignpost1TuongDuong",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1340,
+      "tileY": 3389,
+      "dataId": 6,
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseSignpost1TuongDuong",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportTuongDuongPortalLv1",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1331,
+      "tileY": 3387
+    },
+    {
+      "name": "StepTuongDuongPortalLv1Block",
+      "type": "step_trap",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "trapId": 4061677319,
+      "expectedMapId": 101,
+      "notes": "Lv < 5 pushes back to (1335, 3397) + Talk."
+    },
+    {
+      "name": "CloseTuongDuongPortalLv1Talk",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportSignpost2DuongChau",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1909,
+      "tileY": 3198
+    },
+    {
+      "name": "ClickSignpost2DuongChau",
+      "type": "click_object",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1910,
+      "tileY": 3198,
+      "dataId": 6,
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseSignpost2DuongChau",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportDuongChauPortalLv1",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "tileX": 1915,
+      "tileY": 3216
+    },
+    {
+      "name": "StepDuongChauPortalLv1Block",
+      "type": "step_trap",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks",
+      "mapId": 101,
+      "trapId": 1860139780,
+      "expectedMapId": 101,
+      "notes": "Lv < 5 pushes back to (1911, 3211) + Talk."
+    },
+    {
+      "name": "CloseDuongChauPortalLv1Talk",
+      "type": "close_dialog",
+      "region": "Stage 1 - Lv1 Objects & Level-Gated Blocks"
+    },
+    {
+      "name": "TeleportWestGateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1613,
+      "tileY": 3088
+    },
+    {
+      "name": "SetSafeModeWestGateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepWestGateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 491335983,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncWestGateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1611,
+      "tileY": 3082
+    },
+    {
+      "name": "StepWestGateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 491335983,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncWestGateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1613,
+      "tileY": 3088
+    },
+    {
+      "name": "TeleportSouthGateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1578,
+      "tileY": 3267
+    },
+    {
+      "name": "SetSafeModeSouthGateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepSouthGateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 3552944815,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncSouthGateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1575,
+      "tileY": 3274
+    },
+    {
+      "name": "StepSouthGateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 3552944815,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncSouthGateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1578,
+      "tileY": 3267
+    },
+    {
+      "name": "TeleportEast1GateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1793,
+      "tileY": 3175
+    },
+    {
+      "name": "SetSafeModeEast1GateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepEast1GateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 3142413308,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEast1GateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1795,
+      "tileY": 3171
+    },
+    {
+      "name": "StepEast1GateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 3142413308,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEast1GateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1793,
+      "tileY": 3175
+    },
+    {
+      "name": "TeleportEast2GateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1799,
+      "tileY": 3194
+    },
+    {
+      "name": "SetSafeModeEast2GateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepEast2GateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 2586097921,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEast2GateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1802,
+      "tileY": 3195
+    },
+    {
+      "name": "StepEast2GateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 2586097921,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEast2GateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1799,
+      "tileY": 3194
+    },
+    {
+      "name": "TeleportEast3GateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1759,
+      "tileY": 3237
+    },
+    {
+      "name": "SetSafeModeEast3GateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepEast3GateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 4103927499,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEast3GateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1761,
+      "tileY": 3245
+    },
+    {
+      "name": "StepEast3GateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 4103927499,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEast3GateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1759,
+      "tileY": 3237
+    },
+    {
+      "name": "TeleportEast4GateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1729,
+      "tileY": 3275
+    },
+    {
+      "name": "SetSafeModeEast4GateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepEast4GateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 3614705482,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEast4GateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1735,
+      "tileY": 3279
+    },
+    {
+      "name": "StepEast4GateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 3614705482,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEast4GateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1729,
+      "tileY": 3275
+    },
+    {
+      "name": "TeleportEast5GateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1771,
+      "tileY": 3230
+    },
+    {
+      "name": "SetSafeModeEast5GateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepEast5GateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 837571604,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEast5GateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1772,
+      "tileY": 3235
+    },
+    {
+      "name": "StepEast5GateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 837571604,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEast5GateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1771,
+      "tileY": 3230
+    },
+    {
+      "name": "TeleportEast6GateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1781,
+      "tileY": 3223
+    },
+    {
+      "name": "SetSafeModeEast6GateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepEast6GateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 2421941726,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEast6GateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1783,
+      "tileY": 3229
+    },
+    {
+      "name": "StepEast6GateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 2421941726,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEast6GateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1781,
+      "tileY": 3223
+    },
+    {
+      "name": "TeleportEast7GateInside",
+      "type": "gm_teleport",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1790,
+      "tileY": 3215
+    },
+    {
+      "name": "SetSafeModeEast7GateOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepEast7GateOut0To1",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 1932735459,
+      "expectedMapId": 101,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncEast7GateOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1791,
+      "tileY": 3220
+    },
+    {
+      "name": "StepEast7GateIn1To0",
+      "type": "step_trap",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "trapId": 1932735459,
+      "expectedMapId": 101,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncEast7GateInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 2 - 9 Bidirectional Gates",
+      "mapId": 101,
+      "tileX": 1790,
+      "tileY": 3215
+    },
+    {
+      "name": "TeleportHub1",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1686,
+      "tileY": 3134
+    },
+    {
+      "name": "SetLevel20ForTownSurvey",
+      "type": "gm_set_level",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "level": 20
+    },
+    {
+      "name": "SetMoney50000ForCommerce",
+      "type": "gm_set_money",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "value": 50000
+    },
+    {
+      "name": "LearnCombatSkill14Lv20",
+      "type": "gm_learn_skill",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "value": 14,
+      "level": 20
+    },
+    {
+      "name": "CrawlHub1Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub2",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1654,
+      "tileY": 3156
+    },
+    {
+      "name": "CrawlHub2Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub3",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1640,
+      "tileY": 3201
+    },
+    {
+      "name": "CrawlHub3Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub4",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1601,
+      "tileY": 3191
+    },
+    {
+      "name": "CrawlHub4Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub5",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1598,
+      "tileY": 3148
+    },
+    {
+      "name": "CrawlHub5Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub6",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1559,
+      "tileY": 3165
+    },
+    {
+      "name": "CrawlHub6Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub7",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1561,
+      "tileY": 3230
+    },
+    {
+      "name": "CrawlHub7Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub8",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1617,
+      "tileY": 3279
+    },
+    {
+      "name": "CrawlHub8Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub9",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1672,
+      "tileY": 3295
+    },
+    {
+      "name": "CrawlHub9Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub10",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1683,
+      "tileY": 3250
+    },
+    {
+      "name": "CrawlHub10Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub11",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1691,
+      "tileY": 3175
+    },
+    {
+      "name": "CrawlHub11Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub12",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1736,
+      "tileY": 3207
+    },
+    {
+      "name": "CrawlHub12Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub13",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1749,
+      "tileY": 3160
+    },
+    {
+      "name": "CrawlHub13Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub14",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1721,
+      "tileY": 3135
+    },
+    {
+      "name": "CrawlHub14Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportHub15",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1666,
+      "tileY": 2958
+    },
+    {
+      "name": "CrawlHub15Npcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "maxRadiusTiles": 26,
+      "maxBranches": 1,
+      "excludeNpcNames": [
+        "Xa phu"
+      ]
+    },
+    {
+      "name": "TeleportXaPhuLv20",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1622,
+      "tileY": 3097
+    },
+    {
+      "name": "InteractXaPhuStation13Unlocked",
+      "type": "interact_npc",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1623,
+      "tileY": 3097,
+      "npcName": "Xa phu",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectXaPhuOnCancel",
+      "type": "select_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "optionIndex": 3,
+      "notes": "StationOnCancel -> Talk('Co tien thi hay quay lai nhe! ')."
+    },
+    {
+      "name": "CloseXaPhuStation13Unlocked",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportGrocerShop90",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1638,
+      "tileY": 3144
+    },
+    {
+      "name": "OpenGrocerDialogMap101",
+      "type": "interact_npc",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1639,
+      "tileY": 3144,
+      "npcName": "Ông chủ tạp hóa",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectGrocerShop90",
+      "type": "select_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "optionIndex": 1,
+      "notes": "store_sel_village_extend option 1 -> Sale(90)."
+    },
+    {
+      "name": "BuyFirstGrocerItemMap101",
+      "type": "buy_shop_item",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "value": 0
+    },
+    {
+      "name": "CloseGrocerShop90",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportPharmacistShop99",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1678,
+      "tileY": 3196
+    },
+    {
+      "name": "OpenPharmacistDialogMap101",
+      "type": "interact_npc",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1679,
+      "tileY": 3196,
+      "npcName": "Chủ dược điếm Đạo Hương Thôn",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectPharmacistShop99",
+      "type": "select_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "ClosePharmacistShop99",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportBlacksmithShop89",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1613,
+      "tileY": 3134
+    },
+    {
+      "name": "OpenBlacksmithDialogMap101",
+      "type": "interact_npc",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1613,
+      "tileY": 3133,
+      "npcName": "Thợ rèn",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectBlacksmithShop89",
+      "type": "select_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseBlacksmithShop89",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportBox1ForMoneyOps",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1682,
+      "tileY": 3133
+    },
+    {
+      "name": "OpenBox1ForMoneyOps",
+      "type": "click_object",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "mapId": 101,
+      "tileX": 1683,
+      "tileY": 3133,
+      "dataId": 1,
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "Deposit500SilverMap101",
+      "type": "store_money",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "optionIndex": 0,
+      "value": 500
+    },
+    {
+      "name": "Withdraw500SilverMap101",
+      "type": "store_money",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce",
+      "optionIndex": 1,
+      "value": 500
+    },
+    {
+      "name": "CloseBox1AfterMoneyOps",
+      "type": "close_dialog",
+      "region": "Stage 3 - Set-Cover 38 NPCs & Commerce"
+    },
+    {
+      "name": "ResetTask73HoaHoa",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 73,
+      "value": 0
+    },
+    {
+      "name": "TeleportHoaHoaTask73",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1706,
+      "tileY": 3249
+    },
+    {
+      "name": "InteractHoaHoaAcceptTask73",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1707,
+      "tileY": 3249,
+      "npcName": "Hoa Hoa",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectHoaHoaAcceptTask73",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseHoaHoaAcceptTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "TeleportTieuLongTask73",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1560,
+      "tileY": 3230
+    },
+    {
+      "name": "InteractTieuLongTask73",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1561,
+      "tileY": 3230,
+      "npcName": "Tiểu Long",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "ConfirmTieuLong4PageTalkFpay",
+      "type": "confirm_talk",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "notes": "Fpay pays 10 silver -> Task 73 = 10 + Nguu Bi Yeu Dai (0,6,0,1) + Repute 5."
+    },
+    {
+      "name": "CloseTieuLongRewardTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "TeleportHoaHoaAfterTask73",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1706,
+      "tileY": 3249
+    },
+    {
+      "name": "InteractHoaHoaCompletedTask73",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1707,
+      "tileY": 3249,
+      "npcName": "Hoa Hoa",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseHoaHoaCompletedTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "ResetTask71ToDaiMa",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 71,
+      "value": 0
+    },
+    {
+      "name": "TeleportToDaiMaTask71",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1600,
+      "tileY": 3145
+    },
+    {
+      "name": "InteractToDaiMaStartTask71",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1600,
+      "tileY": 3146,
+      "npcName": "Tô đại ma",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "ConfirmToDaiMaIntroTalk",
+      "type": "confirm_talk",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "SelectToDaiMaAcceptTask71",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 0
+    },
+    {
+      "name": "TeleportToTrungTask71",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1723,
+      "tileY": 3138
+    },
+    {
+      "name": "InteractToTrungTask71",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1724,
+      "tileY": 3138,
+      "npcName": "Tô Trung",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "ConfirmToTrungIntroTalk",
+      "type": "confirm_talk",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "SelectToTrungKhuyenCan",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 0,
+      "notes": "against -> 4-page Talk + SetTask(71, 2)."
+    },
+    {
+      "name": "CloseToTrungKhuyenCanTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "TeleportReturnToDaiMaTask71",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1600,
+      "tileY": 3145
+    },
+    {
+      "name": "TurnInToDaiMaTask71",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1600,
+      "tileY": 3146,
+      "npcName": "Tô đại ma",
+      "maxRadiusTiles": 8,
+      "notes": "Task 71: 2 -> 4, grants 3x Kim Sang Duoc + Repute 6."
+    },
+    {
+      "name": "CloseToDaiMaTurnInTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "ResetTask66TieuLan",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 66,
+      "value": 0
+    },
+    {
+      "name": "TeleportTieuLanTask66",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1653,
+      "tileY": 3307
+    },
+    {
+      "name": "InteractTieuLanStartTask66",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1654,
+      "tileY": 3307,
+      "npcName": "Tiểu Lan",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "ConfirmTieuLan3PageTalk",
+      "type": "confirm_talk",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "SelectTieuLanAcceptTask66",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseTieuLanAcceptedTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "TeleportPharmacistTask66Step1",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1678,
+      "tileY": 3196
+    },
+    {
+      "name": "InteractPharmacistTask66Step1",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1679,
+      "tileY": 3196,
+      "npcName": "Chủ dược điếm Đạo Hương Thôn",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectPharmacistFindIngredients",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 1,
+      "notes": "source -> SetTask(66, 2)."
+    },
+    {
+      "name": "TeleportPeddlerBuyMusk142",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1639,
+      "tileY": 3201
+    },
+    {
+      "name": "InteractPeddlerTask66Step2",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1640,
+      "tileY": 3201,
+      "npcName": "Hành Cước thương nhân",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectPeddlerBuyMusk200Silver",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 0
+    },
+    {
+      "name": "TeleportHunterBuyTigerBone185",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1683,
+      "tileY": 3289
+    },
+    {
+      "name": "InteractHunterTask66Step2",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1684,
+      "tileY": 3289,
+      "npcName": "Thợ săn",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectHunterBuyTigerBone150Silver",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 0
+    },
+    {
+      "name": "TeleportPharmacistBrewHerbs",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1678,
+      "tileY": 3196
+    },
+    {
+      "name": "InteractPharmacistBrewHerbs2To3",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1679,
+      "tileY": 3196,
+      "npcName": "Chủ dược điếm Đạo Hương Thôn",
+      "maxRadiusTiles": 8,
+      "notes": "Consumes 185+142 -> SetTimer(5400, 6) + SetTask(66, 3) + 2-page Talk."
+    },
+    {
+      "name": "ClosePharmacistBrewTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "PrimeTask66At4TimerReady",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 66,
+      "value": 4,
+      "notes": "Fast-forwards herb timer completion state (OnTimer -> Task 66 = 4) -> W66_getitem grants EventItem 186."
+    },
+    {
+      "name": "ClaimBrewedOintment186",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1679,
+      "tileY": 3196,
+      "npcName": "Chủ dược điếm Đạo Hương Thôn",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "TeleportReturnTieuLanTurnIn66",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1653,
+      "tileY": 3307
+    },
+    {
+      "name": "TurnInTieuLanTask66",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1654,
+      "tileY": 3307,
+      "npcName": "Tiểu Lan",
+      "maxRadiusTiles": 8,
+      "notes": "Consumes 186 -> Task 66 = 10 + ring (0,3,0,1|2) + Repute 8|9."
+    },
+    {
+      "name": "CloseTieuLanTurnInTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "ResetTask32Lightfoot",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 32,
+      "value": 0
+    },
+    {
+      "name": "TeleportVoSuEnrollLv20",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1665,
+      "tileY": 2958
+    },
+    {
+      "name": "InteractVoSuEnrollLightfoot",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1666,
+      "tileY": 2958,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "SelectVoSuLightfootMenu",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 2
+    },
+    {
+      "name": "AcceptVoSuPay100Silver",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseVoSuEnrollTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "PrimeTask32At69BeforeStake",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 32,
+      "value": 69
+    },
+    {
+      "name": "TeleportNearWoodenStake101",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1644,
+      "tileY": 2967
+    },
+    {
+      "name": "DefeatWoodenStake101",
+      "type": "attack_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1645,
+      "tileY": 2967,
+      "npcName": "Cọc gỗ",
+      "value": 14,
+      "maxRadiusTiles": 15
+    },
+    {
+      "name": "TeleportVoSuAfterStake",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1665,
+      "tileY": 2958
+    },
+    {
+      "name": "ReportStakeToVoSu",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1666,
+      "tileY": 2958,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "AdvanceTask32From70To80",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 2
+    },
+    {
+      "name": "CloseVoSuStage2Talk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "PrimeTask32At129BeforeSandbag",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 32,
+      "value": 129
+    },
+    {
+      "name": "TeleportNearSandbag101",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1632,
+      "tileY": 2938
+    },
+    {
+      "name": "DefeatSandbag101",
+      "type": "attack_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1633,
+      "tileY": 2938,
+      "npcName": "Bao cát",
+      "value": 14,
+      "maxRadiusTiles": 15
+    },
+    {
+      "name": "TeleportVoSuAfterSandbag",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1665,
+      "tileY": 2958
+    },
+    {
+      "name": "ReportSandbagToVoSu",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1666,
+      "tileY": 2958,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "AdvanceTask32From130To140",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 2
+    },
+    {
+      "name": "CloseVoSuStage3Talk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "PrimeTask32At189BeforeDummy",
+      "type": "gm_set_task",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "taskId": 32,
+      "value": 189
+    },
+    {
+      "name": "TeleportNearWoodenDummy101",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1627,
+      "tileY": 2943
+    },
+    {
+      "name": "DefeatWoodenDummy101",
+      "type": "attack_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1628,
+      "tileY": 2943,
+      "npcName": "Mộc nhân",
+      "value": 14,
+      "maxRadiusTiles": 15
+    },
+    {
+      "name": "TeleportVoSuAfterDummy",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1665,
+      "tileY": 2958
+    },
+    {
+      "name": "ReportDummyToVoSu",
+      "type": "interact_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1666,
+      "tileY": 2958,
+      "npcName": "Võ Sư",
+      "maxRadiusTiles": 10
+    },
+    {
+      "name": "CompleteLightfootLearnSkill210",
+      "type": "select_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "optionIndex": 2
+    },
+    {
+      "name": "CloseVoSuCompletionTalk",
+      "type": "close_dialog",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob"
+    },
+    {
+      "name": "TeleportAmbientDeerField101",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1593,
+      "tileY": 2750
+    },
+    {
+      "name": "EnableFightModeForFieldDeer",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "value": 1
+    },
+    {
+      "name": "DefeatAmbientSpottedDeer101",
+      "type": "attack_npc",
+      "region": "Stage 4 - Quests, Lightfoot Dummies & Field Mob",
+      "mapId": 101,
+      "tileX": 1594,
+      "tileY": 2750,
+      "npcName": "Hươu đốm",
+      "value": 14,
+      "maxRadiusTiles": 15
+    },
+    {
+      "name": "TeleportTuongDuongPortalLv20",
+      "type": "gm_teleport",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "mapId": 101,
+      "tileX": 1331,
+      "tileY": 3387
+    },
+    {
+      "name": "EnableFightBeforeTuongDuongPortal",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "value": 1
+    },
+    {
+      "name": "StepPortalDaoHuongToTuongDuong78",
+      "type": "step_trap",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "mapId": 101,
+      "trapId": 4061677319,
+      "expectedMapId": 78,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ReturnFrom78ToDuongChauPortal",
+      "type": "gm_teleport",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "mapId": 101,
+      "tileX": 1915,
+      "tileY": 3216,
+      "resetDrift": true
+    },
+    {
+      "name": "EnableFightBeforeDuongChauPortal",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "value": 1
+    },
+    {
+      "name": "StepPortalDaoHuongToDuongChau80",
+      "type": "step_trap",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "mapId": 101,
+      "trapId": 1860139780,
+      "expectedMapId": 80,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ReturnFrom80ToDuongTrungDongPortal",
+      "type": "gm_teleport",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "mapId": 101,
+      "tileX": 1769,
+      "tileY": 2800,
+      "resetDrift": true
+    },
+    {
+      "name": "EnableFightBeforeDuongTrungDongPortal",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "value": 1
+    },
+    {
+      "name": "StepPortalDaoHuongToDuongTrungDong205",
+      "type": "step_trap",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "mapId": 101,
+      "trapId": 2665950807,
+      "expectedMapId": 205,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ReturnFinalDaoHuongCenter",
+      "type": "gm_teleport",
+      "region": "Stage 5 - 3 Cross-Map Portals",
+      "mapId": 101,
+      "tileX": 1686,
+      "tileY": 3134,
+      "resetDrift": true
+    }
+  ]
+}

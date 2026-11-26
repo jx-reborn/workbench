@@ -266,7 +266,12 @@ if not dry_run_gates_only and latest_analysis is None:
         run_cmd(["wslc", "remove", "-f", "legacy-oracle-test"])
         run_cmd(["wslc", "volume", "remove", "legacy-oracle-test-v1"])
 
-        # Ensure prebuilt JXReborn.Host.dll reflects the latest server/ assemblies (RebornHostLauncher prefers freshest Host.dll)
+        # Ensure pack-tieudaotu/dist/server/ and JXReborn.Host.dll reflect the latest pack & server assemblies before launching standalone host
+        pc_proj = SERVER / "tools" / "JXReborn.PackCompiler" / "JXReborn.PackCompiler.csproj"
+        pc_code, pc_out = run_cmd(["dotnet", "run", "--project", str(pc_proj), "--", "--pack", str(PACK)])
+        if pc_code != 0:
+            raise RuntimeError(f"PackCompiler rebuild failed before Phase 2:\n{pc_out}")
+
         host_proj = SERVER / "src" / "JXReborn.Host" / "JXReborn.Host.csproj"
         hb_code, hb_out = run_cmd(["dotnet", "build", str(host_proj), "-c", "Debug", "--nologo", "-v", "q"])
         if hb_code != 0:

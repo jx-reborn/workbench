@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "updated_at_utc": "2026-11-26T20:07:14.651762+00:00",
+  "updated_at_utc": "2026-11-26T22:44:24.351464+00:00",
   "overall": {
     "total_items": 232,
-    "zero_drift_locked": 12,
-    "completion_percent": 5.17,
+    "zero_drift_locked": 13,
+    "completion_percent": 5.6,
     "script_corpus_metrics": {
       "total_active_lua_files": null,
       "accounted_lua_files": 3553,
@@ -22,11 +22,11 @@
       "total": 54
     },
     "maps_world": {
-      "pending": 134,
+      "pending": 133,
       "ground_truth_extracted": 0,
       "scenario_audited": 0,
       "in_tdd_fix": 1,
-      "zero_drift_locked": 2,
+      "zero_drift_locked": 3,
       "total": 137
     },
     "factions_skills": {
@@ -1641,7 +1641,7 @@
         "legacy_dir": "中原南区\\稻香村",
         "wave": "wave1_starter_villages",
         "priority": 10,
-        "status": "pending",
+        "status": "zero_drift_locked",
         "evidence": {
           "scenario_path": null,
           "walkthrough_path": null,
@@ -1652,10 +1652,21 @@
           "protocol_violations": null
         },
         "gates": {
-          "gate1_static": false,
-          "gate2_unit_sim": false,
-          "gate3_wire_capture": false,
-          "gate4_live_proxy": false
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        },
+        "locked_evidence": {
+          "verified_at_utc": "2026-11-26T22:43:32.219048+00:00",
+          "gate1_static_scenario_sha256": "176329af9bf247567fddf5da3a21ff706651ad86f3bbe963d8b008d1a4442a2d",
+          "gate2_dotnet_test_passed": true,
+          "gate2_test_project": "workbench/qa/JXReborn.WireParityProxy.Tests/JXReborn.WireParityProxy.Tests.csproj",
+          "gate2_test_filter": "FullyQualifiedName~WireParityScenarioAndPathfinderTests",
+          "gate4_report_path": "workbench/artifacts/scenario-runs/101/wf-iter-1/scenario-report.json",
+          "gate4_report_sha256": "941a3ffd13f06d1f956045e76862df6456cb3ff76ed162cc8136f97481f32edb",
+          "gate4_steps_passed": 238,
+          "gate4_warning_findings": 299
         }
       },
       {
