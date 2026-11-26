@@ -30,6 +30,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -656,6 +657,7 @@ def main(argv: list[str] | None = None) -> int:
     p_aud = sub.add_parser("audit", help="Verify target C#/JSON files cover all Legacy Lua fingerprints with zero stubs")
     p_aud.add_argument("--lua", action="append", required=True, help="One or more legacy Lua script paths")
     p_aud.add_argument("--target", action="append", required=True, help="One or more target C# / JSON files or directories")
+    p_aud.add_argument("--exec-vectors", action="store_true", help="Also execute Lua4Interpreter vs C# behavioral state vectors via JXReborn.ScriptMigrator")
     p_aud.add_argument("--strict", action="store_true")
     p_aud.add_argument("--json", action="store_true")
 
@@ -675,6 +677,40 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "audit":
         passed, report = audit_feature(ecosystem_root, args.lua, args.target)
+        if args.exec_vectors and passed:
+            migrator_proj = ecosystem_root / "workbench" / "tools" / "JXReborn.ScriptMigrator" / "JXReborn.ScriptMigrator.csproj"
+            legacy_bin = ecosystem_root / "legacy-server" / "bin"
+            pack_dir = ecosystem_root / "pack-tieudaotu"
+            vector_results = []
+            for lua_arg in args.lua:
+                proc = subprocess.run(
+                    [
+                        "dotnet",
+                        "run",
+                        "--project",
+                        str(migrator_proj),
+                        "--",
+                        "verify-script",
+                        "--legacy",
+                        str(legacy_bin),
+                        "--pack",
+                        str(pack_dir),
+                        "--lua",
+                        lua_arg,
+                        "--strict",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                combined_out = (proc.stdout + "\n" + proc.stderr).strip()
+                vector_results.append({"lua": lua_arg, "exit_code": proc.returncode, "output": combined_out})
+                if proc.returncode != 0:
+                    passed = False
+                    report["passed"] = False
+                    report["violations"].append(f"[BehavioralVectorMismatch] {lua_arg}:\n{combined_out}")
+            report["behavioral_vector_verification"] = vector_results
         if args.json:
             print(json.dumps(report, indent=2, ensure_ascii=False))
         else:

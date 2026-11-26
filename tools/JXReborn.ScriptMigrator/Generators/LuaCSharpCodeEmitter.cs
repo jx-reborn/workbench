@@ -1089,10 +1089,7 @@ public static class GeneratedLuaRuntime
 
         string label = optionSpec[..slash];
         string rawCb = optionSpec[(slash + 1)..].Trim();
-        if (rawCb.Length == 0 ||
-            rawCb.Equals("no", StringComparison.OrdinalIgnoreCase) ||
-            rawCb.Equals("OnCancel", StringComparison.OrdinalIgnoreCase) ||
-            rawCb.Equals("Cancel", StringComparison.OrdinalIgnoreCase))
+        if (rawCb.Length == 0)
         {
             return new DialogOption(label, null);
         }
@@ -3822,10 +3819,7 @@ public static class GeneratedLuaRuntime
         int slash = optSpec.LastIndexOf('/');
         string label = slash >= 0 ? optSpec[..slash] : optSpec;
         string rawCb = slash >= 0 ? optSpec[(slash + 1)..].Trim() : string.Empty;
-        if (rawCb.Length == 0 ||
-            rawCb.Equals("no", StringComparison.OrdinalIgnoreCase) ||
-            rawCb.Equals("OnCancel", StringComparison.OrdinalIgnoreCase) ||
-            rawCb.Equals("Cancel", StringComparison.OrdinalIgnoreCase))
+        if (rawCb.Length == 0)
         {
             return $"new DialogOption({ToEscapedStringLiteral(label)}, null)";
         }

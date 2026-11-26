@@ -213,10 +213,7 @@ public sealed class LuaOracleHarness
                 if ((uint)pick < (uint)optCbs.Length)
                 {
                     string rawCb = optCbs[pick];
-                    if (!string.IsNullOrEmpty(rawCb) &&
-                        !rawCb.Equals("no", StringComparison.OrdinalIgnoreCase) &&
-                        !rawCb.Equals("OnCancel", StringComparison.OrdinalIgnoreCase) &&
-                        !rawCb.Equals("Cancel", StringComparison.OrdinalIgnoreCase))
+                    if (!string.IsNullOrEmpty(rawCb))
                     {
                         (string fnName, Lua4Value[] cbArgs) = ParseLuaOptionCallbackInvocation(rawCb);
                         if (!string.IsNullOrEmpty(fnName) && interp.GetGlobal(fnName).IsFunction)

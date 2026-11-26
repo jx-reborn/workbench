@@ -71,7 +71,7 @@ public sealed class ParityHarnessVerifiersTests
         string script = Path.Combine(root, "workbench", "qa", "scripts", "audit_feature_parity.py");
         Assert.True(File.Exists(script), $"Missing {script}");
 
-        // 1. Real Ba Lang A Phuong quest (Task 48, Earring (4,181), Headgear reward)
+        // 1. Real Ba Lang A Phuong quest (Task 48, Earring (4,181), Headgear reward) + Lua4Interpreter --exec-vectors!
         (int code1, string out1) = RunPython(
             script,
             "audit",
@@ -79,18 +79,32 @@ public sealed class ParityHarnessVerifiersTests
             @"\script\两湖区\巴陵县\npc\巴陵县_路人9阿芳对话.lua",
             "--target",
             "pack-tieudaotu/src/JXReborn.Packs.TieuDaoTu/Scripts/Quests/BaLangHuyen/BaLangAPhuongDialogScript.cs",
+            "--exec-vectors",
             "--strict",
             "--json");
-        Assert.True(code1 == 0, $"Expected A Phuong script audit PASS, got:\n{out1}");
+        Assert.True(code1 == 0, $"Expected A Phuong script audit + vector equivalence PASS, got:\n{out1}");
         using (JsonDocument doc1 = JsonDocument.Parse(out1))
         {
             JsonElement fp = doc1.RootElement.GetProperty("legacy_fingerprint");
             int[] tasks = fp.GetProperty("task_ids").EnumerateArray().Select(static e => e.GetInt32()).ToArray();
             Assert.Contains(48, tasks);
             Assert.NotEmpty(doc1.RootElement.GetProperty("target_capabilities").GetProperty("verified_legacy_sources").EnumerateArray());
+            Assert.NotEmpty(doc1.RootElement.GetProperty("behavioral_vector_verification").EnumerateArray());
         }
 
-        // 2. Real Wooden Post wrapper -> recursive Include `\script\global\各派接引弟子\轻功_木桩模板.lua` (Task 32 + OnDeath)
+        // 1b. Real Ba Lang Co Lao Thai + Du Khach + Tieu Ngu quests with Lua4Interpreter --exec-vectors!
+        foreach ((string luaRel, string csRel) in new[]
+        {
+            (@"\script\两湖区\巴陵县\npc\巴陵县_路人2古老太对话.lua", "pack-tieudaotu/src/JXReborn.Packs.TieuDaoTu/Scripts/Quests/BaLangHuyen/BaLangCoLaoThaiDialogScript.cs"),
+            (@"\script\两湖区\巴陵县\npc\巴陵县_路人4小渔对话.lua", "pack-tieudaotu/src/JXReborn.Packs.TieuDaoTu/Scripts/Quests/BaLangHuyen/BaLangTieuNguDialogScript.cs"),
+            (@"\script\两湖区\巴陵县\npc\巴陵县_路人5游客对话.lua", "pack-tieudaotu/src/JXReborn.Packs.TieuDaoTu/Scripts/Quests/BaLangHuyen/BaLangDuKhachDialogScript.cs"),
+        })
+        {
+            (int qCode, string qOut) = RunPython(script, "audit", "--lua", luaRel, "--target", csRel, "--exec-vectors", "--strict");
+            Assert.True(qCode == 0, $"Expected vector equivalence PASS for {luaRel}, got:\n{qOut}");
+        }
+
+        // 2. Real Wooden Post wrapper -> recursive Include `\script\global\各派接引弟子\轻功_木桩模板.lua` (Task 32 + OnDeath) + --exec-vectors!
         (int code2, string out2) = RunPython(
             script,
             "audit",
@@ -98,6 +112,7 @@ public sealed class ParityHarnessVerifiersTests
             @"\script\江南区\龙泉村\npc\战斗_木桩.lua",
             "--target",
             "pack-tieudaotu/src/JXReborn.Packs.TieuDaoTu/Scripts/Combat/TrainingDummyCombatScript.cs",
+            "--exec-vectors",
             "--strict",
             "--json");
         Assert.True(code2 == 0, $"Expected Wooden Post recursive include audit PASS, got:\n{out2}");
@@ -339,6 +354,7 @@ public sealed class ParityHarnessVerifiersTests
         string workflowsDir = Path.Combine(root, "workbench", ".agents", "workflows");
         string[] expectedWorkflows =
         [
+            "wf_lua_compiler_wave.py",
             "wf_map_convergence.py",
             "wf_mechanic_convergence.py",
             "wf_journey_calibration.py",
@@ -371,7 +387,14 @@ public sealed class ParityHarnessVerifiersTests
             Assert.True(proc.ExitCode == 0, $"Syntax error in {wf}:\n{stderr}\n{stdout}");
         }
 
-        string[] expectedSkills = ["port-legacy-feature", "khao-sat-co-che"];
+        string[] expectedSkills =
+        [
+            "port-legacy-feature",
+            "khao-sat-co-che",
+            "port-s3relay-system",
+            "khao-sat-chien-truong-pho-ban",
+            "dong-bo-hien-thi-client",
+        ];
         Assert.NotEmpty(expectedSkills);
         foreach (string skill in expectedSkills)
         {
@@ -381,6 +404,33 @@ public sealed class ParityHarnessVerifiersTests
             Assert.StartsWith("---", content.TrimStart(), StringComparison.Ordinal);
             Assert.Contains($"name: {skill}", content, StringComparison.Ordinal);
             Assert.Contains("description:", content, StringComparison.Ordinal);
+        }
+
+        string agentsDir = Path.Combine(root, "workbench", ".agents", "plugins", "jx-parity-army", "agents");
+        string[] expectedAgents =
+        [
+            "jx-binary-archaeologist",
+            "jx-contract-architect",
+            "jx-blind-qa",
+            "jx-blind-coder",
+            "jx-dispute-referee",
+            "jx-migrator-engineer",
+        ];
+        Assert.NotEmpty(expectedAgents);
+        foreach (string agentName in expectedAgents)
+        {
+            string agentPath = Path.Combine(agentsDir, $"{agentName}.md");
+            Assert.True(File.Exists(agentPath), $"Missing specialist subagent: {agentPath}");
+            string agentText = File.ReadAllText(agentPath, Encoding.UTF8);
+            Assert.Contains($"name: {agentName}", agentText, StringComparison.Ordinal);
+            Assert.Contains("subagent: true", agentText, StringComparison.Ordinal);
+            Assert.Contains("tools:", agentText, StringComparison.Ordinal);
+        }
+
+        foreach (string siblingRepo in new[] { "server", "pack-tieudaotu" })
+        {
+            Assert.True(File.Exists(Path.Combine(root, siblingRepo, ".agents", "skills.json")));
+            Assert.True(File.Exists(Path.Combine(root, siblingRepo, ".agents", "plugins.json")));
         }
     }
 
@@ -447,6 +497,43 @@ public sealed class ParityHarnessVerifiersTests
                 """{"toolCall":{"name":"read_file","args":{"Path":"d:/Projects/jx-reborn/server/src/JXReborn.ZoneEngine/WorldZones/MapZoneWorker.Movement.cs"}}}""")))
             {
                 Assert.Equal("allow", coderAllowSrc.RootElement.GetProperty("decision").GetString());
+            }
+
+            // 3. Per-Conversation Isolation: excluded Coordinator conversationId is NEVER locked out while blind_coder lock is active,
+            //    and intrinsic [HARNESS_ROLE:blind_coder] transcript marker isolates parallel workers even with zero active_phase.json!
+            File.WriteAllText(
+                lockFile,
+                """{"phase":"green","role":"blind_coder","excluded_conversation_ids":["coord-conv-001"]}""",
+                new UTF8Encoding(false));
+
+            using (JsonDocument coordAllowTests = JsonDocument.Parse(RunPythonStdin(
+                guardScript,
+                """{"conversationId":"coord-conv-001","toolCall":{"name":"read_file","args":{"Path":"d:/Projects/jx-reborn/server/tests/JXReborn.ZoneEngine.Tests/WorldZones/NpcCheckTrapLatchingParityTests.cs"}}}""")))
+            {
+                Assert.Equal("allow", coordAllowTests.RootElement.GetProperty("decision").GetString());
+            }
+
+            File.Delete(lockFile);
+            string fakeTranscript = Path.Combine(Path.GetTempPath(), $"jxr-transcript-{Guid.NewGuid():N}.jsonl");
+            try
+            {
+                File.WriteAllText(
+                    fakeTranscript,
+                    """{"step_index":0,"type":"USER_INPUT","content":"You are [HARNESS_ROLE:blind_coder] worker."}""" + "\n",
+                    new UTF8Encoding(false));
+
+                string escapedTp = fakeTranscript.Replace("\\", "/");
+                using JsonDocument intrDeny = JsonDocument.Parse(RunPythonStdin(
+                    guardScript,
+                    $$$$"""{"conversationId":"worker-conv-99","transcriptPath":"{{{{escapedTp}}}}","toolCall":{"name":"read_file","args":{"Path":"d:/Projects/jx-reborn/legacy-server/discovery/traps/KNpc_And_KObj_Traps.cpp"}}}"""));
+                Assert.Equal("deny", intrDeny.RootElement.GetProperty("decision").GetString());
+            }
+            finally
+            {
+                if (File.Exists(fakeTranscript))
+                {
+                    File.Delete(fakeTranscript);
+                }
             }
         }
         finally

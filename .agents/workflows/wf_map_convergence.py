@@ -31,6 +31,7 @@ reuse_existing_clean_run = bool(raw_args.get("reuse_existing_clean_run", False))
 allow_benign_warnings = bool(raw_args.get("allow_benign_warnings", True))
 dry_run_gates_only = bool(raw_args.get("dry_run_gates_only", False))
 worker_timeout_sec = int(raw_args.get("worker_timeout_sec", 600))
+parent_conv_id = str(globals().get("CONVERSATION_ID") or "")
 
 
 def resolve_eco_root() -> Path:
@@ -83,6 +84,8 @@ def set_tdd_phase(phase_name: str | None, role_name: str | None = None) -> None:
         payload = {"phase": phase_name}
         if role_name:
             payload["role"] = role_name
+        if parent_conv_id:
+            payload["excluded_conversation_ids"] = [parent_conv_id]
         ACTIVE_PHASE_FILE.write_text(json.dumps(payload), encoding="utf-8")
 
 
@@ -318,6 +321,7 @@ if not dry_run_gates_only and latest_analysis is None:
                         ],
                     },
                     role=f"Map {map_id:03d} Blind QA (Iter {iteration})",
+                    type_name="jx-blind-qa",
                 ),
                 timeout=worker_timeout_sec,
             )
@@ -366,6 +370,7 @@ if not dry_run_gates_only and latest_analysis is None:
                     ),
                     schema={"type": "string"},
                     role=f"Map {map_id:03d} Blind Coder (Iter {iteration})",
+                    type_name="jx-blind-coder",
                 ),
                 timeout=worker_timeout_sec,
             )

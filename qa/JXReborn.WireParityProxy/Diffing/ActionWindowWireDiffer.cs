@@ -136,6 +136,19 @@ public sealed class ActionWindowWireDiffer
                     shadowOpcodeTags,
                     now));
             }
+
+            CompareSemanticPayloadFields(
+                opcode,
+                pFrames[0].DecryptedPayload,
+                sFrames[0].DecryptedPayload,
+                window,
+                mapId,
+                playerMpsX,
+                playerMpsY,
+                primaryOpcodeTags,
+                shadowOpcodeTags,
+                now,
+                findings);
         }
 
         foreach ((byte opcode, List<JxWireFrame> sFrames) in shadowByOp)
@@ -164,6 +177,137 @@ public sealed class ActionWindowWireDiffer
         }
 
         return findings;
+    }
+
+    private void CompareSemanticPayloadFields(
+        byte opcode,
+        ReadOnlyMemory<byte> primaryPayload,
+        ReadOnlyMemory<byte> shadowPayload,
+        WireActionWindow window,
+        int mapId,
+        int playerMpsX,
+        int playerMpsY,
+        IReadOnlyList<string> primaryOpcodeTags,
+        IReadOnlyList<string> shadowOpcodeTags,
+        DateTimeOffset now,
+        List<ParityFinding> findings)
+    {
+        switch (opcode)
+        {
+            case ProtocolOpcodes.s2c_opensalebox when
+                OpenSaleBoxS2CPacket.TryParse(primaryPayload.Span, out OpenSaleBoxS2CPacket pShop) &&
+                OpenSaleBoxS2CPacket.TryParse(shadowPayload.Span, out OpenSaleBoxS2CPacket sShop) &&
+                pShop != sShop:
+                findings.Add(CreateFinding(
+                    FindingSeverity.Critical,
+                    FindingCategory.WireProtocol,
+                    window,
+                    mapId,
+                    playerMpsX,
+                    playerMpsY,
+                    fieldPath: "S2C.Payload[0x84].ShopSaleBox",
+                    legacyValue: $"ShopId={pShop.ShopId}, Scale={pShop.ScalePercent}, Currency={pShop.CurrencyType}",
+                    rebornValue: $"ShopId={sShop.ShopId}, Scale={sShop.ScalePercent}, Currency={sShop.CurrencyType}",
+                    primaryOpcodeTags,
+                    shadowOpcodeTags,
+                    now));
+                break;
+
+            case ProtocolOpcodes.s2c_openstorebox when
+                OpenStoreBoxS2CPacket.TryParse(primaryPayload.Span, out OpenStoreBoxS2CPacket pBox) &&
+                OpenStoreBoxS2CPacket.TryParse(shadowPayload.Span, out OpenStoreBoxS2CPacket sBox) &&
+                pBox != sBox:
+                findings.Add(CreateFinding(
+                    FindingSeverity.Critical,
+                    FindingCategory.WireProtocol,
+                    window,
+                    mapId,
+                    playerMpsX,
+                    playerMpsY,
+                    fieldPath: "S2C.Payload[0x88].StoreBox",
+                    legacyValue: $"ExpandMask=0x{pBox.ExpandBoxMask:X2}, PwdState={pBox.PasswordState}",
+                    rebornValue: $"ExpandMask=0x{sBox.ExpandBoxMask:X2}, PwdState={sBox.PasswordState}",
+                    primaryOpcodeTags,
+                    shadowOpcodeTags,
+                    now));
+                break;
+
+            case ProtocolOpcodes.s2c_pksyncnormalflag when
+                PkSyncNormalFlagS2CPacket.TryParse(primaryPayload.Span, out PkSyncNormalFlagS2CPacket pPk) &&
+                PkSyncNormalFlagS2CPacket.TryParse(shadowPayload.Span, out PkSyncNormalFlagS2CPacket sPk) &&
+                pPk.PkMode != sPk.PkMode:
+                findings.Add(CreateFinding(
+                    FindingSeverity.Critical,
+                    FindingCategory.WireProtocol,
+                    window,
+                    mapId,
+                    playerMpsX,
+                    playerMpsY,
+                    fieldPath: "S2C.Payload[0x90].PkMode",
+                    legacyValue: pPk.PkMode.ToString(),
+                    rebornValue: sPk.PkMode.ToString(),
+                    primaryOpcodeTags,
+                    shadowOpcodeTags,
+                    now));
+                break;
+
+            case ProtocolOpcodes.s2c_showladder when
+                ShowLadderS2CPacket.TryParse(primaryPayload.Span, out ShowLadderS2CPacket pLad) &&
+                ShowLadderS2CPacket.TryParse(shadowPayload.Span, out ShowLadderS2CPacket sLad) &&
+                !pLad.LadderIds.AsSpan().SequenceEqual(sLad.LadderIds):
+                findings.Add(CreateFinding(
+                    FindingSeverity.Critical,
+                    FindingCategory.WireProtocol,
+                    window,
+                    mapId,
+                    playerMpsX,
+                    playerMpsY,
+                    fieldPath: "S2C.Payload[0x97].LadderIds",
+                    legacyValue: $"[{string.Join(",", pLad.LadderIds)}]",
+                    rebornValue: $"[{string.Join(",", sLad.LadderIds)}]",
+                    primaryOpcodeTags,
+                    shadowOpcodeTags,
+                    now));
+                break;
+
+            case ProtocolOpcodes.s2c_playerskilllevel when
+                PlayerSkillLevelS2CPacket.TryParse(primaryPayload.Span, out PlayerSkillLevelS2CPacket pSk) &&
+                PlayerSkillLevelS2CPacket.TryParse(shadowPayload.Span, out PlayerSkillLevelS2CPacket sSk) &&
+                (pSk.SkillId != sSk.SkillId || pSk.SkillLevel != sSk.SkillLevel):
+                findings.Add(CreateFinding(
+                    FindingSeverity.Critical,
+                    FindingCategory.WireProtocol,
+                    window,
+                    mapId,
+                    playerMpsX,
+                    playerMpsY,
+                    fieldPath: "S2C.Payload[0x5E].SkillLevel",
+                    legacyValue: $"SkillId={pSk.SkillId}, Level={pSk.SkillLevel}",
+                    rebornValue: $"SkillId={sSk.SkillId}, Level={sSk.SkillLevel}",
+                    primaryOpcodeTags,
+                    shadowOpcodeTags,
+                    now));
+                break;
+
+            case ProtocolOpcodes.s2c_scriptaction when
+                ScriptActionS2CPacket.TryParse(primaryPayload.Span, out ScriptActionS2CPacket pSa) &&
+                ScriptActionS2CPacket.TryParse(shadowPayload.Span, out ScriptActionS2CPacket sSa) &&
+                pSa.UiId != sSa.UiId:
+                findings.Add(CreateFinding(
+                    FindingSeverity.Critical,
+                    FindingCategory.WireProtocol,
+                    window,
+                    mapId,
+                    playerMpsX,
+                    playerMpsY,
+                    fieldPath: "S2C.Payload[0x63].UiId",
+                    legacyValue: $"UiId={pSa.UiId}",
+                    rebornValue: $"UiId={sSa.UiId}",
+                    primaryOpcodeTags,
+                    shadowOpcodeTags,
+                    now));
+                break;
+        }
     }
 
     private static bool IsStochasticOrPhaseDependentOpcode(byte c2sOpcode, byte s2cOpcode) =>

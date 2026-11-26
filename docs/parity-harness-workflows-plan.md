@@ -1,4 +1,4 @@
-# Kế Hoạch Tổng Thể: Hệ Sinh Thái Parity Harness & Multi-Agent Workflows (`v1.0`)
+# Kế Hoạch Tổng Thể: Hệ Sinh Thái Parity Harness & Multi-Agent Workflows (`v2.0`)
 
 Tài liệu này quy định kiến trúc tổng thể, cơ chế kiểm chứng 4 cổng (4-Gate Verification), chốt chặn chống AI gian lận (Anti-Reward-Hacking), và lộ trình triển khai hệ thống **Workflows tự động hóa** nhằm đưa **`jx-reborn-server` (`server` + `pack-tieudaotu`) đạt 100% trải nghiệm tương đương `jx-linux` (`legacy-server/bin/`)** trên client `game.exe` thực tế.
 
@@ -187,40 +187,51 @@ Các workflow được viết bằng Python cho công cụ `run_workflow`, sử 
 
 ---
 
-## 4. Cấu Trúc Thư Mục Triển Khai
+## 4. Cấu Trúc Thư Mục Triển Khai (`Harness v2.0`)
 
-Toàn bộ phần điều phối và đối chiếu liên repo được đặt tập trung tại `workbench/` để giữ sạch ranh giới của `server/` và `pack-tieudaotu/`:
+Toàn bộ phần điều phối, đội hình 6 Binh chủng Agent chuyên biệt (`jx-parity-army`), 9 Atomic Skills và 5 Workflows được đặt tập trung tại `workbench/` (kèm `skills.json` & `plugins.json` liên kết tự động sang `server/` và `pack-tieudaotu/`):
 
 ```text
 workbench/
 ├── .agents/
-│   ├── hooks.json                                  # Chốt chặn PreToolUse (bảo vệ capture, clean-room)
+│   ├── hooks.json                                  # Chốt chặn PreToolUse đa phiên theo conversationId
+│   ├── plugins/
+│   │   ├── jx-wire-parity/                         # MCP cầu nối Live WireParityProxy
+│   │   └── jx-parity-army/                         # (v2.0) Đội quân 6 Specialist Subagents cứng
+│   │       ├── plugin.json
+│   │       └── agents/
+│   │           ├── jx-migrator-engineer.md         # Tầng 1 Compiler-First AST Transpiler
+│   │           ├── jx-binary-archaeologist.md      # Giải mã ELF/PE sang discovery/
+│   │           ├── jx-contract-architect.md        # Pha 0 Spec sạch + Contract Stubs chống CS1061
+│   │           ├── jx-blind-qa.md                  # [HARNESS_ROLE:blind_qa] Holdout Test Author
+│   │           ├── jx-blind-coder.md               # [HARNESS_ROLE:blind_coder] Clean-Room Coder
+│   │           └── jx-dispute-referee.md           # Tòa phúc thẩm TEST_DISPUTE độc lập
 │   ├── skills/
-│   │   ├── legacy-explore/                         # (Đã có) Đọc Lua/TabFile/Ghidra gốc
-│   │   ├── khao-sat-ban-do/                        # (Đã có) Set-Cover & Audit kịch bản bản đồ
-│   │   ├── legacy-capture-test/                    # (Đã có) Thu & Replay L1/L2/L3A+/L3B
-│   │   ├── phan-tich-va-sua-loi/                   # (Đã có) Phân cụm findings & sửa lỗi TDD
-│   │   ├── port-legacy-feature/                    # (MỚI) Port trọn gói Lua/Settings -> Pack + Engine
-│   │   │   ├── SKILL.md
-│   │   │   └── references/parametric-mapping.md
-│   │   └── khao-sat-co-che/                        # (MỚI) Khảo sát & khóa cảm giác 18-Hz / C++ formula
-│   │       ├── SKILL.md
-│   │       └── references/frame-breakpoint-checklist.md
+│   │   ├── legacy-explore/                         # Đọc Lua/TabFile/Ghidra gốc
+│   │   ├── khao-sat-ban-do/                        # Set-Cover & Audit kịch bản bản đồ
+│   │   ├── legacy-capture-test/                    # Thu & Replay L1/L2/L3A+/L3B
+│   │   ├── phan-tich-va-sua-loi/                   # Phân cụm findings & sửa lỗi TDD
+│   │   ├── port-legacy-feature/                    # Port trọn gói Lua/Settings -> Pack + Engine
+│   │   ├── khao-sat-co-che/                        # Khảo sát & khóa cảm giác 18-Hz / C++ formula
+│   │   ├── port-s3relay-system/                    # (v2.0) Liên tiến trình s3relay, Bang hội, Lịch sự kiện
+│   │   ├── khao-sat-chien-truong-pho-ban/          # (v2.0) Tua nhanh 18-Hz Tống Kim / Vượt Ải / Phong Lăng Độ
+│   │   └── dong-bo-hien-thi-client/                # (v2.0) Soi hành vi giải mã & UI RAM của game.exe
 │   └── workflows/
-│       ├── wf_map_convergence.py                   # (MỚI) Orchestrator khép kín 1 Bản đồ -> 0 Drift
-│       ├── wf_mechanic_convergence.py              # (MỚI) Orchestrator khép kín 1 Cơ chế / Môn phái
-│       ├── wf_journey_calibration.py               # (MỚI) Orchestrator hiệu chuẩn J09-J28
-│       └── wf_campaign_batch.py                    # (MỚI) Orchestrator chạy chiến dịch theo đợt
+│       ├── wf_lua_compiler_wave.py                 # (v2.0) Phễu Tầng 1: Batch ScriptMigrator + Lua4 Vector Gate
+│       ├── wf_map_convergence.py                   # Hội tụ khép kín 1 Bản đồ -> 0 Drift
+│       ├── wf_mechanic_convergence.py              # Hội tụ 1 Cơ chế / Môn phái (có Referee phúc thẩm)
+│       ├── wf_journey_calibration.py               # Hiệu chuẩn J09-J28
+│       └── wf_campaign_batch.py                    # Chạy chiến dịch hàng loạt theo đợt
 ├── docs/
-│   └── parity-harness-workflows-plan.md            # Tài liệu kế hoạch tổng thể này
+│   └── parity-harness-workflows-plan.md            # Tài liệu kế hoạch tổng thể này (v2.0)
 └── qa/
     ├── parity_master_ledger.json                   # Sổ cái trạng thái hội tụ toàn dự án
     └── scripts/
         ├── parity_ledger.py                        # CLI truy vấn & khóa trạng thái sổ cái
-        ├── audit_feature_parity.py                 # Verifier tĩnh đối chiếu Lua/Settings vs Pack/C#
-        └── verify_tdd_gate.py                      # Verifier cơ học cưỡng chế RED -> GREEN & Immutable Judge
+        ├── audit_feature_parity.py                 # Verifier tĩnh + chạy Lua4Interpreter vs C# (--exec-vectors)
+        ├── pre_tool_parity_guard.py                # PreToolUse hook cô lập mù đôi theo conversationId/transcript
+        └── verify_tdd_gate.py                      # Verifier TDD + Holdout Vault + Sanitized Failure Feedback
 ```
-*(Đồng thời đồng bộ file `.agents/hooks.json` nhẹ sang `server/.agents/hooks.json` và `pack-tieudaotu/.agents/hooks.json` để bảo vệ ngay cả khi làm việc trực tiếp trong từng repo con).*
 
 ---
 

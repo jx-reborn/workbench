@@ -253,6 +253,133 @@ public sealed class DifferentialScriptEquivalenceVerifier
         };
     }
 
+    public async Task<(int TotalVectors, int MatchedVectors, string ResolvedTargetName, IReadOnlyList<EquivalenceMismatchRecord> Mismatches)> VerifyScriptByLuaPathAsync(
+        string legacyBinRoot,
+        string packRoot,
+        string rawLuaPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(legacyBinRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(packRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rawLuaPath);
+
+        string server1Dir = Directory.Exists(Path.Combine(legacyBinRoot, "server1"))
+            ? Path.Combine(legacyBinRoot, "server1")
+            : legacyBinRoot;
+        ILegacyServerSource source = LegacyServerSourceFactory.Create(legacyBinRoot);
+        PackItemCatalogIndex itemIndex = PackItemCatalogIndex.Load(packRoot);
+        var luaOracle = new LuaOracleHarness(source, itemIndex.EventItemCodeByDetailId, itemIndex);
+        var parser = new Lua4AstParser();
+        var linker = new LuaIncludeLinker(source, parser);
+
+        var builder = new JXReborn.ScriptMigrator.Analyzers.ScriptInventoryBuilder();
+        ScriptInventoryManifest manifest = builder.Build(legacyBinRoot);
+        string targetUtf8 = LegacyScriptPathNormalizer.NormalizeToUtf8(rawLuaPath);
+
+        ScriptInventoryEntry? entry = manifest.Entries.FirstOrDefault(e =>
+            !e.IsExcludedSimBot &&
+            (string.Equals(ToUtf8ScriptPath(e.Utf8DisplayPath), targetUtf8, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(e.CanonicalScriptPath, rawLuaPath, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(LegacyScriptPathNormalizer.NormalizeToUtf8(e.CanonicalScriptPath), targetUtf8, StringComparison.OrdinalIgnoreCase)));
+
+        if (entry is null)
+        {
+            throw new FileNotFoundException($"Could not locate active Legacy Lua entry '{rawLuaPath}' (normalized '{targetUtf8}') in '{legacyBinRoot}'.");
+        }
+
+        // Locate matching C# script across ALL namespaces in JXReborn.Packs.TieuDaoTu (handwritten or generated), or AmbientLoreDialogScript
+        Assembly packAssembly = typeof(TieuDaoTuScriptCodeResolver).Assembly;
+        object? matchedInstance = null;
+        GeneratedScriptKind kind = GeneratedScriptKind.Other;
+        string resolvedName = string.Empty;
+
+        foreach (Type type in packAssembly.GetTypes().OrderBy(static t => t.FullName, StringComparer.Ordinal))
+        {
+            if (type.IsAbstract || type.IsInterface || type.GetConstructor(Type.EmptyTypes) is null)
+            {
+                continue;
+            }
+
+            LegacySourceAttribute[] attrs = (LegacySourceAttribute[])type.GetCustomAttributes(typeof(LegacySourceAttribute), inherit: false);
+            if (attrs.Any(a => string.Equals(LegacyScriptPathNormalizer.NormalizeToUtf8(a.SourceScriptPath), targetUtf8, StringComparison.OrdinalIgnoreCase)))
+            {
+                matchedInstance = Activator.CreateInstance(type);
+                if (matchedInstance is not null)
+                {
+                    kind = ResolveGeneratedKind(matchedInstance);
+                    resolvedName = type.FullName ?? type.Name;
+                    break;
+                }
+            }
+        }
+
+        if (matchedInstance is null)
+        {
+            AmbientDialogCatalog.ConfigureDataDirectory(packRoot);
+            if (AmbientDialogCatalog.TryGetByScriptPath(targetUtf8, out _))
+            {
+                matchedInstance = new AmbientLoreDialogScript();
+                kind = GeneratedScriptKind.Npc;
+                resolvedName = nameof(AmbientLoreDialogScript);
+            }
+        }
+
+        if (matchedInstance is null || kind == GeneratedScriptKind.Other)
+        {
+            throw new InvalidOperationException($"No parameterless C# script with [LegacySource] or AmbientDialog entry matched '{targetUtf8}'.");
+        }
+
+        string fullLuaPath = Path.Combine(legacyBinRoot, entry.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+        byte[] rawBytes = await File.ReadAllBytesAsync(fullLuaPath, cancellationToken);
+        LuaParseResult parsed = parser.Parse(rawBytes);
+        LuaProgram? programForProbing = parsed.Program;
+        if (programForProbing is not null)
+        {
+            string expectedEntry = kind == GeneratedScriptKind.Monster ? "OnDeath" : "main";
+            LuaLinkResult linked = linker.LinkAndTreeShake(entry.CanonicalScriptPath, programForProbing, expectedEntry);
+            if (linked.IsSuccess && linked.LinkedProgram is not null)
+            {
+                programForProbing = linked.LinkedProgram;
+            }
+        }
+
+        IReadOnlyList<ScriptStateVector> vectors = AstBoundaryStateProber.BuildVectors(
+            programForProbing,
+            itemIndex.EventItemCodeByDetailId,
+            itemIndex);
+
+        int total = 0;
+        int matched = 0;
+        var mismatches = new List<EquivalenceMismatchRecord>();
+
+        foreach (ScriptStateVector vec in vectors)
+        {
+            total++;
+            ScriptEffectTrace luaTrace = luaOracle.Execute(entry.CanonicalScriptPath, kind, vec);
+            ScriptEffectTrace csTrace = await ExecuteCSharpInstanceAsync(matchedInstance, kind, targetUtf8, vec, itemIndex, cancellationToken);
+
+            string expectedStr = luaTrace.ToCanonicalString();
+            string actualStr = csTrace.ToCanonicalString();
+            if (string.Equals(expectedStr, actualStr, StringComparison.Ordinal))
+            {
+                matched++;
+            }
+            else
+            {
+                mismatches.Add(new EquivalenceMismatchRecord(
+                    targetUtf8,
+                    kind.ToString(),
+                    vec.Label,
+                    expectedStr,
+                    actualStr,
+                    $"Divergence on vector '{vec.Label}'"));
+            }
+        }
+
+        _ = server1Dir;
+        return (total, matched, resolvedName, mismatches);
+    }
+
     public async Task<EquivalenceMismatchRecord?> VerifySingleDialogScriptAsync(
         string legacyLuaFilePath,
         string utf8ScriptPath,

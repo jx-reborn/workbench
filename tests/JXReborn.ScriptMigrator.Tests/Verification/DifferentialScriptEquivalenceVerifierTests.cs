@@ -59,4 +59,33 @@ public sealed class DifferentialScriptEquivalenceVerifierTests
         Assert.Contains("999", mismatch.ActualCSharpTrace, StringComparison.Ordinal);
         Assert.NotEqual(mismatch.ExpectedLuaTrace, mismatch.ActualCSharpTrace);
     }
+
+    [Fact]
+    public async Task VerifyScriptByLuaPathAsync_OnHandwrittenAndGeneratedScriptsWithNonEmptyNoCallback_ShouldMatchAllVectors()
+    {
+        string legacyBin = LegacyServerTestPaths.FindLegacyBinRoot();
+        string packRoot = LegacyServerTestPaths.FindPackTieuDaoTuRoot();
+        var verifier = new DifferentialScriptEquivalenceVerifier();
+
+        // 1. Handwritten quest script in non-Generated namespace with non-empty `function no()` (`Talk(1, "", "Thật là làm phiền cháu quá. ")`)
+        var (coTotal, coMatched, coName, coMismatches) = await verifier.VerifyScriptByLuaPathAsync(
+            legacyBin,
+            packRoot,
+            @"\script\两湖区\巴陵县\npc\巴陵县_路人2古老太对话.lua",
+            TestContext.Current.CancellationToken);
+        Assert.True(coTotal >= 6);
+        Assert.Equal(coTotal, coMatched);
+        Assert.Contains("BaLangCoLaoThaiDialogScript", coName, StringComparison.Ordinal);
+        Assert.Empty(coMismatches);
+
+        // 2. Generated NPC script in Dương Châu (`扬州_路人_婉娘.lua`) with non-empty `function no()` (`Say("Không mua cũng không sao!...", 0)`)
+        var (wanTotal, wanMatched, _, wanMismatches) = await verifier.VerifyScriptByLuaPathAsync(
+            legacyBin,
+            packRoot,
+            @"\script\中原南区\扬州\npc\扬州_路人_婉娘.lua",
+            TestContext.Current.CancellationToken);
+        Assert.True(wanTotal >= 2);
+        Assert.Equal(wanTotal, wanMatched);
+        Assert.Empty(wanMismatches);
+    }
 }

@@ -352,4 +352,58 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
             playerMpsY: 101681);
         Assert.Contains(emptyAckFindings, static f => f.FieldPath == "S2C.Missing[0x63]" && f.Severity == FindingSeverity.Warning);
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_WhenEqualLengthPayloadsDivergeSemantically_ShouldFlagShopBoxLadderAndUiIdMismatches()
+    {
+        // Ground Truth (Map 53 Ngo Than Y Sale(99, 1) vs Sale(39, 0), Ba Lang Signboard2 ShowLadder(4,2,3,6,17), Describe UI=12 vs Say UI=0):
+        // Equal-length frames must still trigger Critical semantic payload findings when deterministic fields differ!
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var c2s = new JxWireFrame(ProtocolOpcodes.c2s_playerselui, new byte[17], now, 1);
+        var window = new WireActionWindow(12, "Step052_NgoThanY_SelectShop", c2s, c2s.DecryptedPayload, false, null);
+
+        byte[] legacyShop99 = new byte[OpenSaleBoxS2CPacket.PayloadSize];
+        new OpenSaleBoxS2CPacket(ShopId: 99, ScalePercent: 100, CurrencyType: 1).WritePayload(legacyShop99);
+
+        byte[] rebornShop39 = new byte[OpenSaleBoxS2CPacket.PayloadSize];
+        new OpenSaleBoxS2CPacket(ShopId: 39, ScalePercent: 100, CurrencyType: 0).WritePayload(rebornShop39);
+
+        byte[] legacyBoxLocked = new byte[OpenStoreBoxS2CPacket.PayloadSize];
+        new OpenStoreBoxS2CPacket(ExpandBoxMask: 0x01, PasswordState: 3).WritePayload(legacyBoxLocked);
+
+        byte[] rebornBoxOpen = new byte[OpenStoreBoxS2CPacket.PayloadSize];
+        new OpenStoreBoxS2CPacket(ExpandBoxMask: 0x00, PasswordState: 0).WritePayload(rebornBoxOpen);
+
+        byte[] legacyLadder = ShowLadderS2CPacket.CreatePayload([4, 2, 3, 6, 17]);
+        byte[] rebornLadder = ShowLadderS2CPacket.CreatePayload([4, 2, 3, 6, 99]);
+
+        byte[] legacyDescribeUi12 = ScriptActionS2CPacket.CreateDescribePayload("Chu tiem tap hoa", ["Giao dich", "Ket thuc"]);
+        byte[] rebornSayUi0 = ScriptActionS2CPacket.CreateSayPayload("Chu tiem tap hoa", ["Giao dich", "Ket thuc"]);
+
+        IReadOnlyList<ParityFinding> findings = differ.CompareWindow(
+            window,
+            primaryS2c:
+            [
+                new(ProtocolOpcodes.s2c_opensalebox, legacyShop99, now, 1),
+                new(ProtocolOpcodes.s2c_openstorebox, legacyBoxLocked, now, 2),
+                new(ProtocolOpcodes.s2c_showladder, legacyLadder, now, 3),
+                new(ProtocolOpcodes.s2c_scriptaction, legacyDescribeUi12, now, 4),
+            ],
+            shadowS2c:
+            [
+                new(ProtocolOpcodes.s2c_opensalebox, rebornShop39, now, 1),
+                new(ProtocolOpcodes.s2c_openstorebox, rebornBoxOpen, now, 2),
+                new(ProtocolOpcodes.s2c_showladder, rebornLadder, now, 3),
+                new(ProtocolOpcodes.s2c_scriptaction, rebornSayUi0, now, 4),
+            ],
+            mapId: 53,
+            playerMpsX: 51150,
+            playerMpsY: 102713);
+
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Payload[0x84].ShopSaleBox" && f.Severity == FindingSeverity.Critical);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Payload[0x88].StoreBox" && f.Severity == FindingSeverity.Critical);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Payload[0x97].LadderIds" && f.Severity == FindingSeverity.Critical);
+        Assert.Contains(findings, static f => f.FieldPath == "S2C.Payload[0x63].UiId" && f.Severity == FindingSeverity.Critical);
+    }
 }

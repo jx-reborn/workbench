@@ -1,0 +1,12 @@
+{
+  "name": "jx-parity-army",
+  "displayName": "JX Reborn Parity Army",
+  "version": "2.0.0",
+  "author": "JXReborn Harness Engineering",
+  "description": "Six specialist double-blind subagents (Binary Archaeologist, Contract Architect, Blind QA, Blind Coder, Dispute Referee, Migrator Engineer) for 100% jx-linux parity.",
+  "suggestedPrompts": [
+    "Run wf_map_convergence.py on the next unlocked starter village in parity_master_ledger.json",
+    "Batch-migrate unresolved Lua scripts via JXReborn.ScriptMigrator and verify Lua 4.0 vector equivalence",
+    "Audit parity_master_ledger.json status across all 4 MECE domains"
+  ]
+}

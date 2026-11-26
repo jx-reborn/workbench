@@ -26,6 +26,7 @@ public static class Program
         string packRoot = Path.GetFullPath(Path.Combine("..", "pack-tieudaotu"));
         string outRoot = Path.GetFullPath("artifacts");
         string? scope = null;
+        string? luaTarget = null;
         string kind = "all";
         bool strict = false;
 
@@ -44,6 +45,9 @@ public static class Program
                     break;
                 case "--scope" when i + 1 < args.Length:
                     scope = args[++i];
+                    break;
+                case "--lua" when i + 1 < args.Length:
+                    luaTarget = args[++i];
                     break;
                 case "--kind" when i + 1 < args.Length:
                     kind = args[++i];
@@ -73,6 +77,8 @@ public static class Program
                 return RunAuditCoverage(legacyRoot, packRoot, migrationDir, scope, strict);
             case "verify-equivalence":
                 return RunVerifyEquivalence(legacyRoot, packRoot, migrationDir, strict);
+            case "verify-script":
+                return RunVerifySingleScript(legacyRoot, packRoot, luaTarget, strict);
             case "run-all":
                 if (RunUtf8Mirror(legacyRoot, mirrorDir) != 0)
                 {
@@ -223,9 +229,35 @@ public static class Program
         return 0;
     }
 
+    private static int RunVerifySingleScript(string legacyRoot, string packRoot, string? luaTarget, bool strict)
+    {
+        if (string.IsNullOrWhiteSpace(luaTarget))
+        {
+            Console.Error.WriteLine("Missing required --lua <scriptPath> argument for 'verify-script'.");
+            return 1;
+        }
+
+        var verifier = new DifferentialScriptEquivalenceVerifier();
+        var (total, matched, resolvedType, mismatches) = verifier
+            .VerifyScriptByLuaPathAsync(legacyRoot, packRoot, luaTarget)
+            .GetAwaiter()
+            .GetResult();
+
+        Console.WriteLine(
+            $"[JXReborn.ScriptMigrator] VerifyScript '{luaTarget}' -> '{resolvedType}': " +
+            $"Vectors={matched}/{total}, Mismatches={mismatches.Count}.");
+
+        foreach (EquivalenceMismatchRecord m in mismatches)
+        {
+            Console.Error.WriteLine($"  [Mismatch:{m.StateVectorSummary}] Lua='{m.ExpectedLuaTrace}' vs C#='{m.ActualCSharpTrace}'");
+        }
+
+        return (strict && mismatches.Count > 0) || total == 0 ? 1 : 0;
+    }
+
     private static void PrintUsage()
     {
-        Console.WriteLine("Usage: JXReborn.ScriptMigrator <command> [--legacy <dir>] [--pack <dir>] [--out <dir>] [--kind <all|traps|objects|items|monsters|npcs>] [--scope <all|traps|objects|items|npcs|monsters|bucket1..6>] [--strict]");
-        Console.WriteLine("Commands: export-utf8-mirror | export-static-dialogs | generate-scripts | build-manifest | audit-settings | audit-coverage | verify-equivalence | run-all");
+        Console.WriteLine("Usage: JXReborn.ScriptMigrator <command> [--legacy <dir>] [--pack <dir>] [--out <dir>] [--lua <scriptPath>] [--kind <all|traps|objects|items|monsters|npcs>] [--scope <all|traps|objects|items|npcs|monsters|bucket1..6>] [--strict]");
+        Console.WriteLine("Commands: export-utf8-mirror | export-static-dialogs | generate-scripts | build-manifest | audit-settings | audit-coverage | verify-equivalence | verify-script | run-all");
     }
 }
