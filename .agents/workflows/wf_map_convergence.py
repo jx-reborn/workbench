@@ -266,6 +266,14 @@ if not dry_run_gates_only and latest_analysis is None:
         run_cmd(["wslc", "remove", "-f", "legacy-oracle-test"])
         run_cmd(["wslc", "volume", "remove", "legacy-oracle-test-v1"])
 
+        # Ensure prebuilt JXReborn.Host.dll reflects the latest server/ assemblies (RebornHostLauncher prefers freshest Host.dll)
+        host_proj = SERVER / "src" / "JXReborn.Host" / "JXReborn.Host.csproj"
+        hb_code, hb_out = run_cmd(["dotnet", "build", str(host_proj), "-c", "Debug", "--nologo", "-v", "q"])
+        if hb_code != 0:
+            hb_code, hb_out = run_cmd(["dotnet", "build", str(host_proj), "-c", "Debug-Standalone", "--nologo", "-v", "q"])
+            if hb_code != 0:
+                raise RuntimeError(f"Failed to build JXReborn.Host before Phase 2:\n{hb_out}")
+
         proxy_cmd = [
             "dotnet",
             "run",
@@ -327,6 +335,7 @@ if not dry_run_gates_only and latest_analysis is None:
                     prompt=(
                         f"You are the BLIND QA Test Author (`role = blind_qa`) for Map {map_id:03d} parity convergence.\n"
                         f"- Do NOT read production implementation bodies (`src/`). Read only `legacy-server/bin/`, `legacy-server/discovery/`, and Public Contracts/Interfaces.\n"
+                        f"- Stay surgical: inspect ONLY the specific Legacy Lua files and public contracts implicated by `nearest_ground_truth_entities` below (keep total tool turns <= 8 and call finish promptly).\n"
                         f"- Write new standalone Ground-Truth failing unit/simulation/pack test file(s) ONLY inside `tests/`.\n"
                         f"- Produce a detailed `clean_room_spec_for_coder` (containing zero `0x08...` addresses or `.cpp` names) so a Blind Coder can implement the fix without seeing `legacy-server/` or your tests.\n\n"
                         f"Clusters & Failures:\n{json.dumps(latest_analysis, indent=2, ensure_ascii=False)}"

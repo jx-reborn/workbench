@@ -770,6 +770,7 @@ public sealed class WireScenarioRunner
 
             case "close_dialog":
                 await WireNpcDialogCrawler.CloseDialogSafelyAsync(client, cancellationToken).ConfigureAwait(false);
+                _ = await WireNpcDialogCrawler.WaitWindowFlushAsync(client, _options.ActionWindowMs, cancellationToken).ConfigureAwait(false);
                 break;
 
             case "input_number":

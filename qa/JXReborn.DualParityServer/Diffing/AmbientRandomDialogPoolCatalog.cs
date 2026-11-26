@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace JXReborn.DualParityServer.Diffing;
 
@@ -155,6 +156,29 @@ public static class AmbientRandomDialogPoolCatalog
             }
         }
 
+        // Verified quest-NPC fallback random() pools from GeneratedNpcDialogScript.cs across all maps
+        // (quest-gated NPCs are excluded from ambient-npcs.dialogs.json because their primary script has quest branches).
+        LoadGeneratedQuestFallbackRandomPools(result);
+
+        // Built-in fallback pools in case source tree is absent at runtime:
+        AddPool(result,
+            "Độc Cô phu nhân thật có phúc, tướng công là một đại anh hùng,thật khiến ta ngưỡng mộ",
+            "Quan trọng nhất của một đời con gái chính là không nên gả nhầm người. Sau này ta cũng phải lấy một Đại hiệp có tình cảm dịu dàng");
+
+        AddPool(result,
+            "Ta muốn đi học kinh thư, nhưng cha ta không cho, nói con gái đi học không thể ra tiến cử công danh, chỉ là lãng phí tiền.",
+            "Cha ta cứ đánh ta, nói ta là kẻ tiêu tiền, ngay cả lúc có mẹ ta cũng đánh. Nếu như ta có bản lĩnh như huynh, cha ta sẽ không còn đánh ta nữa");
+
+        AddPool(result,
+            "Nghe nói phu nhân của Độc Cô Đại Hiệp không chỉ rõ võ nghệ cao cường, mà còn là một mỹ nhân nữa",
+            "Nghe nói Độc Cô Đại Hiệp và Độc Cô phu nhân vốn là kẻ thù, không ngờ lại yêu nhau vứt bỏ hiềm nghi,kết thành gia quyến. Trên giang hồ còn lưu lại một giai thoại đấy.",
+            "Con gái Độc Cô Đại Hiệp Độc Cô Văn thường đến thị trấn chơi, là người nghịch ngợm lanh lợi");
+
+        AddPool(result,
+            "Khách quan! Đã đến Hoành sơn nhất định phải thử trà Vân Vụ ở chỗ chúng ta đấy.",
+            "'Danh sơn danh thủy xuất danh trà', trà Vân Vụ là đặc sản của Hoành sơn chúng ta từ lâu đã thành danh, sớm đã được liệt vào danh sách cống phẩm đời Đường.",
+            "Mùi vị trà Vân Vụ rất nồng, hương khí ngào ngạt, tinh khiết mà không nhạt, nồng mà không chát, pha lên 1 ấm trà, không chỉ có thể được giải khát mà còn có thể giải độc");
+
         // Verified quest-NPC fallback random() pools from server1/script/两湖区/巴陵县/npc/*.lua
         // (quest NPCs are excluded from ambient-npcs.dialogs.json because their primary script has quest branches).
         AddPool(result,
@@ -236,6 +260,85 @@ public static class AmbientRandomDialogPoolCatalog
                     if (File.Exists(distCandidate))
                     {
                         return distCandidate;
+                    }
+                }
+
+                dir = dir.Parent;
+            }
+        }
+
+        return null;
+    }
+
+    private static void LoadGeneratedQuestFallbackRandomPools(List<HashSet<string>> pools)
+    {
+        string? genPath = TryResolveGeneratedNpcDialogScriptPath();
+        if (genPath is null)
+        {
+            return;
+        }
+
+        try
+        {
+            string source = File.ReadAllText(genPath);
+            string[] methods = source.Split("private static ValueTask S", StringSplitOptions.RemoveEmptyEntries);
+            Regex literalCallRegex = new(
+                @"context\.(?:Say|Talk)\(\s*\[?\s*""((?:\\.|[^""\\])*)""\s*\]?\s*(?:,\s*null)?\s*\)",
+                RegexOptions.CultureInvariant);
+
+            foreach (string method in methods)
+            {
+                int rngIdx = method.IndexOf("ScriptContextRandom.NextInclusive(", StringComparison.Ordinal);
+                if (rngIdx < 0)
+                {
+                    continue;
+                }
+
+                string rngTail = method[rngIdx..];
+                var set = new HashSet<string>(StringComparer.Ordinal);
+                foreach (Match m in literalCallRegex.Matches(rngTail))
+                {
+                    string unescaped = Regex.Unescape(m.Groups[1].Value);
+                    string norm = NormalizePoolLine(unescaped);
+                    if (!string.IsNullOrEmpty(norm))
+                    {
+                        set.Add(norm);
+                    }
+                }
+
+                if (set.Count >= 2)
+                {
+                    pools.Add(set);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore source-inspection failures and rely on built-in pools.
+        }
+    }
+
+    private static string? TryResolveGeneratedNpcDialogScriptPath()
+    {
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        {
+            DirectoryInfo? dir = new(start);
+            while (dir is not null)
+            {
+                if (visited.Add(dir.FullName))
+                {
+                    string candidate = Path.Combine(
+                        dir.FullName,
+                        "pack-tieudaotu",
+                        "src",
+                        "JXReborn.Packs.TieuDaoTu",
+                        "Scripts",
+                        "Generated",
+                        "GeneratedNpcDialogScript.cs");
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
                     }
                 }
 

@@ -69,9 +69,9 @@ public sealed class ZeroSimProfilePackagerTests
 
             ws_txt = mod.build_minimal_worldset_ini().decode("ascii")
             loaded_maps = {int(m.group(1)) for m in re.finditer(r"World_?\d+\s*=\s*(\d+)", ws_txt)}
-            required_balang_maps = {53, 54, 59, 70, 74, 199}
+            required_balang_maps = {53, 54, 56, 59, 70, 74, 101, 199, 205}
             missing = sorted(required_balang_maps - loaded_maps)
-            assert not missing, f"worldset.ini missing Ba Lang Huyen Ground-Truth connected maps: {missing}"
+            assert not missing, f"worldset.ini missing Ba Lang / Nam Nhac / Dao Huong connected maps: {missing}"
             print("BALANG_WORLDSET_OK")
             """;
 

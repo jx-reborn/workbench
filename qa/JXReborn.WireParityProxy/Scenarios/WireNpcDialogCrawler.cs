@@ -22,15 +22,25 @@ public sealed class WireNpcDialogCrawler
         "không ngồi",
         "không mua",
         "không cần",
+        "không hỏi",
         "rời khỏi",
         "hủy",
         "ta chỉ",
+        "để lần sau",
         "để sau",
         "để ta",
+        "nhất thời",
         "nhân tiện",
         "ghé qua",
         "thoát",
         "không"
+    ];
+
+    private static readonly string[] AffirmativeNegationPrefixes =
+    [
+        "không có vấn đề",
+        "không thành vấn đề",
+        "không sao"
     ];
 
     private static readonly string[] TeleportRiskKeywords =
@@ -393,12 +403,17 @@ public sealed class WireNpcDialogCrawler
     internal static double Distance(int x1, int y1, int x2, int y2) =>
         Math.Sqrt(((double)(x2 - x1) * (x2 - x1)) + ((double)(y2 - y1) * (y2 - y1)));
 
-    private static int PickSafeCloseOptionIndex(IReadOnlyList<string> options)
+    public static int PickSafeCloseOptionIndex(IReadOnlyList<string> options)
     {
         for (int i = options.Count - 1; i >= 0; i--)
         {
-            string lower = options[i].Trim();
-            if (SafeCloseKeywords.Any(k => lower.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            string trimmed = options[i].Trim();
+            if (AffirmativeNegationPrefixes.Any(p => trimmed.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            if (SafeCloseKeywords.Any(k => trimmed.Contains(k, StringComparison.OrdinalIgnoreCase)))
             {
                 return i;
             }

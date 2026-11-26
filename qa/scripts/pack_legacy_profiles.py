@@ -46,10 +46,12 @@ TCVN3_MAP: dict[str, int] = {
 MINIMAL_TEST_MAPS: list[int] = [
     53,   # Ba Lang Huyen (Starter village)
     54,   # Nam Nhac Tran (Ba Lang South-East portal / station)
+    56,   # Hoanh Son Phai (Nam Nhac Tran North portal)
     59,   # Thien Vuong Bang (Dong Dinh wharf boat destination)
     70,   # Vu Lang Son (Ba Lang West-North portal)
     74,   # Mieu Linh / Than Nong Gia (Ba Lang West-South portal)
     101,  # Dao Huong Thon (Starter village)
+    205,  # Duong Trung Dong (Dao Huong Thon North portal)
     78,   # Tuong Duong Phu (Major city)
     80,   # Duong Chau Phu (Major city)
     199,  # Vu Lang Dong (J02B cross-map portal handoff)

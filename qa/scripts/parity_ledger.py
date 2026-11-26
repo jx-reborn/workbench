@@ -109,6 +109,14 @@ def parse_worldset_and_maplist(ecosystem_root: Path) -> list[dict[str, Any]]:
                 seen_ids.add(mid)
                 world_ids.append(mid)
 
+    scenarios_maps_dir = ecosystem_root / "workbench" / "qa" / "JXReborn.WireParityProxy" / "Scenarios" / "Maps"
+    if scenarios_maps_dir.is_dir():
+        for sc in sorted(scenarios_maps_dir.glob("[0-9][0-9][0-9]_*.scenario.json")):
+            mid = int(sc.name[:3])
+            if mid not in seen_ids:
+                seen_ids.add(mid)
+                world_ids.append(mid)
+
     map_names: dict[int, str] = {}
     map_dirs: dict[int, str] = {}
     for line in ml_text.splitlines():

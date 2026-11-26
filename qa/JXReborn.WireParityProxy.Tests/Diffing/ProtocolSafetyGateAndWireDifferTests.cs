@@ -406,4 +406,50 @@ public sealed class ProtocolSafetyGateAndWireDifferTests
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Payload[0x97].LadderIds" && f.Severity == FindingSeverity.Critical);
         Assert.Contains(findings, static f => f.FieldPath == "S2C.Payload[0x63].UiId" && f.Severity == FindingSeverity.Critical);
     }
+
+    [Fact]
+    public void ActionWindowWireDiffer_WhenWallClockRelayBroadcastsUiId5LocalNews_ShouldDowngradeToWarningWhileKeepingDialogUiIdsCritical()
+    {
+        // Ground Truth:
+        // - Binary evidence: server1/jx_linux_y LuaAddLocalNews (m_bUIId = 5, m_bOptionNum = 0, len ~120..150B)
+        // - Live capture: 54_007_TeleportStorageBox2Temple_S026.capture.json (22 s3relay :30 cron broadcasts during C2S 0x82)
+        var differ = new ActionWindowWireDiffer();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        byte[] useItemC2s = [ProtocolOpcodes.c2s_playereatitem, 0x07, 0x00, 0x03, 0xC9, 0x0B, 0x00, 0x00];
+        var c2s = new JxWireFrame(ProtocolOpcodes.c2s_playereatitem, useItemC2s, now, 1);
+        var window = new WireActionWindow(26, "Step026_C2S_0x82", c2s, c2s.DecryptedPayload, false, null);
+
+        byte[] localNewsUi5 = ScriptActionS2CPacket.CreateNotificationPayload(
+            uiId: 5,
+            messageUtf8: "Boss Tieu Hoang Kim da xuat hien tai Nam Nhac Tran (160, 200), cac vi anh hung hay mau den tieu diet!");
+
+        IReadOnlyList<ParityFinding> newsOnlyFindings = differ.CompareWindow(
+            window,
+            primaryS2c: [new(ProtocolOpcodes.s2c_scriptaction, localNewsUi5, now, 1)],
+            shadowS2c: [],
+            mapId: 54,
+            playerMpsX: 52192,
+            playerMpsY: 96544);
+
+        Assert.Single(newsOnlyFindings);
+        Assert.Equal("S2C.Missing[0x63]", newsOnlyFindings[0].FieldPath);
+        Assert.Equal(FindingSeverity.Warning, newsOnlyFindings[0].Severity);
+
+        // If a real dialog frame (e.g. Say UiId=0) is mixed with UiId=5 news, missing 0x63 MUST stay Critical!
+        byte[] realDialogUi0 = ScriptActionS2CPacket.CreateSayPayload("Cam nang tan thu", ["Dich chuyen", "Dong"]);
+        IReadOnlyList<ParityFinding> mixedFindings = differ.CompareWindow(
+            window,
+            primaryS2c:
+            [
+                new(ProtocolOpcodes.s2c_scriptaction, localNewsUi5, now, 1),
+                new(ProtocolOpcodes.s2c_scriptaction, realDialogUi0, now, 2),
+            ],
+            shadowS2c: [],
+            mapId: 54,
+            playerMpsX: 52192,
+            playerMpsY: 96544);
+
+        Assert.Single(mixedFindings);
+        Assert.Equal(FindingSeverity.Critical, mixedFindings[0].Severity);
+    }
 }

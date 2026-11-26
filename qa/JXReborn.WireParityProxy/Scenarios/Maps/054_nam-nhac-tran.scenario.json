@@ -1,0 +1,942 @@
+{
+  "name": "NamNhacTranFullGroundTruthSurvey",
+  "mapId": 54,
+  "description": "100% Legacy Ground-Truth deterministic Set-Cover & E2E survey for Nam Nhac Tran (Map 54) and linked Maps 53/56: 20/20 active DialogNPCs, 10/10 MapObjects (2 storage boxes RevPos 17/18, 1 ladder board ShowLadder(2,4,15), 4 steles, 3 signposts), 5/5 Traps (3 bidirectional gates 0<->1 + 2 cross-map portals to Map 53 & Map 56), Task 1256 Hoanh Son epidemic (1->2), Task 76 Bon Hoa steed (10->20->25->30), Tham Cau Lv80 horses, Tinh Doc Thien Su, Van Su Thong, Hoa Van Ta Than, real shop purchase & box money deposit/withdraw.",
+  "account": "gm_nn_01",
+  "password": "123456",
+  "roleName": "KhaoSat54",
+  "nativePlaceId": 53,
+  "autoExportFailingCaptures": true,
+  "steps": [
+    {
+      "name": "LoginStarterBeforeMap54",
+      "type": "login",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "notes": "T=0 initial character creation at Level 1 before teleporting to Nam Nhac Tran (Map 54)."
+    },
+    {
+      "name": "TeleportToNamNhacBox1",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1665,
+      "tileY": 3140,
+      "notes": "Enter Map 54 town square next to Storage Box 1."
+    },
+    {
+      "name": "ClickStorageBox1RevPos17",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1663,
+      "tileY": 3140,
+      "dataId": 1,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseStorageBox1Lv1",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "ClickNoticeBoard1Ladder",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1652,
+      "tileY": 3157,
+      "dataId": 3,
+      "maxRadiusTiles": 8,
+      "notes": "ShowLadder(2, 4, 15)."
+    },
+    {
+      "name": "CloseNoticeBoard1Ladder",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportStorageBox2Temple",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1631,
+      "tileY": 3017
+    },
+    {
+      "name": "ClickStorageBox2RevPos18",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1632,
+      "tileY": 3017,
+      "dataId": 1,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseStorageBox2Lv1",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportSignpost1HoanhSon",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1611,
+      "tileY": 2967
+    },
+    {
+      "name": "ClickSignpost1HoanhSon",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1610,
+      "tileY": 2966,
+      "dataId": 297,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseSignpost1HoanhSon",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportSignpost2BaLang",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1486,
+      "tileY": 2990
+    },
+    {
+      "name": "ClickSignpost2BaLang",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1486,
+      "tileY": 2988,
+      "dataId": 294,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseSignpost2BaLang",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportSignpost3HacSa",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1733,
+      "tileY": 3150
+    },
+    {
+      "name": "ClickSignpost3HacSa",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1733,
+      "tileY": 3149,
+      "dataId": 7,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseSignpost3HacSa",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportStele1East",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1709,
+      "tileY": 3210
+    },
+    {
+      "name": "ClickStele1East",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1707,
+      "tileY": 3210,
+      "dataId": 6,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseStele1East",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportStele2West",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1551,
+      "tileY": 3061
+    },
+    {
+      "name": "ClickStele2West",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1553,
+      "tileY": 3061,
+      "dataId": 6,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseStele2West",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportStele3NorthEast",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1696,
+      "tileY": 3047
+    },
+    {
+      "name": "ClickStele3NorthEast",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1696,
+      "tileY": 3047,
+      "dataId": 6,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseStele3NorthEast",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportStele4South",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1599,
+      "tileY": 3239
+    },
+    {
+      "name": "ClickStele4South",
+      "type": "click_object",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1599,
+      "tileY": 3238,
+      "dataId": 6,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseStele4South",
+      "type": "close_dialog",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates"
+    },
+    {
+      "name": "TeleportWestArchwayInside",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1573,
+      "tileY": 3090
+    },
+    {
+      "name": "SetSafeModeWestArchwayOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepWestArchwayOut0To1",
+      "type": "step_trap",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "trapId": 2527825639,
+      "expectedMapId": 54,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncWestArchwayOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1570,
+      "tileY": 3086
+    },
+    {
+      "name": "StepWestArchwayIn1To0",
+      "type": "step_trap",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "trapId": 2527825639,
+      "expectedMapId": 54,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncWestArchwayInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1573,
+      "tileY": 3090
+    },
+    {
+      "name": "TeleportSouthBridgeInside",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1526,
+      "tileY": 3122
+    },
+    {
+      "name": "SetSafeModeSouthBridgeOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepSouthBridgeOut0To1",
+      "type": "step_trap",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "trapId": 3072005860,
+      "expectedMapId": 54,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncSouthBridgeOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1524,
+      "tileY": 3117
+    },
+    {
+      "name": "StepSouthBridgeIn1To0",
+      "type": "step_trap",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "trapId": 3072005860,
+      "expectedMapId": 54,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncSouthBridgeInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1526,
+      "tileY": 3122
+    },
+    {
+      "name": "TeleportSouthWoodsInside",
+      "type": "gm_teleport",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1570,
+      "tileY": 3240
+    },
+    {
+      "name": "SetSafeModeSouthWoodsOut",
+      "type": "gm_set_fight_mode",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "value": 0
+    },
+    {
+      "name": "StepSouthWoodsOut0To1",
+      "type": "step_trap",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "trapId": 3960808154,
+      "expectedMapId": 54,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ResyncSouthWoodsOutside",
+      "type": "resync_if_drifted",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1565,
+      "tileY": 3242
+    },
+    {
+      "name": "StepSouthWoodsIn1To0",
+      "type": "step_trap",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "trapId": 3960808154,
+      "expectedMapId": 54,
+      "expectedFightMode": 0
+    },
+    {
+      "name": "ResyncSouthWoodsInside",
+      "type": "resync_if_drifted",
+      "region": "Stage 1 - Objects & 3 Bidirectional Gates",
+      "mapId": 54,
+      "tileX": 1570,
+      "tileY": 3240
+    },
+    {
+      "name": "TeleportHub1SouthEastTown",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1659,
+      "tileY": 3170
+    },
+    {
+      "name": "SetLevel20ForTownSurvey",
+      "type": "gm_set_level",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "level": 20
+    },
+    {
+      "name": "SetMoney50000ForCommerce",
+      "type": "gm_set_money",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "value": 50000
+    },
+    {
+      "name": "CrawlHub1FiveNpcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "maxRadiusTiles": 26,
+      "excludeNpcNames": ["Xa phu"]
+    },
+    {
+      "name": "TeleportHub2BanhDaiGia",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1606,
+      "tileY": 3198
+    },
+    {
+      "name": "CrawlHub2ThreeNpcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "maxRadiusTiles": 26,
+      "excludeNpcNames": ["Xa phu"]
+    },
+    {
+      "name": "TeleportHub3HoaVanTaThan",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1587,
+      "tileY": 3236
+    },
+    {
+      "name": "InteractHoaVanTaThan",
+      "type": "interact_npc",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1587,
+      "tileY": 3236,
+      "npcName": "Hỏa Vân Tà Thần",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "ClaimPhapBaoFromHoaVanTaThan",
+      "type": "select_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseHoaVanTaThan",
+      "type": "close_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportHub4VanSuThong",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1559,
+      "tileY": 3119
+    },
+    {
+      "name": "InteractVanSuThong",
+      "type": "interact_npc",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1559,
+      "tileY": 3119,
+      "npcName": "Vạn Sự Thông",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectVanSuThongCancel",
+      "type": "select_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "optionIndex": 2,
+      "notes": "Nothing() -> Talk 'Nguoi chang phai dang choc gheo ta day chu?'"
+    },
+    {
+      "name": "CloseVanSuThongTalk",
+      "type": "close_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportHub5MinTuTham",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1603,
+      "tileY": 3114
+    },
+    {
+      "name": "CrawlHub5MinTuTham",
+      "type": "crawl_region_npcs",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "maxRadiusTiles": 20,
+      "excludeNpcNames": ["Xa phu"]
+    },
+    {
+      "name": "TeleportHub6InnAndPharmacist",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1629,
+      "tileY": 3139
+    },
+    {
+      "name": "CrawlHub6TwoNpcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "maxRadiusTiles": 26,
+      "excludeNpcNames": ["Xa phu"]
+    },
+    {
+      "name": "TeleportHub7GrocerArea",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1660,
+      "tileY": 3089
+    },
+    {
+      "name": "CrawlHub7ThreeNpcs",
+      "type": "crawl_region_npcs",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "maxRadiusTiles": 26,
+      "excludeNpcNames": ["Xa phu"]
+    },
+    {
+      "name": "OpenGrocerShop35",
+      "type": "interact_npc",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1647,
+      "tileY": 3108,
+      "npcName": "Chủ tiệm tạp hóa",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectGrocerShop35",
+      "type": "select_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "BuyFirstGrocerItemMap54",
+      "type": "buy_shop_item",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "value": 0
+    },
+    {
+      "name": "CloseGrocerShop35",
+      "type": "close_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportPharmacistShop99",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1638,
+      "tileY": 3143
+    },
+    {
+      "name": "OpenPharmacistShop99",
+      "type": "interact_npc",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1638,
+      "tileY": 3142,
+      "npcName": "Ông chủ dược điếm",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectPharmacistShop99",
+      "type": "select_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "ClosePharmacistShop99",
+      "type": "close_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportBlacksmithShop34",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1675,
+      "tileY": 3179
+    },
+    {
+      "name": "OpenBlacksmithShop34",
+      "type": "interact_npc",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1675,
+      "tileY": 3179,
+      "npcName": "Thợ rèn",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectBlacksmithShop34",
+      "type": "select_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseBlacksmithShop34",
+      "type": "close_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportBox1ForMoneyOps",
+      "type": "gm_teleport",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1665,
+      "tileY": 3140
+    },
+    {
+      "name": "OpenBox1ForMoneyOps",
+      "type": "click_object",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "mapId": 54,
+      "tileX": 1663,
+      "tileY": 3140,
+      "dataId": 1,
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "Deposit500SilverMap54",
+      "type": "store_money",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "optionIndex": 0,
+      "value": 500
+    },
+    {
+      "name": "Withdraw500SilverMap54",
+      "type": "store_money",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce",
+      "optionIndex": 1,
+      "value": 500
+    },
+    {
+      "name": "CloseBox1AfterMoneyOps",
+      "type": "close_dialog",
+      "region": "Stage 2 - Set-Cover 20 NPCs & Commerce"
+    },
+    {
+      "name": "TeleportHub8ThamCau",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1689,
+      "tileY": 3054
+    },
+    {
+      "name": "InteractThamCauHorseMerchant",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1689,
+      "tileY": 3054,
+      "npcName": "Thẩm Câu",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "SelectThamCauInspectHorses",
+      "type": "select_dialog",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "optionIndex": 0
+    },
+    {
+      "name": "CloseThamCauHorseSequence",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "TeleportHub9APhuc",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1640,
+      "tileY": 3058
+    },
+    {
+      "name": "InteractAPhucAmbient",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1640,
+      "tileY": 3058,
+      "npcName": "A Phúc",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseAPhucAmbient",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "SeedTask1256Step1Epidemic",
+      "type": "gm_set_task",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "taskId": 1256,
+      "value": 1,
+      "notes": "Seed Hoanh Son epidemic investigation step 1."
+    },
+    {
+      "name": "AskAPhucEpidemic1",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1640,
+      "tileY": 3058,
+      "npcName": "A Phúc",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseAPhucEpidemic1",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "TeleportDienThaiBaEpidemic",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1660,
+      "tileY": 3089
+    },
+    {
+      "name": "AskDienThaiBaEpidemic2",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1660,
+      "tileY": 3089,
+      "npcName": "Điền Thái Bà",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseDienThaiBaEpidemic2",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "AskTrieuBachNienEpidemic3",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1673,
+      "tileY": 3077,
+      "npcName": "Triệu Bách Niên",
+      "maxRadiusTiles": 18
+    },
+    {
+      "name": "CloseTrieuBachNienEpidemic3",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "AskTrieuBachNienEpidemic4PromoteStep2",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1673,
+      "tileY": 3077,
+      "npcName": "Triệu Bách Niên",
+      "maxRadiusTiles": 8,
+      "notes": "TempTask(111) reaches 4 (> 3) -> promotes Task 1256 from 1 to 2."
+    },
+    {
+      "name": "CloseTrieuBachNienEpidemic4",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "TeleportBanhDaiGiaQuest76",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1606,
+      "tileY": 3198
+    },
+    {
+      "name": "SeedTask76Step10BonHoa",
+      "type": "gm_set_task",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "taskId": 76,
+      "value": 10
+    },
+    {
+      "name": "InteractBonHoaPromoteStep20",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1605,
+      "tileY": 3199,
+      "npcName": "Bôn Hỏa",
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "CloseBonHoaStep20",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "InteractBanhDaiGiaStep20To25",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1606,
+      "tileY": 3198,
+      "npcName": "Bành Đại Gia",
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "ConfirmBanhDaiGiaIntroTalk",
+      "type": "confirm_talk",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "SelectBanhDaiGiaAcceptLetterW76",
+      "type": "select_dialog",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "optionIndex": 0,
+      "notes": "W76_get_yes -> Task 76 = 30, grants EventItem 393 letter + 2-page Talk + AddNote."
+    },
+    {
+      "name": "CloseBanhDaiGiaAcceptedTalk",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "TeleportHub10TinhDocThienSu",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1648,
+      "tileY": 3004
+    },
+    {
+      "name": "InteractTinhDocThienSuSolo",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1649,
+      "tileY": 3002,
+      "npcName": "Tĩnh Đốc Thiền Sư",
+      "maxRadiusTiles": 8
+    },
+    {
+      "name": "CloseTinhDocThienSuSolo",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "TeleportXaPhuStation11",
+      "type": "gm_teleport",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1591,
+      "tileY": 3092
+    },
+    {
+      "name": "InteractXaPhuStation11",
+      "type": "interact_npc",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "mapId": 54,
+      "tileX": 1591,
+      "tileY": 3092,
+      "npcName": "Xa phu",
+      "maxRadiusTiles": 6
+    },
+    {
+      "name": "SelectXaPhuOnCancel",
+      "type": "select_dialog",
+      "region": "Stage 3 - Quests & Special NPCs",
+      "optionIndex": 3,
+      "notes": "OnCancel -> Say('Khong tien khong the ngoi xe!', 0)."
+    },
+    {
+      "name": "CloseXaPhuOnCancel",
+      "type": "close_dialog",
+      "region": "Stage 3 - Quests & Special NPCs"
+    },
+    {
+      "name": "TeleportPortalToBaLang53",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Cross-Map Portals",
+      "mapId": 54,
+      "tileX": 1466,
+      "tileY": 2983
+    },
+    {
+      "name": "StepPortalNamNhacToBaLang53",
+      "type": "step_trap",
+      "region": "Stage 4 - Cross-Map Portals",
+      "mapId": 54,
+      "trapId": 1366528355,
+      "expectedMapId": 53,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ReturnFromBaLangToPortalHoanhSon",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Cross-Map Portals",
+      "mapId": 54,
+      "tileX": 1624,
+      "tileY": 2967,
+      "resetDrift": true
+    },
+    {
+      "name": "StepPortalNamNhacToHoanhSon56",
+      "type": "step_trap",
+      "region": "Stage 4 - Cross-Map Portals",
+      "mapId": 54,
+      "trapId": 1461672039,
+      "expectedMapId": 56,
+      "expectedFightMode": 1
+    },
+    {
+      "name": "ReturnFinalNamNhacCenter",
+      "type": "gm_teleport",
+      "region": "Stage 4 - Cross-Map Portals",
+      "mapId": 54,
+      "tileX": 1665,
+      "tileY": 3140,
+      "resetDrift": true
+    }
+  ]
+}

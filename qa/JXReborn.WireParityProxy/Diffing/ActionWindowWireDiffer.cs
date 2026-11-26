@@ -100,7 +100,7 @@ public sealed class ActionWindowWireDiffer
                 }
 
                 FindingSeverity missingSeverity = AsyncAoiAndSubsystemWarningOpcodes.Contains(opcode) ||
-                    (opcode == ProtocolOpcodes.s2c_scriptaction && IsNonDialogEmptyScriptActionAckOnly(pFrames))
+                    (opcode == ProtocolOpcodes.s2c_scriptaction && IsNonDialogOrAsyncNewsScriptActionOnly(pFrames))
                     ? FindingSeverity.Warning
                     : FindingSeverity.Critical;
 
@@ -317,17 +317,21 @@ public sealed class ActionWindowWireDiffer
         (c2sOpcode == ProtocolOpcodes.c2s_npcskill &&
          s2cOpcode == ProtocolOpcodes.s2c_itemrepair);
 
-    private static bool IsNonDialogEmptyScriptActionAckOnly(List<JxWireFrame> frames) =>
+    private const byte UiNewsInfo = 5;
+
+    private static bool IsNonDialogOrAsyncNewsScriptActionOnly(List<JxWireFrame> frames) =>
         frames.Count > 0 &&
         frames.All(static f =>
-            f.DecryptedPayload.Length <= 20 &&
-            (!ScriptActionS2CPacket.TryParse(f.DecryptedPayload, out ScriptActionS2CPacket sa) ||
-             (sa.UiId != ScriptActionS2CPacket.UiSelectDialog &&
-              sa.UiId != ScriptActionS2CPacket.UiTalkDialog &&
-              sa.UiId != ScriptActionS2CPacket.UiDescribeDialog &&
-              sa.UiId != ScriptActionS2CPacket.UiPriseDialog &&
-              sa.UiId != ScriptActionS2CPacket.UiQuestNote) ||
-             sa.Content.Length == 0));
+            (ScriptActionS2CPacket.TryParse(f.DecryptedPayload, out ScriptActionS2CPacket newsSa) &&
+             newsSa.UiId == UiNewsInfo) ||
+            (f.DecryptedPayload.Length <= 20 &&
+             (!ScriptActionS2CPacket.TryParse(f.DecryptedPayload, out ScriptActionS2CPacket sa) ||
+              (sa.UiId != ScriptActionS2CPacket.UiSelectDialog &&
+               sa.UiId != ScriptActionS2CPacket.UiTalkDialog &&
+               sa.UiId != ScriptActionS2CPacket.UiDescribeDialog &&
+               sa.UiId != ScriptActionS2CPacket.UiPriseDialog &&
+               sa.UiId != ScriptActionS2CPacket.UiQuestNote) ||
+              sa.Content.Length == 0)));
 
     private static Dictionary<byte, List<JxWireFrame>> GroupSignificant(IReadOnlyList<JxWireFrame> frames)
     {

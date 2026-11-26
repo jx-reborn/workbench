@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0.0",
-  "updated_at_utc": "2026-11-26T18:25:19.535553+00:00",
+  "updated_at_utc": "2026-11-26T20:07:14.651762+00:00",
   "overall": {
-    "total_items": 231,
-    "zero_drift_locked": 11,
-    "completion_percent": 4.76,
+    "total_items": 232,
+    "zero_drift_locked": 12,
+    "completion_percent": 5.17,
     "script_corpus_metrics": {
       "total_active_lua_files": null,
       "accounted_lua_files": 3553,
@@ -26,8 +26,8 @@
       "ground_truth_extracted": 0,
       "scenario_audited": 0,
       "in_tdd_fix": 1,
-      "zero_drift_locked": 1,
-      "total": 136
+      "zero_drift_locked": 2,
+      "total": 137
     },
     "factions_skills": {
       "pending": 0,
@@ -1145,19 +1145,11 @@
         "evidence": {
           "scenario_path": "workbench/qa/JXReborn.WireParityProxy/Scenarios/Maps/053_ba-lang-huyen.scenario.json",
           "walkthrough_path": "workbench/qa/JXReborn.WireParityProxy/Scenarios/Maps/053_ba-lang-huyen.walkthrough.md",
-          "latest_run_report": "workbench/artifacts/scenario-runs/053/mui3-zero-crit-verified/scenario-report.json",
+          "latest_run_report": "workbench/artifacts/scenario-runs/053/wf-iter-1/scenario-report.json",
           "step_failures": 0,
           "critical_findings": 0,
-          "warning_findings": 356,
-          "protocol_violations": 0
-        },
-        "gates": {
-          "gate1_static": true,
-          "gate2_unit_sim": true,
-          "gate3_wire_capture": true,
-          "gate4_live_proxy": true
-        },
-        "locked_evidence": {
+          "warning_findings": 368,
+          "protocol_violations": 0,
           "verified_at_utc": "2026-11-26T18:24:50.533958+00:00",
           "gate1_static_scenario_sha256": "8a1e1af5b6fed3213d301eecd00f1b567cdeb03a41beaf005df55e8594de1ca1",
           "gate2_dotnet_test_passed": true,
@@ -1167,6 +1159,47 @@
           "gate4_report_sha256": "9260c08af1fa38a2bc9083f1e6db8921d87bd18d0f5fc9103b2dada8a119b46b",
           "gate4_steps_passed": 216,
           "gate4_warning_findings": 368
+        },
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        }
+      },
+      {
+        "id": "map_054",
+        "map_id": 54,
+        "name": "Nam Nhạc trấn",
+        "legacy_dir": "两湖区\\南岳镇",
+        "wave": "wave4_fields_and_dungeons",
+        "priority": 40,
+        "status": "zero_drift_locked",
+        "evidence": {
+          "scenario_path": "workbench/qa/JXReborn.WireParityProxy/Scenarios/Maps/054_nam-nhac-tran.scenario.json",
+          "walkthrough_path": "workbench/qa/JXReborn.WireParityProxy/Scenarios/Maps/054_nam-nhac-tran.walkthrough.md",
+          "latest_run_report": null,
+          "step_failures": null,
+          "critical_findings": null,
+          "warning_findings": null,
+          "protocol_violations": null
+        },
+        "gates": {
+          "gate1_static": true,
+          "gate2_unit_sim": true,
+          "gate3_wire_capture": true,
+          "gate4_live_proxy": true
+        },
+        "locked_evidence": {
+          "verified_at_utc": "2026-11-26T20:06:53.717067+00:00",
+          "gate1_static_scenario_sha256": "9864989f764f247545933bfcf2956a5436f2f0c5433b74be146d8c1ba2ad0873",
+          "gate2_dotnet_test_passed": true,
+          "gate2_test_project": "workbench/qa/JXReborn.WireParityProxy.Tests/JXReborn.WireParityProxy.Tests.csproj",
+          "gate2_test_filter": "FullyQualifiedName~WireParityScenarioAndPathfinderTests",
+          "gate4_report_path": "workbench/artifacts/scenario-runs/054/wf-iter-1/scenario-report.json",
+          "gate4_report_sha256": "41789d661bf56115db802724ece0020d545604a1521f645fbf3c1cad34f03c51",
+          "gate4_steps_passed": 122,
+          "gate4_warning_findings": 147
         }
       },
       {
