@@ -361,7 +361,9 @@ public sealed class ExecutionArchetypeSimulationTests
         NpcZoneState m2 = worker.StaticNpcs[2u];
         NpcZoneState m3 = worker.StaticNpcs[3u];
 
-        // 1) Skill 11 (IsMelee=true, MissileId=86, atFirer, hitR=128, MissileGenerateDelayFrames=6) -> hits all 3 monsters simultaneously
+        // 1) Skill 11 (EquiptLimited=2 Staff per skills.txt & KSkill::CheckLimited, IsMelee=true, MissileId=86, atFirer) -> hits all 3 monsters simultaneously
+        state.WeaponType = 0;
+        state.WeaponParticular = 2;
         uint[] before11 = [m1.CurLife, m2.CurLife, m3.CurLife];
         handle.CastSkill(11, -1, (int)m1.NpcId);
         await harness.StepFramesAsync(8);
@@ -370,8 +372,9 @@ public sealed class ExecutionArchetypeSimulationTests
         Assert.True(m2.CurLife < before11[1], "Skill 11 should damage m2 concurrently.");
         Assert.True(m3.CurLife < before11[2], "Skill 11 should damage m3 concurrently.");
 
-        // 2) Skill 14 (IsMelee=true, MissileId=66, atFirer, WaitFrames=5) -> hits all 3 monsters + DoHurt 0x56
+        // 2) Skill 14 (EquiptLimited=-1 Unarmed per skills.txt, IsMelee=true, MissileId=66, atFirer, WaitFrames=5) -> hits all 3 monsters + DoHurt 0x56
         ConfigurePassiveMonsters(worker);
+        state.WeaponType = -1;
         state.SetSkillCooldown(14, 0);
         uint[] before14 = [m1.CurLife, m2.CurLife, m3.CurLife];
         handle.CastSkill(14, -1, (int)m1.NpcId);
@@ -381,8 +384,10 @@ public sealed class ExecutionArchetypeSimulationTests
         Assert.True(m2.CurLife < before14[1], "Skill 14 should damage m2.");
         Assert.True(m3.CurLife < before14[2], "Skill 14 should damage m3.");
 
-        // 3) Skill 319 (Hoành Tảo Thiên Quân) & Skill 1056 (Vi Đà Hiến Xử)
+        // 3) Skill 319 (Hoành Tảo Thiên Quân) & Skill 1056 (Vi Đà Hiến Xử) — EquiptLimited=2 Staff per skills.txt
         ConfigurePassiveMonsters(worker);
+        state.WeaponType = 0;
+        state.WeaponParticular = 2;
         handle.CastSkill(319, -1, (int)m1.NpcId);
         await harness.StepFramesAsync(5);
         Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 319u);
@@ -467,6 +472,7 @@ public sealed class ExecutionArchetypeSimulationTests
         // (b) Skill 14 (Missile 66, ColVanish=false, PierceCount=0, DamageIntervalFrames=10, LifeFrames=15)
         // Move player to (52160, 101696) so all 3 monsters are within 128 mps of atFirer
         ConfigurePassiveMonsters(worker);
+        state.WeaponType = -1; // Skill 14 EquiptLimited=-1 (Unarmed) per skills.txt
         state.CurrentMpsX = 52160;
         state.CurrentMpsY = 101696;
         handle.CastSkill(14, 52160, 101696);
@@ -498,6 +504,8 @@ public sealed class ExecutionArchetypeSimulationTests
         m2.MpsY = 101696;
         m3.MpsX = 52128;
         m3.MpsY = 101696;
+        state.WeaponType = 0;
+        state.WeaponParticular = 1; // Skill 105 EquiptLimited=1 (Blade) per skills.txt
         handle.CastSkill(105, 52160, 101696);
         await harness.StepFramesAsync(190);
         Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 105u);
@@ -752,6 +760,8 @@ public sealed class ExecutionArchetypeSimulationTests
         m1.MpsX = 52192; m1.MpsY = 101850;
         m2.MpsX = 52500; m2.MpsY = 101696;
         m3.MpsX = 52564; m3.MpsY = 101696;
+        state.WeaponType = 1;
+        state.WeaponParticular = 0; // Skill 341 EquiptLimited=100 (Throwing Knife) per skills.txt
         handle.CastSkill(341, 52400, 101696);
         await harness.StepFramesAsync(10);
         Assert.Equal(10_000u, m1.CurLife); // Untouched during outward flight
@@ -788,6 +798,8 @@ public sealed class ExecutionArchetypeSimulationTests
         m1.MpsX = 52000; m1.MpsY = 101536; // North (160 mps)
         m2.MpsX = 52160; m2.MpsY = 101696; // East (160 mps)
         m3.MpsX = 52000; m3.MpsY = 101856; // South (160 mps)
+        state.WeaponType = 0;
+        state.WeaponParticular = 0; // Skill 1368 EquiptLimited=0 (Sword) per skills.txt
         handle.CastSkill(1368, 52160, 101696);
         await harness.StepFramesAsync(25);
         Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 1368u);
@@ -931,8 +943,9 @@ public sealed class ExecutionArchetypeSimulationTests
         Assert.Empty(handle.Recorder.RunBroadcasts);
         Assert.True(m1.CurLife < 10_000u, "Skill 40 meleeRunAttack should dash and hit via ChildSkill 224.");
 
-        // 4) Style 1 meleeMany (318 -> ChildSkill 317 x2): hits twice!
+        // 4) Style 1 meleeMany (318 -> ChildSkill 317 x2, EquiptLimited=-1 Unarmed per skills.txt): hits twice!
         ConfigurePassiveMonsters(worker);
+        state.WeaponType = -1;
         state.CurrentMpsX = 52064; state.CurrentMpsY = 101696;
         m1.MpsX = 52096; m1.MpsY = 101696;
         handle.CastSkill(318, -1, (int)m1.NpcId);
@@ -978,6 +991,8 @@ public sealed class ExecutionArchetypeSimulationTests
         PlayerZoneState stealVictim = stealVictimHandle.GetZoneState()!;
         handle.Recorder.Clear();
         stealVictimHandle.Recorder.Clear();
+        state.WeaponType = 0;
+        state.WeaponParticular = 0; // Skill 400 & 1380/1384 EquiptLimited=0 (Sword) per skills.txt
         int manaBefore400 = state.CurrentMana;
         handle.CastSkill(400, -1, (int)stealVictim.RuntimeNpcId);
         await harness.StepFramesAsync(1);
@@ -1057,8 +1072,8 @@ public sealed class ExecutionArchetypeSimulationTests
             (52160, 101696, ElementSeries.Metal, "Quái CD 3"));
 
         SkillTemplate real88 = RequireSkill(SharedGameAssetsFixture.Default.SkillTemplateCatalog, 88);
-        SkillTemplate physWait10 = real88 with { Id = 9905, Code = "syn-phys-wait10", IsPhysical = true, WaitFrames = 10, MinFramesPerCast = 0, MinFramesPerCastOnHorse = 0 };
-        SkillTemplate magicWait10 = real88 with { Id = 9906, Code = "syn-magic-wait10", IsPhysical = false, WaitFrames = 10, MinFramesPerCast = 0, MinFramesPerCastOnHorse = 0 };
+        SkillTemplate physWait10 = real88 with { Id = 9905, Code = "syn-phys-wait10", EquipLimit = -2, HorseLimit = 0, IsPhysical = true, WaitFrames = 10, MinFramesPerCast = 0, MinFramesPerCastOnHorse = 0 };
+        SkillTemplate magicWait10 = real88 with { Id = 9906, Code = "syn-magic-wait10", EquipLimit = -2, HorseLimit = 0, IsPhysical = false, WaitFrames = 10, MinFramesPerCast = 0, MinFramesPerCastOnHorse = 0 };
         var overlay = new OverlaySkillTemplateCatalog(SharedGameAssetsFixture.Default.SkillTemplateCatalog, physWait10, magicWait10);
 
         var harness = CreateHarness(42, map, overlay);
@@ -1081,6 +1096,7 @@ public sealed class ExecutionArchetypeSimulationTests
 
         PlayerZoneState state = handle.GetZoneState()!;
         state.FightMode = 1;
+        CreateAndEquipWeapon(state, 99u); // Equip real Sword so RecalculateEquipmentStats preserves EquiptLimited=0 for Skill 1380
 
         // 1) Skill 710 Lv20: skill_mintimepercast_v = 90 (unmounted) vs skill_mintimepercastonhorse_v = 144 (mounted)
         handle.Recorder.Clear();
@@ -1198,14 +1214,17 @@ public sealed class ExecutionArchetypeSimulationTests
         NpcZoneState m2 = worker.StaticNpcs[2u];
         NpcZoneState m3 = worker.StaticNpcs[3u];
 
-        // 1) Skill 1055 -> 1083 (M345 IsRangeDamage=true, DmgCells=3=96 mps, Pierce=0) hits all 3 monsters
+        // 1) Skill 1055 -> 1083 (EquiptLimited=-1 Unarmed per skills.txt, M345 IsRangeDamage=true, DmgCells=3=96 mps, Pierce=0) hits all 3 monsters
+        state.WeaponType = -1;
         handle.CastSkill(1055, -1, (int)m1.NpcId);
         await harness.StepFramesAsync(14);
         Assert.Contains(handle.Recorder.SkillCastBroadcasts, e => !e.CastDirectly && e.SkillId == 1055u);
         Assert.True(m1.CurLife < 10_000u && m2.CurLife < 10_000u && m3.CurLife < 10_000u, "1055 -> 1083 (M345) should spawn AoE missiles and hit all 3 monsters.");
 
-        // 2) Skill 361 (M169 Pierce=0, ColVanish=false) pierces through all 3 lined-up monsters
+        // 2) Skill 361 (EquiptLimited=3 Spear per skills.txt, M169 Pierce=0, ColVanish=false) pierces through all 3 lined-up monsters
         ConfigurePassiveMonsters(worker);
+        state.WeaponType = 0;
+        state.WeaponParticular = 3;
         state.CurrentMpsX = 52032; state.CurrentMpsY = 101696;
         handle.CastSkill(361, -1, (int)m1.NpcId);
         await harness.StepFramesAsync(10);
@@ -1330,6 +1349,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9921,
             Code = "syn-proj-to-im",
+            EquipLimit = -2,
             Style = SkillStyleKind.Projectile,
             IsPhysical = false,
             IsMelee = false,
@@ -1418,6 +1438,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9931,
             Code = "syn-parent-circle",
+            EquipLimit = -2,
             IsBaseSkill = false,
             MissileId = 0,
             MissileForm = "circle",
@@ -1437,6 +1458,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9932,
             Code = "syn-child-line",
+            EquipLimit = -2,
             IsBaseSkill = true,
             IsPhysical = false,
             MissileId = 169,
@@ -1574,6 +1596,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9940,
             Code = "syn-detonate-enemy-only",
+            EquipLimit = -2,
             EffectScaling =
             [
                 new SkillEffectScalingTemplate(
@@ -1602,6 +1625,8 @@ public sealed class ExecutionArchetypeSimulationTests
         ally.CurrentCamp = EntityCamp.Justice;
         ally.PkState = PlayerPkMode.Peace;
         ally.FightMode = 1;
+        ally.WeaponType = 0;
+        ally.WeaponParticular = 0; // Skill 1380 EquiptLimited=0 (Sword) per skills.txt
         caster.BaseCamp = EntityCamp.Justice;
         caster.CurrentCamp = EntityCamp.Justice;
         caster.PkState = PlayerPkMode.Peace;
@@ -1766,6 +1791,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9950,
             Code = "syn-ground-impact-skill",
+            EquipLimit = -2,
             IsPhysical = false,
             MissileForm = "atTarget",
             MissileId = 9950,
@@ -1788,6 +1814,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9952,
             Code = "syn-bymissile-child-line",
+            EquipLimit = -2,
             IsPhysical = false,
             MissileId = 169,
             MissileForm = "line",
@@ -1808,6 +1835,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9951,
             Code = "syn-bymissile-parent-skill",
+            EquipLimit = -2,
             IsPhysical = false,
             ByMissile = true,
             MissileForm = "line",
@@ -1939,6 +1967,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9961,
             Code = "syn-single-rollback",
+            EquipLimit = -2,
             ChildSkillCount = 1,
             WaitFrames = 0,
             MinFramesPerCast = 0,
@@ -1950,6 +1979,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9962,
             Code = "syn-oncollide-child",
+            EquipLimit = -2,
             IsPhysical = false,
             MissileId = 9962,
             MissileForm = "atTarget",
@@ -1970,6 +2000,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9960,
             Code = "syn-throttled-aoe",
+            EquipLimit = -2,
             IsPhysical = false,
             ByMissile = true,
             MissileForm = "atTarget",
@@ -1995,6 +2026,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9963,
             Code = "syn-imm-scaled",
+            EquipLimit = -2,
             IsPhysical = false,
             IsMelee = true,
             MissileId = 0,
@@ -2172,6 +2204,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9981,
             Code = "syn-m271-skill",
+            EquipLimit = -2,
             IsPhysical = false,
             MissileForm = "line",
             MissileId = 9981,
@@ -2252,6 +2285,8 @@ public sealed class ExecutionArchetypeSimulationTests
         hsPlayer.BaseCamp = EntityCamp.Justice;
         hsPlayer.CurrentCamp = EntityCamp.Justice;
         hsPlayer.PkState = PlayerPkMode.Fight;
+        hsPlayer.WeaponType = 0;
+        hsPlayer.WeaponParticular = 0; // Skill 1376 EquiptLimited=0 (Sword) per skills.txt
 
         NpcZoneState m1 = worker.StaticNpcs[1u];
         NpcZoneState m2 = worker.StaticNpcs[2u];
@@ -2297,12 +2332,17 @@ public sealed class ExecutionArchetypeSimulationTests
         hsPlayer2.BaseCamp = EntityCamp.Justice;
         hsPlayer2.CurrentCamp = EntityCamp.Justice;
         hsPlayer2.PkState = PlayerPkMode.Fight;
+        hsPlayer2.WeaponType = 0;
+        hsPlayer2.WeaponParticular = 0; // Skill 1351 EquiptLimited=0 (Sword) per skills.txt
+        hsPlayer2.SkillCombatModifiers.HitRecoverPercent = 100; // Prevent DoHurt posture lock from M323 before frame-4 detonation cast (KNpc::DoHurt @ 0x08090930)
 
         PlayerZoneState enemyPlayer2 = enemyHandle2.GetZoneState()!;
         enemyPlayer2.FightMode = 1;
         enemyPlayer2.BaseCamp = EntityCamp.Evil;
         enemyPlayer2.CurrentCamp = EntityCamp.Evil;
         enemyPlayer2.PkState = PlayerPkMode.Fight;
+        enemyPlayer2.WeaponType = 0;
+        enemyPlayer2.WeaponParticular = 0; // Skill 1061 EquiptLimited=0 (Sword) per skills.txt
 
         NpcZoneState m2_1 = worker2.StaticNpcs[1u];
         NpcZoneState m2_2 = worker2.StaticNpcs[2u];
@@ -2385,6 +2425,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9983,
             Code = "syn-delayed-im-parent",
+            EquipLimit = -2,
             IsPhysical = false,
             IsBaseSkill = false,
             MissileForm = "line",
@@ -2467,6 +2508,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9984,
             Code = "syn-m85-circle",
+            EquipLimit = -2,
             IsPhysical = false,
             MissileId = 85, // MoveKind=2 (Circle in missles.txt, exported as Random), Speed=16 -> fixed radius 50+16=66
             MissileForm = "spread",
@@ -2641,6 +2683,7 @@ public sealed class ExecutionArchetypeSimulationTests
         {
             Id = 9986,
             Code = "syn-imm-line-no-targetonly",
+            EquipLimit = -2,
             IsPhysical = false,
             IsMelee = true,
             MissileId = 0,

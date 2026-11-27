@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using JXReborn.Contracts.Characters;
 using JXReborn.GameAssets.Items;
@@ -18,6 +20,8 @@ using JXReborn.ZoneEngine.Configuration;
 using JXReborn.ZoneEngine.Items;
 using JXReborn.ZoneEngine.NpcEntities;
 using JXReborn.ZoneEngine.PlayerSessions;
+using JXReborn.Scripts.Hosting;
+using JXReborn.ZoneEngine.Scripting;
 using JXReborn.ZoneEngine.SpatialGrid;
 using JXReborn.ZoneEngine.WorldZones;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -169,11 +173,13 @@ public sealed class FiveElementsAndFrameBreakpointAuditTests
 
         Assert.NotNull(realMetalSkill);
 
-        // Negative resistance passes through CalcCurRes unmodified and amplifies channel damage:
-        // raw = 200, PhysicsResist = -30 -> effRes = -30 -> dealt = (200 * (100 - (-30))) / 100 = 260.
+        // Negative resistance passes through CalcCurRes unmodified and amplifies channel damage when Yan <= Yin
+        // (KNpc::CalcDamage @ 0x0809e898..0x0809e8a2 takes max(resYin - antiRes, resYan) before CalcCurRes @ 0x08090320):
+        // raw = 200, PhysicsResist = -30, PhysicsResistYan = -30 -> effRes = -30 -> dealt = (200 * (100 - (-30))) / 100 = 260.
         Assert.Equal(-30, CombatDamageCalculator.CalcCurRes(-30, CombatConsts.DefaultMaxResistPercent));
         NpcZoneState negResTarget = CreateAuditNpc(series: ElementSeries.Earth, level: 50, maxLife: 2000u);
         negResTarget.PhysicsResistPercent = -30;
+        negResTarget.CombatModifiers.PhysicsResistYanPercent = -30;
 
         var negResPayload = new SkillDamagePayload(
             SkillId: realMetalSkill.Id,
@@ -651,7 +657,9 @@ public sealed class FiveElementsAndFrameBreakpointAuditTests
 
         // ManaShield 0-mana collapse quirk (Toa Vong Vo Nga):
         // Defender has ManaShield = 80%, CurrentMana = 15, incoming Phys = 100 -> manaAbsorb = 80 > CurrentMana (15).
-        // Binary behavior: CurrentMana drops to 0 and channel HP damage becomes 0!
+        // Ground truth: KNpc::CalcDamage @ 0x0809e790 (legacy-server/discovery/combat/damage/combat.damage.shields_and_return_damage.json:93):
+        //   if (m_CurrentMana - nManaDamage < 0) m_CurrentMana = 0; else { m_CurrentMana -= nManaDamage; final_dmg -= nManaDamage; }
+        // CurrentMana collapses to 0 and final_dmg is NOT reduced, dealing full 100 HP damage!
         PlayerZoneState wudangDefender = CreateAuditPlayer(runtimeNpcId: 22003u, currentLife: 1000, maxLife: 1000, currentMana: 15, maxMana: 500);
         wudangDefender.SkillCombatModifiers.ManaShieldPercent = 80;
         var shieldTestPayload = pvpPayload with
@@ -670,8 +678,8 @@ public sealed class FiveElementsAndFrameBreakpointAuditTests
             in shieldTestPayload,
             new Random(1));
         Assert.Equal(0, wudangDefender.CurrentMana);
-        Assert.Equal(0, shieldHit.TotalHpDamageDealt);
-        Assert.Equal(1000, wudangDefender.CurrentLife);
+        Assert.Equal(100, shieldHit.TotalHpDamageDealt);
+        Assert.Equal(900, wudangDefender.CurrentLife);
     }
 
     [Fact]
@@ -773,6 +781,9 @@ public sealed class FiveElementsAndFrameBreakpointAuditTests
 
         PlayerZoneState player = worker.PlayersByCharacterId[charId];
         NpcZoneState casterMob = Assert.Single(worker.StaticNpcs.Values);
+        // Ground truth: g_InitSeries[Metal].PoisonResist = 25% (PlayerTemplateCatalog); isolate 0% resist & stationary caster so only DoT ticks apply.
+        casterMob.LevelScriptCode = "muren";
+        player.PoisonResistPercent = 0;
         player.FightMode = 1;
 
         // Case A: PoisonRemainingFrames = 15, Interval = 10, Damage = 50 -> must tick TWICE over 15 frames (total 100 HP lost).
@@ -933,7 +944,7 @@ public sealed class FiveElementsAndFrameBreakpointAuditTests
     }
 
     [Fact]
-    public void ColdFreezeSlow_OnStandardWalkSpeedMonster_ShouldReduceMovementProgressByHalfWithoutArtificialFloor()
+    public async Task ColdFreezeSlow_OnStandardWalkSpeedMonster_ShouldReduceMovementProgressByHalfWithoutArtificialFloor()
     {
         // Ground truth: KNpc::ProcessState_AilmentsAndFeatureTimer @ 0x0809f6f0 (lines 48-62):
         //   When m_FreezeState.nTime > 0, every odd remaining frame ((nTime & 1) != 0) skips the action/movement step,
@@ -956,16 +967,62 @@ public sealed class FiveElementsAndFrameBreakpointAuditTests
 
         Assert.NotNull(lowSpeedMonsterTpl);
 
-        NpcZoneState mob = CreateAuditNpc(
-            templateId: lowSpeedMonsterTpl.TemplateId,
-            walkSpeed: lowSpeedMonsterTpl.WalkSpeed,
-            runSpeed: Math.Max(6, lowSpeedMonsterTpl.RunSpeed));
+        static async Task<int> MeasureMonsterTenTickWalkDistanceAsync(NpcTemplate tpl, bool applyFreeze)
+        {
+            const int startX = 52000;
+            const int startY = 101696;
+            const int targetX = 52400;
+            var mapDesc = new MapDescriptor(53, "Ba Lăng Huyện", "balanghuyen", 96, 88, 16, 20)
+            {
+                RegionNpcSpawns =
+                [
+                    new StaticNpcSpawnTemplate(
+                        TemplateId: tpl.TemplateId,
+                        MapId: 53,
+                        SpawnMpsX: startX,
+                        SpawnMpsY: startY,
+                        Level: 10,
+                        Kind: EntityKind.Monster,
+                        Camp: EntityCamp.Animal,
+                        Series: ElementSeries.Wood,
+                        IsSpecialNpc: false,
+                        DisplayName: tpl.Name,
+                        ScriptPath: string.Empty),
+                ],
+            };
 
-        int unfrozenTenTickDistance = mob.EffectiveWalkSpeed * 10;
-        mob.StatusEffects.ApplyColdFreeze(20);
+            var worker = new MapZoneWorker(
+                mapDesc,
+                new InMemorySessionLeaseAppServiceStub(),
+                new ZoneEngineOptions { RandomSeed = 1 },
+                new FakeTimeProvider(),
+                NullLogger.Instance,
+                npcTemplateCatalog: SharedGameAssetsFixture.Default.NpcTemplateCatalog);
+
+            NpcZoneState mob = Assert.Single(worker.StaticNpcs.Values);
+            mob.AiMode = 4;
+            mob.AiState = MonsterAiStateKind.IdlePatrol;
+            mob.Doing = EntityDoingPosture.Walk;
+            mob.TargetMpsX = targetX;
+            mob.TargetMpsY = startY;
+            if (applyFreeze)
+            {
+                mob.StatusEffects.ApplyColdFreeze(20);
+            }
+
+            for (int tick = 0; tick < 10; tick++)
+            {
+                await worker.StepSingleTickAsync();
+            }
+
+            return mob.MpsX - startX;
+        }
+
+        int unfrozenTenTickDistance = await MeasureMonsterTenTickWalkDistanceAsync(lowSpeedMonsterTpl, applyFreeze: false);
+        int frozenTenTickDistance = await MeasureMonsterTenTickWalkDistanceAsync(lowSpeedMonsterTpl, applyFreeze: true);
 
         // Over 10 ticks under FreezeState, distance advanced must be halved (50% of unfrozen progress), NOT 100%!
-        int frozenTenTickDistance = mob.EffectiveWalkSpeed * 10;
+        Assert.True(unfrozenTenTickDistance > 0);
         Assert.Equal(unfrozenTenTickDistance / 2, frozenTenTickDistance);
     }
 
@@ -1222,5 +1279,207 @@ public sealed class FiveElementsAndFrameBreakpointAuditTests
         PlayerZoneState player = CreateAuditPlayer(level: 50, dexterity: 100);
         Assert.Equal(372, player.EffectiveAttackRating);
         Assert.Equal(25, player.EffectiveDefense);
+    }
+
+    [Fact]
+    public async Task TeleportPlayerAcrossMaps_WithSetProtectTimeBeforeOrAfterTransfer_ShouldPreserveFiftyFourFrameShieldOnDestinationZone()
+    {
+        // Ground truth:
+        //   - legacy-server/bin/server1/script/global/station.lua (WayPointFun: NewWorld(nW, nX, nY); SetFightState(1); SetProtectTime(18*3); AddSkillState(963, 1, 0, 18*3))
+        //   - legacy-server/discovery/lua_api/KLua_2_1_PlayerStatsAndFaction.cpp (LuaSetProtectTime -> KNpc::SetProtectTime(54))
+        //   - legacy-server/discovery/combat/damage/combat.damage.shields_and_return_damage.json (KNpc::CalcDamage @ 0x0809e790 blocks incoming HP damage while protect timer > 0)
+        SharedGameAssetsFixture assets = SharedGameAssetsFixture.Default;
+        const ushort sourceMapId = 53;
+        const ushort destMapId = 54;
+        const int sourceNpcX = 52000;
+        const int sourceNpcY = 101696;
+        const int destArrivalX = 47072;
+        const int destArrivalY = 95744;
+
+        var teleportThenProtectScript = new CrossMapProtectDialogScript(
+            "audit-teleport-then-protect",
+            destMapId,
+            destArrivalX,
+            destArrivalY,
+            protectAfterTeleport: true);
+        var protectThenTeleportScript = new CrossMapProtectDialogScript(
+            "audit-protect-then-teleport",
+            destMapId,
+            destArrivalX,
+            destArrivalY,
+            protectAfterTeleport: false);
+
+        var scriptSnapshot = new ScriptRegistrySnapshot(
+            generation: 1,
+            loadedAtUtc: DateTimeOffset.UnixEpoch,
+            npcDialogScripts: new Dictionary<string, INpcDialogScript>(StringComparer.Ordinal)
+            {
+                [teleportThenProtectScript.ScriptCode] = teleportThenProtectScript,
+                [protectThenTeleportScript.ScriptCode] = protectThenTeleportScript,
+            }.ToFrozenDictionary(StringComparer.Ordinal),
+            itemUsageScripts: FrozenDictionary<string, IItemUsageScript>.Empty,
+            trapScripts: FrozenDictionary<string, ITrapScript>.Empty,
+            missionFactories: FrozenDictionary<string, Func<IMissionController>>.Empty);
+
+        using var scriptHost = new ZoneScriptHost(scriptSnapshot);
+
+        var map53 = new MapDescriptor(
+            sourceMapId,
+            "Ba Lăng Huyện",
+            "balanghuyen",
+            82,
+            89,
+            40,
+            30)
+        {
+            RegionNpcSpawns =
+            [
+                new StaticNpcSpawnTemplate(12, sourceMapId, sourceNpcX + 32, sourceNpcY, 1, EntityKind.DialogNpc, EntityCamp.Begin, ElementSeries.Earth, false, "Xa Phu A", teleportThenProtectScript.ScriptCode),
+                new StaticNpcSpawnTemplate(12, sourceMapId, sourceNpcX - 32, sourceNpcY, 1, EntityKind.DialogNpc, EntityCamp.Begin, ElementSeries.Earth, false, "Xa Phu B", protectThenTeleportScript.ScriptCode),
+            ],
+        };
+        var map54 = new MapDescriptor(
+            destMapId,
+            "Nam Nhạc Trấn",
+            "namnhactran",
+            88,
+            91,
+            30,
+            20)
+        {
+            RegionNpcSpawns =
+            [
+                new StaticNpcSpawnTemplate(1, destMapId, destArrivalX + 32, destArrivalY, 20, EntityKind.Monster, EntityCamp.Animal, ElementSeries.Fire, false, "Sơn Tặc Cửa Trấn", string.Empty),
+            ],
+        };
+
+        var harness = new ZoneSimulationHarness(new ZoneSimulationHarnessOptions
+        {
+            Assets = new ZoneAssetServices
+            {
+                MapCatalog = assets.MapCatalog,
+                SkillTemplateCatalog = assets.SkillTemplateCatalog,
+                MissileTemplateCatalog = assets.MissileTemplateCatalog,
+                NpcTemplateCatalog = assets.NpcTemplateCatalog,
+                ScriptHost = scriptHost,
+            },
+            CustomModules = { new ScriptingZoneModule() },
+            InitialMaps = { map53, map54 },
+        });
+
+        MapZoneWorker worker53 = harness.GetZone(sourceMapId);
+        MapZoneWorker worker54 = harness.GetZone(destMapId);
+        Assert.Equal(2, worker53.StaticNpcs.Count);
+        NpcZoneState xaPhuAfter = worker53.StaticNpcs[1u];
+        NpcZoneState xaPhuBefore = worker53.StaticNpcs[2u];
+        xaPhuAfter.DialogRadiusCells = 4;
+        xaPhuBefore.DialogRadiusCells = 4;
+        xaPhuAfter.ScriptCode = teleportThenProtectScript.ScriptCode;
+        xaPhuBefore.ScriptCode = protectThenTeleportScript.ScriptCode;
+        NpcZoneState hostileBandit = Assert.Single(worker54.StaticNpcs.Values);
+
+        // Advance destination zone ahead of source zone so sourceTick != destTick
+        await worker54.StepSingleTickAsync();
+        await worker54.StepSingleTickAsync();
+        await worker54.StepSingleTickAsync();
+
+        static CharacterDto CreateTravelerDto(string name, int x, int y) => new(
+            Id: Guid.NewGuid(),
+            AccountId: Guid.NewGuid(),
+            SlotIndex: 0,
+            RoleNameUnicode: name,
+            Gender: CharacterGender.Male,
+            Series: ElementSeries.Metal,
+            Level: 30,
+            Experience: 0,
+            LeadExperience: 0,
+            MapId: sourceMapId,
+            RevivalMapId: sourceMapId,
+            RevivalPointId: 19,
+            MapMpsX: x,
+            MapMpsY: y,
+            CurrentLife: 1000,
+            MaxLife: 1000,
+            CurrentMana: 500,
+            MaxMana: 500,
+            CurrentStamina: 300,
+            MaxStamina: 300,
+            Strength: 80,
+            Dexterity: 80,
+            Vitality: 80,
+            Energy: 50,
+            Lucky: 0,
+            UnallocatedAttributePoints: 0,
+            UnallocatedSkillPoints: 0,
+            InventoryMoney: 0,
+            RepositoryMoney: 0,
+            CurrentFactionId: 1,
+            FirstFactionId: 1,
+            FactionJoinCount: 1,
+            Skills: []);
+
+        SimulatedPlayerHandle travelerAfterHandle = await harness.AttachSimulatedPlayerAsync(CreateTravelerDto("DuKháchSau", sourceNpcX, sourceNpcY));
+        SimulatedPlayerHandle travelerBeforeHandle = await harness.AttachSimulatedPlayerAsync(CreateTravelerDto("DuKháchTrước", sourceNpcX, sourceNpcY));
+
+        // Clear initial login spawn protection on Map 53 before speaking to Xa Phu
+        travelerAfterHandle.GetZoneState()!.SpawnProtectUntilTick = 0;
+        travelerBeforeHandle.GetZoneState()!.SpawnProtectUntilTick = 0;
+
+        harness.EnqueueCommand(sourceMapId, new DialogNpcZoneCommand(travelerAfterHandle.CharacterId, travelerAfterHandle.LeaseEpoch, xaPhuAfter.NpcId));
+        harness.EnqueueCommand(sourceMapId, new DialogNpcZoneCommand(travelerBeforeHandle.CharacterId, travelerBeforeHandle.LeaseEpoch, xaPhuBefore.NpcId));
+
+        // Step 1 frame: Map 53 executes both dialog scripts & enqueues AttachTransferredPlayerZoneCommand -> Map 54 attaches both players in the same frame
+        await harness.StepFramesAsync(1);
+
+        Assert.True(worker54.TryGetPlayer(travelerAfterHandle.CharacterId, out PlayerZoneState? arrivedAfter) && arrivedAfter is not null);
+        Assert.True(worker54.TryGetPlayer(travelerBeforeHandle.CharacterId, out PlayerZoneState? arrivedBefore) && arrivedBefore is not null);
+
+        // Note: AttachTransferredPlayerZoneCommand ran during Command phase of worker54's tick, followed by 1 StatusEffects tick in the same frame (54 -> 53 remaining, SpawnProtectUntilTick == arrivalCommandTick + 54 == CurrentFrameTick + 53).
+        Assert.InRange(arrivedAfter.SpawnProtectUntilTick - worker54.CurrentFrameTick, 53L, 54L);
+        Assert.InRange(arrivedBefore.SpawnProtectUntilTick - worker54.CurrentFrameTick, 53L, 54L);
+
+        ActiveStateSkillEffect? stateAfter = arrivedAfter.StatusEffects.FindStateSkillEffect(CombatConsts.BlockStateSkillId);
+        ActiveStateSkillEffect? stateBefore = arrivedBefore.StatusEffects.FindStateSkillEffect(CombatConsts.BlockStateSkillId);
+        Assert.NotNull(stateAfter);
+        Assert.NotNull(stateBefore);
+        Assert.InRange(stateAfter.RemainingFrames, 53, 54);
+        Assert.InRange(stateBefore.RemainingFrames, 53, 54);
+
+        // Runtime combat check while shield is active on destination zone: incoming hits deal 0 HP damage!
+        worker54.ApplyDamageToPlayer(hostileBandit.NpcId, arrivedAfter, damage: 250);
+        worker54.ApplyDamageToPlayer(hostileBandit.NpcId, arrivedBefore, damage: 250);
+        Assert.Equal(1000, arrivedAfter.CurrentLife);
+        Assert.Equal(1000, arrivedBefore.CurrentLife);
+
+        // Step 55 frames (> 54 frames) so the 3-second shield expires naturally, then verify combat damage applies normally
+        await harness.StepFramesAsync(55);
+        worker54.ApplyDamageToPlayer(hostileBandit.NpcId, arrivedAfter, damage: 250);
+        worker54.ApplyDamageToPlayer(hostileBandit.NpcId, arrivedBefore, damage: 250);
+        Assert.Equal(750, arrivedAfter.CurrentLife);
+        Assert.Equal(750, arrivedBefore.CurrentLife);
+    }
+
+    private sealed class CrossMapProtectDialogScript(
+        string scriptCode,
+        ushort targetMapId,
+        int targetMpsX,
+        int targetMpsY,
+        bool protectAfterTeleport) : INpcDialogScript
+    {
+        public string ScriptCode { get; } = scriptCode;
+
+        public async ValueTask OnDialogAsync(IScriptDialogContext context, CancellationToken cancellationToken = default)
+        {
+            if (protectAfterTeleport)
+            {
+                await context.TeleportPlayerAsync(targetMapId, targetMpsX, targetMpsY, targetFightMode: 1);
+                context.SetProtectTime(54);
+            }
+            else
+            {
+                context.SetProtectTime(54);
+                await context.TeleportPlayerAsync(targetMapId, targetMpsX, targetMpsY, targetFightMode: 1);
+            }
+        }
     }
 }

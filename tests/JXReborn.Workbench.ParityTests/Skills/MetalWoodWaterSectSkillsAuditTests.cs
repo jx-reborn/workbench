@@ -306,10 +306,15 @@ public sealed class MetalWoodWaterSectSkillsAuditTests
         Assert.NotNull(player);
         Assert.True(harness.TryGetZone(53, out MapZoneWorker? worker) && worker is not null);
         NpcZoneState dummy = Assert.Single(worker.StaticNpcs.Values);
+        // Ground truth: KNpc::DoHurt @ 0x08097000 locks caster in do_hurt on monster counter-hit; mark training dummy stationary ("muren") to isolate skill combo frames.
+        dummy.LevelScriptCode = "muren";
         dummy.CurLife = Math.Min(dummy.MaxLife, 200000u);
 
         player.FightMode = 1;
         player.Camp = EntityCamp.Justice;
+        // Ground truth: skills.txt Skill 323 (Truy Tinh Truc Nguyet) has EquiptLimited = 3 (Spear) & KSkill::CanCastSkill @ 0x08101010 enforces weapon match.
+        player.WeaponType = 0;
+        player.WeaponParticular = 3;
 
         // 1. Cast Kim Chung Trao (42) -> positive physical/cold/poison resists & negative fire resist (-15%)
         tianwang.CastSkill(42, player.CurrentMpsX, player.CurrentMpsY);
@@ -596,9 +601,11 @@ public sealed class MetalWoodWaterSectSkillsAuditTests
         await harness.StepFramesAsync(15);
         Assert.Equal(-49, ((ICombatEntityState)monster).PhysicsResistPercent);
 
-        // Verify exact damage amplification (-49% physical resist -> 200 * 149 / 100 = 298 HP)
+        // Verify exact damage amplification (-49% physical resist with matching Yan floor <= -49 per
+        // KNpc::CalcDamage @ 0x0809e898..0x0809e8a2 max(resYin, resYan) -> 200 * 149 / 100 = 298 HP)
         // and Van Doc Thuc Tam (-200% PoisonTimeReducePercent -> 60 * (100 - (-200)) / 100 = 180 frames)
         // plus Hap Tinh Yem_Quyet Chu (85% Poison2DecManaPercent) burning defender mana.
+        monster.CombatModifiers.PhysicsResistYanPercent = -49;
         monster.CombatModifiers.PoisonTimeReducePercent = -200;
         var physAndPoisonPayload = new SkillDamagePayload(
             SkillId: 65,
@@ -677,7 +684,9 @@ public sealed class MetalWoodWaterSectSkillsAuditTests
         Assert.Equal(5, appendedLv19.Count);
         Assert.Equal(5, appendedLv20.Count);
 
-        var expectedSupportIds = new HashSet<int> { 86, 89, 92, 282, 332 };
+        // Ground truth: skills.txt parent Aura skills [86, 89, 92, 282, 332] carry empty KMagicAttrib arrays and
+        // delegate modifier execution to ChildSkillIds [206, 207, 208, 281, 333]; ExtractAppendedStateSkills(718) expands those 5 child skills.
+        var expectedSupportIds = new HashSet<int> { 206, 207, 208, 281, 333 };
         var observedSupportIds = new HashSet<int>();
         foreach ((SkillTemplate appendedSkill, int level) in appendedLv19)
         {
@@ -802,6 +811,9 @@ public sealed class MetalWoodWaterSectSkillsAuditTests
         PlayerZoneState? player = cuiyan.GetZoneState();
         Assert.NotNull(player);
         player.FightMode = 1;
+        // Ground truth: skills.txt Skill 108 (Muc Da Luu Tinh) has EquiptLimited = 1 (Blade) & KSkill::CanCastSkill @ 0x08101010 enforces weapon match.
+        player.WeaponType = 0;
+        player.WeaponParticular = 1;
 
         cuiyan.CastSkill(713, player.CurrentMpsX, player.CurrentMpsY);
         await harness.StepFramesAsync(20);

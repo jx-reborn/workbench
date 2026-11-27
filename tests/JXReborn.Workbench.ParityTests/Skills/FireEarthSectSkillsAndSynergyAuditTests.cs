@@ -310,9 +310,9 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         caster.FightMode = 1;
         uint initialDummyLife = dummy.CurLife;
 
-        // Cast Phi Long Tại Thiên (357) at lv20 targeting the monster (WaitFrames = 5)
+        // Cast Phi Long Tại Thiên (357) at lv20 targeting the monster (DoOrdinSkill @ 0x0809c160 + OnSkill IsReachFrame(60) @ 0x0809bdb0: CastFrame=18 at CastSpeed=0 -> 10 windup frames)
         handle.CastSkill(357, -1, (int)dummy.NpcId);
-        await harness.StepFramesAsync(6);
+        await harness.StepFramesAsync(11);
 
         List<ActiveMissileSlot> activeDragons = GetActiveMissilesForSkill(worker, 357);
         Assert.Equal(4, activeDragons.Count);
@@ -371,9 +371,9 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         Assert.Equal(66, player.SkillCombatModifiers.FastWalkRunPercent);
         Assert.Equal(16, player.EffectiveRunSpeed);
 
-        // Cast Túy Điệp Cuồng Vũ (130) SelfBuff -> +20% all resistances, +144 fire magic (1025 + 144 = 1169)
+        // Cast Túy Điệp Cuồng Vũ (130) SelfBuff (DoOrdinSkill @ 0x0809c160: CastFrame=18 at CastSpeed=65 -> 10 total frames, 6 windup frames)
         handle.CastSkill(130, player.CurrentMpsX, player.CurrentMpsY);
-        await harness.StepFramesAsync(2);
+        await harness.StepFramesAsync(7);
         Assert.Equal(20, player.SkillCombatModifiers.FireResistPercent);
         Assert.Equal(20, player.SkillCombatModifiers.PhysicsResistPercent);
         Assert.Equal(1169, player.SkillCombatModifiers.MagicFireMinDamage);
@@ -425,12 +425,12 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         uint lifeAfterWallTicks = dummy.CurLife;
         Assert.True(lifeAfterWallTicks < lifeBeforeWall, "Expected Thôi Sơn Điền Hải firewall pillars to tick continuous fire damage.");
 
-        // Clear remaining firewall life and cast Thiên Ngoại Lưu Tinh (362, WaitFrames=0, M171 Life=14)
+        // Clear remaining firewall life and cast Thiên Ngoại Lưu Tinh (362, CharAnimId=11 -> DoOrdinSkill @ 0x0809c160 10-frame windup at CastSpeed=0, M171 Life=14)
         await harness.StepFramesAsync(120);
         dummy.CurLife = 5_000_000u;
 
         handle.CastSkill(362, dummy.MpsX, dummy.MpsY);
-        await harness.StepFramesAsync(2);
+        await harness.StepFramesAsync(11);
         Assert.NotEmpty(GetActiveMissilesForSkill(worker, 362));
 
         // After 14 frames, meteor (362) vanishes and spawns Nghiệp Hỏa Phần Thành (363) burning the ground for 54 frames
@@ -469,9 +469,9 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         // Before casting Tọa Vọng Vô Ngã (157), passive 152 contributes -25%
         Assert.Equal(-25, ((ICombatEntityState)defender).ManaShieldPercent);
 
-        // Cast Tọa Vọng Vô Ngã (157) -> net ManaShieldPercent = 99 - 25 = 74%
+        // Cast Tọa Vọng Vô Ngã (157, CharAnimId=11 -> DoOrdinSkill @ 0x0809c160 10-frame windup at CastSpeed=0) -> net ManaShieldPercent = 99 - 25 = 74%
         defenderHandle.CastSkill(157, defender.CurrentMpsX, defender.CurrentMpsY);
-        await harness.StepFramesAsync(2);
+        await harness.StepFramesAsync(11);
         Assert.Equal(74, ((ICombatEntityState)defender).ManaShieldPercent);
 
         defender.CurrentLife = 4000;
@@ -542,8 +542,9 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         defender.FightMode = 1;
         defender.SpawnProtectUntilTick = 0;
 
+        // DoOrdinSkill @ 0x0809c160: CastFrame=18 at CastSpeed=0 -> 10-frame windup before SelfBuff 157 applies.
         defenderHandle.CastSkill(157, defender.CurrentMpsX, defender.CurrentMpsY);
-        await harness.StepFramesAsync(2);
+        await harness.StepFramesAsync(11);
         Assert.Equal(74, ((ICombatEntityState)defender).ManaShieldPercent);
 
         // Set CurrentMana = 500 (< required 740 mana absorb for a 1000-damage hit).
@@ -631,22 +632,25 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         wudang.SpawnProtectUntilTick = 0;
         kunlunEnemy.SpawnProtectUntilTick = 0;
 
-        // Enemy Côn Lôn curses Võ Đang with Kỷ Bán Phù (174), and Võ Đang is also frozen
+        // Enemy Côn Lôn curses Võ Đang with Kỷ Bán Phù (174; DoOrdinSkill @ 0x0809c160 10-frame windup at CastSpeed=0 + M15 flight), and Võ Đang is also frozen
         kunlunEnemyHandle.CastSkill(174, -1, (int)wudang.RuntimeNpcId);
-        await harness.StepFramesAsync(10);
+        await harness.StepFramesAsync(15);
         wudang.StatusEffects.ApplyColdFreeze(120);
 
         Assert.NotNull(wudang.StatusEffects.FindStateSkillEffect(174));
         Assert.Equal(-52, wudang.SkillCombatModifiers.FastWalkRunPercent);
         Assert.True(wudang.StatusEffects.IsFrozen);
 
-        // Cast Xuất Ứ Bất Nhiễm (716 -> 738; 15% missrate per stage -> retry across cooldown if missed)
+        // Cast Xuất Ứ Bất Nhiễm (716 -> 738; DoOrdinSkill @ 0x0809c160 10-frame windup at CastSpeed=0; 15% missrate -> retry across cooldown if missed).
+        // Ground truth: wudang.lua:426-429 & 464-467 + KNpcAttribModify::IgnoreNegativeStateP @ 0x080ad480 (+=):
+        // 716 applies +1 ignorenegativestate_p for 18 frames (self+ally) while 738 applies +100 for 54 frames (self);
+        // stepping 30 frames (10 windup + 20 active) expires 716's 18-frame +1 while leaving 34 frames on 738's +100 immunity.
         bool cleansed = false;
         for (int attempt = 0; attempt < 6; attempt++)
         {
             wudang.CurrentMana = wudang.EffectiveMaxMana;
             wudangHandle.CastSkill(716, wudang.CurrentMpsX, wudang.CurrentMpsY);
-            await harness.StepFramesAsync(8);
+            await harness.StepFramesAsync(30);
             if (wudang.StatusEffects.FindStateSkillEffect(738) is not null)
             {
                 cleansed = true;
@@ -665,14 +669,15 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
 
         // While 738 is active (54 frames), re-casting Kỷ Bán Phù (174) is 100% blocked by IgnoreNegativeStatePercent
         kunlunEnemyHandle.CastSkill(174, -1, (int)wudang.RuntimeNpcId);
-        await harness.StepFramesAsync(10);
+        await harness.StepFramesAsync(15);
         Assert.Null(wudang.StatusEffects.FindStateSkillEffect(174));
     }
 
     [Fact]
     public async Task KunlunSpeedTalismansAndAutoRescue_LevelTwentyRuntimeSimulation_ShouldBuffAllySlowEnemyAndTriggerMagicShield()
     {
-        ZoneSimulationHarness harness = CreateCombatArenaHarness(randomSeed: 5);
+        // Place stationary arena dummy at 52800 so it does not overlap enemy player at 52160 and intercept single-pierce Missile 57.
+        ZoneSimulationHarness harness = CreateCombatArenaHarness(dummyMpsX: 52800, randomSeed: 5);
         SimulatedPlayerHandle kunlunCasterHandle = await harness.AttachSimulatedPlayerAsync(
             CreateSectCharacterDto(
                 "CônLônTiênPhù",
@@ -686,7 +691,7 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
                     new CharacterSkillDto(171, 20, 0), // Thanh Phong Phù: +60% fastwalkrun_p for allies (2160 frames)
                     new CharacterSkillDto(174, 20, 0), // Kỷ Bán Phù: -52% fastwalkrun_p on enemy (1620 frames)
                     new CharacterSkillDto(275, 20, 0), // Sương Ngạo Côn Lôn: +65 attackspeed_v, +51 castspeed_v
-                    new CharacterSkillDto(717, 20, 0), // Lưỡng Nghi Chân Khí: autorescueskill -> 721 (10000 shield) + 722 (+35% speed)
+                    new CharacterSkillDto(717, 20, 0), // Lưỡng Nghi Chân Khí: autorescueskill -> 721 (100x MaxMana shield) + 722 (+35% speed)
                 ]));
 
         SimulatedPlayerHandle allyHandle = await harness.AttachSimulatedPlayerAsync(
@@ -740,15 +745,17 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         Assert.Equal(-52, enemy.SkillCombatModifiers.FastWalkRunPercent);
         Assert.Equal(4, enemy.EffectiveRunSpeed);
 
-        // 3. Trigger Lưỡng Nghi Chân Khí (717 lv20, 65% proc rate when crossing < 25% MaxLife = 1000 HP)
+        // 3. Trigger Lưỡng Nghi Chân Khí (717 lv20, 65% proc rate when crossing < 25% MaxLife = 1000 HP).
+        // Ground truth: KNpc::CalcDamage @ 0x0809e790 applies 20% PK damage scaling ((225 fire + 200 energy) * 20 / 100 = 85 HP damage),
+        // and DoOrdinSkill @ 0x0809c160 requires 10 windup frames + M57 flight (~8 frames). Starting at 1050 HP crosses 1050 -> 965 (< 1000).
         bool rescueTriggered = false;
         for (int attempt = 0; attempt < 8; attempt++)
         {
-            kunlun.CurrentLife = 1200;
+            kunlun.CurrentLife = 1050;
             kunlun.FireResistPercent = 0;
             kunlun.BaseFireResist = 0;
             enemyHandle.CastSkill(145, -1, (int)kunlun.RuntimeNpcId);
-            await harness.StepFramesAsync(16);
+            await harness.StepFramesAsync(22);
             if (((ICombatEntityState)kunlun).StaticMagicShield > 0)
             {
                 rescueTriggered = true;
@@ -759,7 +766,9 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         }
 
         Assert.True(rescueTriggered, "Expected Lưỡng Nghi Chân Khí (717) auto-rescue to proc 721 + 722 below 25% HP.");
-        Assert.Equal(10_000, ((ICombatEntityState)kunlun).StaticMagicShield);
+        // Ground truth: KNpcAttribModify::StaticMagicShieldP @ 0x080b1000 & kunlun.lua:435-436,464:
+        // staticmagicshield_p[20] = 10000 -> shield = (EffectiveMaxMana * 10000) / 100 (100x MaxMana = 400,000 at MaxMana = 4000).
+        Assert.Equal((kunlun.EffectiveMaxMana * 10_000) / 100, ((ICombatEntityState)kunlun).StaticMagicShield);
         Assert.NotNull(kunlun.StatusEffects.FindStateSkillEffect(721));
         Assert.NotNull(kunlun.StatusEffects.FindStateSkillEffect(722));
     }
@@ -801,10 +810,12 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         }
 
         // Verify runtime payload scaling on Võ Đang Thiên Địa Vô Cực (365) at lv20:
-        // Base lightingdamage_v at lv20 is [8..350]; with +360% synergy (Nộ Lôi Chỉ +110%, Bác Cập +120%, Vô Ngã +130%) -> * 4.6
+        // Base lightingdamage_v at lv20 is [8..350]; with +360% synergy (Nộ Lôi Chỉ +110%, Bác Cập +120%, Vô Ngã +130%) -> * 4.6.
+        // Ground truth: KPlayer::GetEngergyDamage @ 0x080bf2a0 & KNpc::CalcLightAttribDamage (combat.damage.light_attrib_damage.json:56)
+        // add m_nCurEngergy onto non-physical lightingdamage_v, so pass energy: 0 to isolate pure skill + synergy scaling.
         Assert.True(skillCatalog.TryGetSkill(365, out SkillTemplate? thienDiaVoCuc) && thienDiaVoCuc is not null);
         SimulatedPlayerHandle wudangBare = await harness.AttachSimulatedPlayerAsync(
-            CreateSectCharacterDto("WudangNoSynergy", ElementSeries.Earth, 8, [new CharacterSkillDto(365, 20, 0)]));
+            CreateSectCharacterDto("WudangNoSynergy", ElementSeries.Earth, 8, [new CharacterSkillDto(365, 20, 0)]) with { Energy = 0 });
         SimulatedPlayerHandle wudangFull = await harness.AttachSimulatedPlayerAsync(
             CreateSectCharacterDto(
                 "WudangFullSynergy",
@@ -815,7 +826,7 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
                     new CharacterSkillDto(164, 20, 0),
                     new CharacterSkillDto(165, 20, 0),
                     new CharacterSkillDto(365, 20, 0),
-                ]));
+                ]) with { Energy = 0 });
 
         PlayerZoneState? pBare = wudangBare.GetZoneState();
         PlayerZoneState? pFull = wudangFull.GetZoneState();
@@ -1046,13 +1057,13 @@ public sealed class FireEarthSectSkillsAndSynergyAuditTests
         tianren.SpawnProtectUntilTick = 0;
         victim.SpawnProtectUntilTick = 0;
 
-        // Cast Ma Âm Phệ Phách (715 -> OnStart 723, M273 AoE radius 224 mps, randmove p0=1 for 72 frames at lv20)
+        // Cast Ma Âm Phệ Phách (715 -> OnStart 723, DoOrdinSkill @ 0x0809c160 10-frame windup at CastSpeed=0, M273 AoE radius 224 mps, randmove p0=1 for 72 frames at lv20)
         bool panicApplied = false;
         for (int attempt = 0; attempt < 6; attempt++)
         {
             tianren.CurrentMana = tianren.EffectiveMaxMana;
             tianrenHandle.CastSkill(715, tianren.CurrentMpsX, tianren.CurrentMpsY);
-            await harness.StepFramesAsync(6);
+            await harness.StepFramesAsync(12);
             if (victim.SkillCombatModifiers.RandMoveCount > 0)
             {
                 panicApplied = true;

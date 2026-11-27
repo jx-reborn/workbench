@@ -199,8 +199,10 @@ public sealed class QaParityRemediationSimulationTests
         Assert.Equal(metalRule.BaseFireResist, player.FireResistPercent);
         Assert.Equal(metalRule.BasePhysicsResist, player.PhysicsResistPercent);
 
+        // Ground truth: legacy-server/discovery/Player/KPlayer_P2_AttributesAndStats.cpp:190-195
+        // KPlayer::SetNpcAttackRating @ 0x080c3860 sets base m_AttackRating = m_nCurDexterity * 4 - 28.
         int baseAttackRating = player.EffectiveAttackRating;
-        Assert.Equal((player.EffectiveDexterity * 4) + (player.Level * 5), baseAttackRating);
+        Assert.Equal((player.EffectiveDexterity * 4) - 28, baseAttackRating);
 
         // Equip Metal axe carrying attackratingenhance_p = -30% (AttrId 167)
         var axeTemplate = new ItemTemplate(
@@ -503,12 +505,14 @@ public sealed class QaParityRemediationSimulationTests
         player.TargetMpsY = player.CurrentMpsY;
         player.PkState = PlayerPkMode.Peace;
 
-        // Ground truth: KNpc::ProcessState drains/regens stamina on 10-frame intervals (m_LoopFrames % 10 == 0).
-        // Stepping 10 frames hits exactly 1 cadence tick in Peace mode -> drains 1 stamina
+        // Ground truth: settings/npc/player/stamina.ini (NormalAdd=1, ExerciseRunSub=1, FightRunSub=1, KillRunSub=18, SitAdd=10),
+        // KPlayer_P3_DBSaveLoad_Core.cpp:775 (m_StaminaGain = NpcSet.m_nStaminaNormalAdd = 1), and
+        // KNpc::ProcessState @ 0x0809f6f0 (KNpc_ProcessState_RegenStaminaAndAuraLoop.cpp:138-179):
+        // Every 10-frame tick adds uVar6 (NormalAdd=1), so Peace mode running is net (30 - 1) + 1 = 30.
         await harness.StepFramesAsync(10);
-        Assert.Equal((ushort)29, player.CurrentStamina);
+        Assert.Equal((ushort)30, player.CurrentStamina);
 
-        // 10 frames in Slaughter mode hits 1 cadence tick -> drains 18 stamina
+        // 10 frames in Slaughter mode (KillRunSub=18, NormalAdd=1) -> (30 - 18) + 1 = 13 stamina
         player.PkState = PlayerPkMode.Slaughter;
         player.Doing = EntityDoingPosture.Run;
         player.CurrentMpsX = 52032;
@@ -516,9 +520,9 @@ public sealed class QaParityRemediationSimulationTests
         player.TargetMpsX = 52500;
         player.TargetMpsY = 101696;
         await harness.StepFramesAsync(10);
-        Assert.Equal((ushort)11, player.CurrentStamina);
+        Assert.Equal((ushort)13, player.CurrentStamina);
 
-        // Next 10 frames in Slaughter drains <= 18 -> clamps to 0 and forces Walk
+        // Next 10 frames in Slaughter ((13 - 18) + 1 <= 0) -> clamps to 0 and forces Walk
         player.Doing = EntityDoingPosture.Run;
         player.CurrentMpsX = 52032;
         player.CurrentMpsY = 101696;

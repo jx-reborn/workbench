@@ -407,21 +407,20 @@ public sealed class AuraBuffPassiveSimulationTests
         harness.EnqueueCommand(53, new ChangeAuraSkillZoneCommand(captain.CharacterId, captainHandle.LeaseEpoch, 159));
         await harness.StepFramesAsync(12);
 
-        // Both CastAura 10-frame (0x85 211 + 0x87 211 + 0x7A 20) and PartyAuraTickSystem 6-frame (0x87 159 attr 114=+10) emit cleanly
+        // Ground truth: legacy-server/discovery/misc_classes/KMisc_P2_KTeamSetAndPlayerTeam.cpp:10-58
+        // KPlayerTeam::ReCalcResistTeammateEffectToSelf @ 0x080e4710 & AddTeamChangeResist @ 0x080e46f0 are compiled as no-ops in jx_linux_y;
+        // CastAura 10-frame loop emits real ChildSkillId 211 (0x85 211 + 0x87 211 + 0x7A 20) without fabricating +10% allres_p on SkillId 159.
         Assert.Contains(captainHandle.Recorder.SkillCastBroadcasts, e => e.CastDirectly && e.SkillId == 211u && e.ExtraFlag == 0);
         Assert.Contains(captainHandle.Recorder.NpcStateInfoBroadcasts, e => e.NpcId == captain.RuntimeNpcId && e.StateSpecialIds.Contains((byte)20));
         Assert.Contains(memberHandle.Recorder.SyncStateEffects, e => e.NpcId == member.RuntimeNpcId && e.SkillId == 211);
-        Assert.Contains(
+        Assert.DoesNotContain(
             memberHandle.Recorder.SyncStateEffects,
             e => e.NpcId == member.RuntimeNpcId &&
                  e.SkillId == 159 &&
-                 e.RemainTimeFrames == 180 &&
-                 e.MagicAttribs.Any(a => a.AttributeType == CombatConsts.AllResistPercentAttributeId && a.Value0 == 10));
-        Assert.NotNull(member.StatusEffects.FindStateSkillEffect(159));
-        Assert.True(member.SkillCombatModifiers.PhysicsResistPercent >= 10, $"Expected member SkillCombatModifiers.PhysicsResistPercent >= 10, got {member.SkillCombatModifiers.PhysicsResistPercent}");
-        Assert.True(((ICombatEntityState)member).PhysicsResistPercent >= memberBasePhysRes + 10, $"Expected member PhysicsResistPercent >= {memberBasePhysRes + 10}, got {((ICombatEntityState)member).PhysicsResistPercent}");
+                 e.MagicAttribs.Any(a => a.AttributeType == CombatConsts.AllResistPercentAttributeId));
+        Assert.Null(member.StatusEffects.FindStateSkillEffect(159));
 
-        // Hidden captain (713) must stop radiating party aura 0x87
+        // Hidden captain (713) must stop radiating aura 211
         captain.SetLearnedSkill(713, 10, 0);
         captain.FightMode = 1;
         captainHandle.CastSkill(713, captain.CurrentMpsX, captain.CurrentMpsY);
@@ -429,7 +428,7 @@ public sealed class AuraBuffPassiveSimulationTests
         Assert.True(((ICombatEntityState)captain).HideMode > 0);
         memberHandle.Recorder.Clear();
         await harness.StepFramesAsync(12);
-        Assert.DoesNotContain(memberHandle.Recorder.SyncStateEffects, e => e.SkillId == 159);
+        Assert.DoesNotContain(memberHandle.Recorder.SyncStateEffects, e => e.SkillId == 211);
 
         // Reveal captain before switching to 712
         captainHandle.CastSkill(86, captain.CurrentMpsX, captain.CurrentMpsY);
@@ -809,6 +808,9 @@ public sealed class AuraBuffPassiveSimulationTests
         attacker.CurrentCamp = EntityCamp.Evil;
         attacker.FightMode = 1;
         attacker.PkState = PlayerPkMode.Fight;
+        // Ground truth: skills.txt Skill 1585 (Phá Giáp Chú) has EquiptLimited = 1 (Blade) per KSkill::CanCastSkill @ 0x08101010.
+        attacker.WeaponType = 0;
+        attacker.WeaponParticular = 1;
 
         // Defender activates ManaShield 157 (StateSpecialId=19) and has 100% BlockRatePercent
         defenderHandle.CastSkill(157, defender.CurrentMpsX, defender.CurrentMpsY);
@@ -915,7 +917,10 @@ public sealed class AuraBuffPassiveSimulationTests
             Assert.Equal(0u, npc.AggroTargetNpcId);
         }
 
-        // Reveal via DoSkill (1382): emits 0x87 RemainTimeFrames=0 for 713, restores HideMode=0, and sends AOI full sync to observer
+        // Reveal via DoSkill (1382, Hua Shan Sword skill requiring EquiptLimited = 0 per skills.txt & KSkill::CanCastSkill @ 0x08101010):
+        // emits 0x87 RemainTimeFrames=0 for 713, restores HideMode=0, and sends AOI full sync to observer
+        player.WeaponType = 0;
+        player.WeaponParticular = 0;
         casterHandle.Recorder.Clear();
         enemyHandle.Recorder.Clear();
         casterHandle.CastSkill(1382, 52064, 101696);
@@ -1326,10 +1331,15 @@ public sealed class AuraBuffPassiveSimulationTests
         state.CurrentCamp = EntityCamp.Justice;
         state.FightMode = 1;
         state.PkState = PlayerPkMode.Fight;
+        // Ground truth: skills.txt Skill 1358 (Huyền Nhạn Vân Yên) has EquiptLimited = 0 (Sword) & Skill 1585 (Phá Giáp Chú) has EquiptLimited = 1 (Blade) per KSkill::CanCastSkill @ 0x08101010.
+        state.WeaponType = 0;
+        state.WeaponParticular = 0;
         enemy.BaseCamp = EntityCamp.Evil;
         enemy.CurrentCamp = EntityCamp.Evil;
         enemy.FightMode = 1;
         enemy.PkState = PlayerPkMode.Fight;
+        enemy.WeaponType = 0;
+        enemy.WeaponParticular = 1;
 
         int baseMaxLife = state.EffectiveMaxLife;
         int baseRunSpeed = state.EffectiveRunSpeed;
@@ -1442,7 +1452,10 @@ public sealed class AuraBuffPassiveSimulationTests
         Assert.DoesNotContain(farObserverHandle.Recorder.RunBroadcasts, s => s.NpcId == stealthPlayer.RuntimeNpcId);
         Assert.DoesNotContain(farObserverHandle.Recorder.NpcStateInfoBroadcasts, s => s.NpcId == stealthPlayer.RuntimeNpcId);
 
-        // Unhide (HideMode == 0) -> observers DO receive FullSync + PlayerAppearance
+        // Unhide (HideMode == 0) via Hua Shan Sword skill 1382 (EquiptLimited = 0 per skills.txt & KSkill::CanCastSkill @ 0x08101010)
+        // -> observers DO receive FullSync + PlayerAppearance
+        stealthPlayer.WeaponType = 0;
+        stealthPlayer.WeaponParticular = 0;
         nearObserverHandle.Recorder.Clear();
         farObserverHandle.Recorder.Clear();
         stealthHandle.CastSkill(1382, stealthPlayer.CurrentMpsX + 32, stealthPlayer.CurrentMpsY);
@@ -1621,7 +1634,9 @@ public sealed class AuraBuffPassiveSimulationTests
         Assert.DoesNotContain(lateObserverHandle.Recorder.NpcStateInfoBroadcasts, s => s.NpcId == stealthPlayer.RuntimeNpcId);
         Assert.DoesNotContain(lateObserverHandle.Recorder.NpcDisguiseFeatureSyncs, d => d.NpcId == stealthPlayer.RuntimeNpcId);
 
-        // Reveal via DoSkill (1382) -> late observer must receive FullSync, Appearance, 0x7A (45), and Disguise Feature Sync (205)
+        // Reveal via DoSkill (1382; skills.txt EquiptLimited = 0 Sword per KSkill::CanCastSkill @ 0x08101010) -> late observer must receive FullSync, Appearance, 0x7A (45), and Disguise Feature Sync (205)
+        stealthPlayer.WeaponType = 0;
+        stealthPlayer.WeaponParticular = 0;
         lateObserverHandle.Recorder.Clear();
         stealthHandle.CastSkill(1382, stealthPlayer.CurrentMpsX + 32, stealthPlayer.CurrentMpsY);
         await harness.StepFramesAsync(1);
