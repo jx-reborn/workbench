@@ -163,6 +163,7 @@ public sealed class WireParityScenarioAndPathfinderTests
 
         foreach ((string fileName, ushort expectedMapId, int minSteps) in new (string, ushort, int)[]
         {
+            ("020_giang-tan-thon.scenario.json", 20, 40),
             ("053_ba-lang-huyen.scenario.json", 53, 25),
             ("054_nam-nhac-tran.scenario.json", 54, 40),
             ("078_tuong-duong.scenario.json", 78, 40),
@@ -537,5 +538,52 @@ public sealed class WireParityScenarioAndPathfinderTests
                     clientPakObstacles: pakObstacles),
                 $"Expected unobstructed local walk from ({pair.FromX},{pair.FromY})[fight={pair.Fight}] to ({pair.ToX},{pair.ToY}) to be accepted.");
         }
+    }
+
+    [Fact]
+    public void BuiltInMapSurveyScenario_GiangTanThonMap20_ShouldPassStrictGroundTruthCoverageAudit()
+    {
+        string mapsScenarioDir = FindScenarioMapsDirectory();
+        string scenarioPath = Path.Combine(mapsScenarioDir, "020_giang-tan-thon.scenario.json");
+        Assert.True(File.Exists(scenarioPath), $"Missing scenario file: {scenarioPath}");
+
+        DirectoryInfo? workbenchRoot = new(mapsScenarioDir);
+        while (workbenchRoot is not null && !File.Exists(Path.Combine(workbenchRoot.FullName, ".agents", "skills", "khao-sat-ban-do", "scripts", "audit_map_scenario.py")))
+        {
+            workbenchRoot = workbenchRoot.Parent;
+        }
+
+        Assert.NotNull(workbenchRoot);
+        string auditScript = Path.Combine(workbenchRoot.FullName, ".agents", "skills", "khao-sat-ban-do", "scripts", "audit_map_scenario.py");
+
+        var psi = new ProcessStartInfo("python", $"\"{auditScript}\" audit --scenario \"{scenarioPath}\" --strict --json")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using Process proc = Process.Start(psi)!;
+        string stdout = proc.StandardOutput.ReadToEnd();
+        string stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit();
+
+        Assert.False(string.IsNullOrWhiteSpace(stdout), $"Auditor produced empty output. STDERR:\n{stderr}");
+        using JsonDocument doc = JsonDocument.Parse(stdout);
+        JsonElement root = doc.RootElement;
+
+        Assert.True(
+            proc.ExitCode == 0 && root.GetProperty("passed").GetBoolean(),
+            $"Giang Tan Thon scenario failed strict 100% Ground-Truth coverage audit:\n{stdout}\n{stderr}");
+
+        JsonElement counts = root.GetProperty("counts");
+        Assert.Equal(35, counts.GetProperty("dialogNpcsTotal").GetInt32());
+        Assert.Equal(35, counts.GetProperty("dialogNpcsCovered").GetInt32());
+        Assert.Equal(12, counts.GetProperty("objectsTotal").GetInt32());
+        Assert.Equal(12, counts.GetProperty("objectsCovered").GetInt32());
+        Assert.Equal(8, counts.GetProperty("trapsTotal").GetInt32());
+        Assert.Equal(8, counts.GetProperty("trapsCovered").GetInt32());
+        Assert.Equal(3, counts.GetProperty("scriptedMonsterGroupsTotal").GetInt32());
+        Assert.Equal(3, counts.GetProperty("scriptedMonsterGroupsCovered").GetInt32());
     }
 }
