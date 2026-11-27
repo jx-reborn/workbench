@@ -683,17 +683,19 @@ def main(argv: list[str] | None = None) -> int:
         passed, report = audit_feature(ecosystem_root, args.lua, args.target)
         if args.exec_vectors and passed:
             migrator_proj = ecosystem_root / "workbench" / "tools" / "JXReborn.ScriptMigrator" / "JXReborn.ScriptMigrator.csproj"
+            migrator_dll = ecosystem_root / "workbench" / "tools" / "JXReborn.ScriptMigrator" / "bin" / "Debug" / "net10.0" / "JXReborn.ScriptMigrator.dll"
             legacy_bin = ecosystem_root / "legacy-server" / "bin"
             pack_dir = ecosystem_root / "pack-tieudaotu"
             vector_results = []
             for lua_arg in args.lua:
+                cmd_prefix = (
+                    ["dotnet", str(migrator_dll)]
+                    if migrator_dll.is_file()
+                    else ["dotnet", "run", "--project", str(migrator_proj), "--"]
+                )
                 proc = subprocess.run(
                     [
-                        "dotnet",
-                        "run",
-                        "--project",
-                        str(migrator_proj),
-                        "--",
+                        *cmd_prefix,
                         "verify-script",
                         "--legacy",
                         str(legacy_bin),

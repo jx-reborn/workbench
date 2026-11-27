@@ -512,6 +512,17 @@ def resolve_script_on_disk(server1_dir: Path, script_display_or_raw: str | bytes
     return None
 
 
+_CONNECT_TRAP_DIRS = frozenset({
+    "trap",
+    "连接trap",
+    b"\xc1\xac\xbd\xd3trap".decode("latin1").lower(),
+})
+
+
+def _has_trap_dir_segment(path_obj: Path) -> bool:
+    return any(part.lower() in _CONNECT_TRAP_DIRS for part in path_obj.parts)
+
+
 def inspect_lua_semantics(lua_file: Path | None) -> dict[str, Any]:
     info: dict[str, Any] = {
         "level_gates": [],
@@ -534,7 +545,7 @@ def inspect_lua_semantics(lua_file: Path | None) -> dict[str, Any]:
             text_lines.append(line)
     body = "\n".join(text_lines)
 
-    is_trap_file = "\\trap\\" in str(lua_file).lower() or "/trap/" in str(lua_file).lower()
+    is_trap_file = _has_trap_dir_segment(lua_file)
     if is_trap_file:
         levels = {int(m.group(2)) for m in re.finditer(r"GetLevel\(\)\s*(>=|>|<|<=|==)\s*(\d+)", body)}
     else:
@@ -577,7 +588,7 @@ def scan_trap_scripts(server1_dir: Path) -> dict[int, tuple[str, Path]]:
     out: dict[int, tuple[str, Path]] = {}
     script_root = server1_dir / "script"
     for dp, _, fns in os.walk(script_root):
-        if "\\trap" not in dp.lower() and "/trap" not in dp.lower():
+        if not _has_trap_dir_segment(Path(dp)):
             continue
         for fn in fns:
             if not fn.lower().endswith(".lua"):

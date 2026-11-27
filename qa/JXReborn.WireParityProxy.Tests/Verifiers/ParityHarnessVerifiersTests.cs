@@ -32,7 +32,7 @@ public sealed class ParityHarnessVerifiersTests
             JsonElement domains = ledgerDoc.RootElement.GetProperty("domains");
 
             JsonElement maps = domains.GetProperty("maps_world");
-            Assert.Equal(136, maps.GetArrayLength());
+            Assert.Equal(669, maps.GetArrayLength());
 
             JsonElement factions = domains.GetProperty("factions_skills");
             Assert.Equal(10, factions.GetArrayLength());

@@ -42,37 +42,67 @@ TCVN3_MAP: dict[str, int] = {
     "ỳ": 0xFA, "ỷ": 0xFB, "ỹ": 0xFC, "ý": 0xFD, "ỵ": 0xFE,
 }
 
-# Compact 26-map test worldset covering J01-J16 journeys (villages, cities, portals, sects, missions)
+# Compact test worldset covering all 16 villages/cities, 10 classic sects, and J01-J16 + map scenarios
 MINIMAL_TEST_MAPS: list[int] = [
+    1,    # Phuong Tuong Phu (Major city)
+    2,    # Hoa Son Canh Ky Truong
+    11,   # Thanh Do Phu (Major city)
+    13,   # Nga Mi Phai
+    20,   # Giang Tan Thon (Starter village)
+    25,   # Duong Mon
+    37,   # Bien Kinh Phu (Major city)
+    45,   # Thien Nhan Giao Ngoai
+    49,   # Thien Nhan Giao Tang 3
     53,   # Ba Lang Huyen (Starter village)
     54,   # Nam Nhac Tran (Ba Lang South-East portal / station)
     56,   # Hoanh Son Phai (Nam Nhac Tran North portal)
+    57,   # Hoanh Son Dai Dinh
     59,   # Thien Vuong Bang (Dong Dinh wharf boat destination)
     70,   # Vu Lang Son (Ba Lang West-North portal)
     74,   # Mieu Linh / Than Nong Gia (Ba Lang West-South portal)
-    101,  # Dao Huong Thon (Starter village)
-    205,  # Duong Trung Dong (Dao Huong Thon North portal)
     78,   # Tuong Duong Phu (Major city)
-    80,   # Duong Chau Phu (Major city)
-    199,  # Vu Lang Dong (J02B cross-map portal handoff)
-    200,  # Co Duong Dong
-    57,   # Hoanh Son Dai Dinh
     79,   # Mat Dao Nha Mon Tuong Duong
-    90,   # Phuc Nguu Son Dong
-    92,   # Thuc Cuong Son
-    122,  # Hoang Ha Nguyen Dau
-    341,  # Mac Bac Thao Nguyen
+    80,   # Duong Chau Phu (Major city)
     81,   # Vo Dang Phai (J05, J06, J08)
     82,   # Me Cung Day Gieng
     84,   # Tu Tieu Dai Dien
+    90,   # Phuc Nguu Son Dong
+    92,   # Thuc Cuong Son
+    99,   # Vinh Lac Tran (Starter village)
+    100,  # Chu Tien Tran (Starter village)
+    101,  # Dao Huong Thon (Starter village)
     103,  # Thieu Lam Phai
     106,  # Dai Hung Bao Dien
     111,  # Moc Nhan Hang
     115,  # Cai Bang
     116,  # Tuong Van Dong tang 1
-    324,  # Tong Kim Bao Danh
+    121,  # Long Mon Tran (Starter village)
+    122,  # Hoang Ha Nguyen Dau
+    131,  # Con Lon Phai
+    140,  # Duoc Vuong Coc
+    153,  # Thach Co Tran (Starter village)
+    154,  # Thuy Yen Mon
+    162,  # Dai Ly Phu (Major city)
+    174,  # Long Tuyen Thon (Starter village)
+    176,  # Lam An Phu (Major city)
+    179,  # La Tieu Son
+    183,  # Ngu Doc Giao
+    193,  # Vu Di Son
+    195,  # Nhan Dang Son
+    198,  # Thanh Khe Dong
+    199,  # Vu Lang Dong (J02B cross-map portal handoff)
+    200,  # Co Duong Dong
+    201,  # Bang Ha Dong
+    202,  # Phu Dung Dong
+    203,  # Vo Danh Dong
+    204,  # Phi Thien Dong
+    205,  # Duong Trung Dong (Dao Huong Thon North portal)
+    323,  # Tong Kim Bao Danh So Cap
+    324,  # Tong Kim Bao Danh Trung Cap
     327,  # Tong Kim Binh Nguyen
     336,  # Phong Lang Do
+    340,  # Mac Cao Quat
+    341,  # Mac Bac Thao Nguyen
     345,  # Tong Kim Thanh Tran
     468,  # Vuot Ai So Cap
     512,  # Van Trung Dao

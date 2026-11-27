@@ -43,9 +43,36 @@ VALID_STATUSES = (
 
 STATUS_RANK = {name: idx for idx, name in enumerate(VALID_STATUSES)}
 
-STARTER_VILLAGE_IDS = {20, 53, 99, 100, 101, 121, 153, 174}
+STARTER_VILLAGE_IDS = {20, 53, 54, 99, 100, 101, 121, 153, 174}
 MAJOR_CITY_IDS = {1, 11, 37, 78, 80, 162, 176}
-SECT_HQ_MAP_IDS = {13, 25, 49, 59, 81, 103, 115, 131, 154, 183}
+SECT_HQ_MAP_IDS = {13, 25, 45, 49, 56, 59, 81, 103, 115, 131, 154, 183, 333}
+SECT_CLUSTER_EXTRA_IDS = {2, 212}
+SECT_DIR_TOKENS = (
+    "峨嵋派",
+    "唐门",
+    "天忍教",
+    "衡山派",
+    "天王帮",
+    "武当派",
+    "少林派",
+    "丐帮",
+    "昆仑派",
+    "翠烟门",
+    "五毒教",
+    "华山派",
+)
+MISSION_EVENT_EXTRA_IDS = {
+    44,
+    209,
+    *range(235, 242),
+    *range(337, 340),
+    *range(375, 378),
+    *range(416, 464),
+    897,
+    964,
+    965,
+    966,
+}
 
 CANONICAL_FACTIONS = [
     ("shaolin", "Thiếu Lâm", 0, 103, r"\script\中原北区\少林派"),
@@ -85,29 +112,62 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def classify_world_map_wave(map_id: int, legacy_dir: str) -> tuple[str, int]:
+    if map_id in STARTER_VILLAGE_IDS:
+        return "wave1_starter_villages", 10
+    if map_id in SECT_HQ_MAP_IDS:
+        return "wave2_sect_hqs", 20
+    if map_id in SECT_CLUSTER_EXTRA_IDS or any(tok in legacy_dir for tok in SECT_DIR_TOKENS):
+        return "wave2_sect_hqs", 22
+    if map_id in MAJOR_CITY_IDS:
+        return "wave3_major_cities", 30
+    if (
+        legacy_dir.startswith("特殊用地\\")
+        or legacy_dir.startswith("rongyuxitong\\")
+        or map_id in MISSION_EVENT_EXTRA_IDS
+    ):
+        return "wave5_missions_and_events", 50
+    return "wave4_field_and_caves", 40
+
+
 def parse_worldset_and_maplist(ecosystem_root: Path) -> list[dict[str, Any]]:
-    server1 = ecosystem_root / "legacy-server" / "bin" / "server1"
-    worldset_path = server1 / "maps" / "worldset.ini"
-    if not worldset_path.is_file():
-        worldset_path = server1 / "settings" / "worldset.ini"
+    legacy_bin = ecosystem_root / "legacy-server" / "bin"
+    server1 = legacy_bin / "server1"
+    s3relay_worldset_txt = legacy_bin / "gateway" / "s3relay" / "settings" / "worldset.txt"
     maplist_path = server1 / "settings" / "maplist.ini"
-    if not worldset_path.is_file() or not maplist_path.is_file():
+    if not maplist_path.is_file():
         return []
 
     read_jx_file = load_legacy_explore_decoder(ecosystem_root)
-    ws_text = "\n".join(read_jx_file.decode_line(ln) for ln in worldset_path.read_bytes().splitlines())
     ml_text = "\n".join(read_jx_file.decode_line(ln) for ln in maplist_path.read_bytes().splitlines())
 
     world_ids: list[int] = []
     seen_ids: set[int] = set()
-    for line in ws_text.splitlines():
-        clean = line.split(";", 1)[0].strip()
-        m = re.match(r"^World_?\d+\s*=\s*(\d+)$", clean, re.IGNORECASE)
-        if m:
-            mid = int(m.group(1))
-            if mid not in seen_ids:
-                seen_ids.add(mid)
-                world_ids.append(mid)
+
+    if s3relay_worldset_txt.is_file():
+        ws_lines = s3relay_worldset_txt.read_bytes().splitlines()
+        for raw_ln in ws_lines[1:]:
+            parts = raw_ln.split(b"\t")
+            if len(parts) >= 2 and parts[0].strip().isdigit() and parts[1].strip() == b"1":
+                mid = int(parts[0].strip())
+                if mid not in seen_ids:
+                    seen_ids.add(mid)
+                    world_ids.append(mid)
+    else:
+        worldset_path = server1 / "maps" / "worldset.ini"
+        if not worldset_path.is_file():
+            worldset_path = server1 / "settings" / "worldset.ini"
+        if not worldset_path.is_file():
+            return []
+        ws_text = "\n".join(read_jx_file.decode_line(ln) for ln in worldset_path.read_bytes().splitlines())
+        for line in ws_text.splitlines():
+            clean = line.split(";", 1)[0].strip()
+            m = re.match(r"^World_?\d+\s*=\s*(\d+)$", clean, re.IGNORECASE)
+            if m:
+                mid = int(m.group(1))
+                if mid not in seen_ids:
+                    seen_ids.add(mid)
+                    world_ids.append(mid)
 
     scenarios_maps_dir = ecosystem_root / "workbench" / "qa" / "JXReborn.WireParityProxy" / "Scenarios" / "Maps"
     if scenarios_maps_dir.is_dir():
@@ -133,24 +193,14 @@ def parse_worldset_and_maplist(ecosystem_root: Path) -> list[dict[str, Any]]:
 
     maps: list[dict[str, Any]] = []
     for mid in sorted(world_ids):
-        if mid in STARTER_VILLAGE_IDS:
-            wave = "wave1_starter_villages"
-            priority = 10
-        elif mid in MAJOR_CITY_IDS:
-            wave = "wave2_major_cities"
-            priority = 20
-        elif mid in SECT_HQ_MAP_IDS:
-            wave = "wave3_sect_headquarters"
-            priority = 30
-        else:
-            wave = "wave4_fields_and_dungeons"
-            priority = 40
+        legacy_dir = map_dirs.get(mid, "")
+        wave, priority = classify_world_map_wave(mid, legacy_dir)
 
         maps.append({
             "id": f"map_{mid:03d}",
             "map_id": mid,
             "name": map_names.get(mid, f"Map {mid}"),
-            "legacy_dir": map_dirs.get(mid, ""),
+            "legacy_dir": legacy_dir,
             "wave": wave,
             "priority": priority,
         })
@@ -372,27 +422,53 @@ def sync_ledger(ecosystem_root: Path, ledger_path: Path) -> dict[str, Any]:
     for m in raw_maps:
         prev = map_existing.get(m["id"], {})
         detected_status, evidence = inspect_existing_map_evidence(ecosystem_root, m["map_id"])
+        prev_evidence = prev.get("evidence") or {}
+        merged_evidence = {
+            k: (v if v is not None else prev_evidence.get(k))
+            for k, v in evidence.items()
+        }
+        for extra_k, extra_v in prev_evidence.items():
+            if extra_k not in merged_evidence:
+                merged_evidence[extra_k] = extra_v
+
         if prev.get("status") == "zero_drift_locked":
             final_status = "zero_drift_locked"
-            gates = prev.get("gates", {})
+            gates = prev.get("gates", {
+                "gate1_static": True,
+                "gate2_unit_sim": True,
+                "gate3_wire_capture": True,
+                "gate4_live_proxy": True,
+            })
+        elif prev.get("status") == "in_tdd_fix" and STATUS_RANK.get(detected_status, 0) <= STATUS_RANK["in_tdd_fix"]:
+            final_status = "in_tdd_fix"
+            gates = prev.get("gates") or {
+                "gate1_static": merged_evidence.get("scenario_path") is not None,
+                "gate2_unit_sim": merged_evidence.get("scenario_path") is not None,
+                "gate3_wire_capture": False,
+                "gate4_live_proxy": False,
+            }
         else:
             final_status = detected_status
             gates = {
-                "gate1_static": evidence["scenario_path"] is not None,
-                "gate2_unit_sim": evidence["scenario_path"] is not None,
+                "gate1_static": merged_evidence.get("scenario_path") is not None,
+                "gate2_unit_sim": merged_evidence.get("scenario_path") is not None,
                 "gate3_wire_capture": False,
                 "gate4_live_proxy": (
-                    evidence["step_failures"] == 0
-                    and evidence["protocol_violations"] == 0
-                    and evidence["critical_findings"] == 0
-                ) if evidence["latest_run_report"] else False,
+                    merged_evidence.get("step_failures") == 0
+                    and merged_evidence.get("protocol_violations") == 0
+                    and merged_evidence.get("critical_findings") == 0
+                ) if merged_evidence.get("latest_run_report") else False,
             }
-        map_items.append({
+
+        item_entry: dict[str, Any] = {
             **m,
             "status": final_status,
-            "evidence": {**evidence, **prev.get("locked_evidence", {})},
+            "evidence": merged_evidence,
             "gates": gates,
-        })
+        }
+        if "locked_evidence" in prev:
+            item_entry["locked_evidence"] = prev["locked_evidence"]
+        map_items.append(item_entry)
 
     # 3. Factions & Skills
     faction_items = build_factions_entries(ecosystem_root, existing_domains.get("factions_skills", {}))

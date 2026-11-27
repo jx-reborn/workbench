@@ -71,3 +71,14 @@ Báo cáo tổng hợp kết quả chiến dịch khảo sát toàn diện `100%
   - Nối spawn động 160 Boss Sát Thủ + rơi `Sát Thủ Giản` + hợp thành Ngũ Hành và lịch trình Đại/Tiểu Hoàng Kim từ `s3relay`.
 - **Đợt 6 — Chiến Trường & Phó Bản Theo Giờ (`Tống Kim`, `Vượt Ải`, `Phong Lăng Độ`, `Liên Đấu`, `Công Thành Chiến`)**:
   - Nối `SongJin` / `VuotAi` vào `MapZoneWorker` thực chiến với fast-forward clock `18 Hz` theo skill `khao-sat-chien-truong-pho-ban`.
+
+---
+
+## 5. Kết Quả Hội Tụ Thực Thi 6 Đợt (`GREEN` Toàn Tuyến & `T=0` Live E2E)
+
+- **Đợt 1 (`server/` + `workbench/`)**: Hội tụ toàn bộ `14` nhóm công thức `18 Hz`, Ngũ Hành trang bị, `attrId = 267..270` tầng 2 kỹ năng `9x`, `EquipLimit`, `DoHurt`, băng chậm frame lẻ, độc sát, `Khinh Công 210`, `Ma Âm Phệ Phách`, bùa `9x` và bảo toàn `SetProtectTime(54)` xuyên map -> chuyển toàn bộ `27/27` test kiểm toán `RED` sang `GREEN` (`183/183` bài `JXReborn.Workbench.ParityTests` và `648/648` bài `JXReborn.ZoneEngine.Tests`).
+- **Đợt 2 (`pack-tieudaotu/` + `workbench/`)**: Chuẩn hóa 9 Shared Wrappers (`FerryBoatman`, `TownBlacksmith`, `GuildGuide`, `HorseMerchant`, `TownGrocer`, `MapSignboard`, `VillageMartialInstructor`, `TownInnkeeper`, `TownTeleporter`, `TownPharmacist`) + port đủ `20/20` NPC nhiệm vụ thôn trên `Map 20, 99, 100, 121, 153, 174` + hoàn tất kịch bản & walkthrough `audit --strict [PASS]` cho toàn bộ **9/9 Tân Thủ Thôn**.
+- **Đợt 3 & Đợt 4 (`pack-tieudaotu/` + `workbench/`)**: Khôi phục `10/10` Chưởng Môn Phái, Độc Cô Kiếm, Hoa Sơn, 3 cổng thoát `DataID=39` (`Map 66, 67, 82`), 3 NPC thế giới (`Lao đầu`, `Vô danh Tăng`, `Đạo Nhân Què`), 4 cụm dịch vụ dùng chung trên 7 thành thị (`Vệ binh Thành môn`, `Nha Dịch PK`, `Sứ giả Liên Đấu`, `Tiếp Đầu Công Thành`) và mở rộng `parity_master_ledger.json` lên đủ **`669` bản đồ active** (`764` hạng mục).
+- **Đợt 5 & Đợt 6 (`server/` + `pack-tieudaotu/`)**: Port đủ `160` Boss Sát Thủ (`Nhiếp Thí Trần` + hợp thành `Sát Thủ Giản`), `36` mẫu Boss Hoàng Kim theo lịch `s3relay`, và nối thực chiến `VuotAiZoneTickSystem` (`28` ải + ải ẩn `29`) cùng `SongJinZoneTickSystem` (`Mộ Binh Quan`, `Quân Nhu Quan`, bẫy hậu doanh, Nguyên Soái `15m/20m`, `Task 747`) vào `MapZoneWorker` (`221/221` bài `JXReborn.Packs.TieuDaoTu.Tests`).
+- **Kiểm chứng tổng thể**: `11/11` test suites `.NET` đạt **`1,648 / 1,648` `PASS` (`0` `FAIL`)**; chạy Live `WireParityProxy` `T=0` (`game.exe` thật đấu song song `JXReborn.Host` vs `jx_linux_y`) trên `020_giang-tan-thon.scenario.json` đạt **`235 / 235` bước `OK`, `0` StepFailures, `0` ProtocolViolations**.
+

@@ -167,7 +167,12 @@ public sealed class WireParityScenarioAndPathfinderTests
             ("053_ba-lang-huyen.scenario.json", 53, 25),
             ("054_nam-nhac-tran.scenario.json", 54, 40),
             ("078_tuong-duong.scenario.json", 78, 40),
-            ("101_dao-huong-thon.scenario.json", 101, 40)
+            ("099_vinh-lac-tran.scenario.json", 99, 40),
+            ("100_chu-tien-tran.scenario.json", 100, 40),
+            ("101_dao-huong-thon.scenario.json", 101, 40),
+            ("121_long-mon-tran.scenario.json", 121, 40),
+            ("153_thach-co-tran.scenario.json", 153, 40),
+            ("174_long-tuyen-thon.scenario.json", 174, 40)
         })
         {
             string fullPath = Path.Combine(mapsScenarioDir, fileName);
