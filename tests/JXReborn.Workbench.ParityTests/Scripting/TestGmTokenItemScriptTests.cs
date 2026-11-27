@@ -731,6 +731,135 @@ public sealed class TestGmTokenItemScriptTests
         Assert.Contains(bagItems, static i => i.Genre == ItemGenreKind.MagicScript && i.DetailType == 1 && i.ParticularType == 400 && i.Level == 90);
     }
 
+    [Fact]
+    public async Task OnUseItemAsync_WhenProxyReconcileScratchTasksArePopulated_ShouldSyncMapPositionVitalsEconomyPkCampAndSkillsWithoutOpeningDialog()
+    {
+        SharedGameAssetsFixture assets = SharedGameAssetsFixture.Default;
+        Assert.True(assets.MapCatalog.TryGetMapDescriptor(53, out MapDescriptor? desc53) && desc53 is not null);
+        Assert.True(assets.MapCatalog.TryGetMapDescriptor(199, out MapDescriptor? desc199) && desc199 is not null);
+
+        var harnessOpts = new ZoneSimulationHarnessOptions
+        {
+            Assets = new ZoneAssetServices
+            {
+                MapCatalog = assets.MapCatalog,
+                PlayerTemplateCatalog = assets.PlayerTemplateCatalog,
+                ItemTemplateCatalog = assets.ItemTemplateCatalog,
+                SkillTemplateCatalog = assets.SkillTemplateCatalog,
+            },
+        };
+        harnessOpts.InitialMaps.Add(desc53!);
+        harnessOpts.InitialMaps.Add(desc199!);
+
+        var harness = new ZoneSimulationHarness(harnessOpts);
+        foreach (MapZoneWorker w in harness.Workers)
+        {
+            w.ExecutionContext.Options.EnableTestGmToken = true;
+            w.ExecutionContext.Options.AutoGrantGmTokenOnLogin = true;
+            w.ExecutionContext.Options.TestGmTokenItemCode = TestGmTokenItemScript.GmTokenItemCode;
+            w.ExecutionContext.Options.TestGmTokenScriptCode = TestGmTokenItemScript.GmTokenScriptPath;
+        }
+
+        MapZoneWorker worker199 = harness.GetZone(199);
+        var recorder = new PlayerOutboundEventRecorder(() => harness.TotalSteppedFrames);
+        var dto = new JXReborn.Contracts.Characters.CharacterDto(
+            Id: Guid.NewGuid(),
+            AccountId: Guid.NewGuid(),
+            SlotIndex: 0,
+            RoleNameUnicode: "CoolantShadow",
+            Gender: CharacterGender.Male,
+            Series: ElementSeries.Water,
+            Level: 10,
+            Experience: 0,
+            LeadExperience: 0,
+            MapId: 199,
+            RevivalMapId: 53,
+            RevivalPointId: 19,
+            MapMpsX: 52331,
+            MapMpsY: 93322,
+            CurrentLife: 50,
+            MaxLife: 200,
+            CurrentMana: 20,
+            MaxMana: 100,
+            CurrentStamina: 40,
+            MaxStamina: 120,
+            Strength: 25,
+            Dexterity: 25,
+            Vitality: 25,
+            Energy: 25,
+            Lucky: 0,
+            UnallocatedAttributePoints: 0,
+            UnallocatedSkillPoints: 0,
+            InventoryMoney: 0,
+            RepositoryMoney: 0,
+            CurrentFactionId: CharacterConsts.NoFactionId,
+            FirstFactionId: CharacterConsts.NoFactionId,
+            FactionJoinCount: 0,
+            Skills: [new JXReborn.Contracts.Characters.CharacterSkillDto(53, 1, 0)],
+            FightMode: 1);
+
+        SimulatedPlayerHandle handle = await harness.AttachSimulatedPlayerAsync(dto, leaseEpoch: 1, customSink: recorder);
+        PlayerZoneState player = handle.GetZoneState()!;
+        recorder.SentDialogMenus.Clear();
+
+        // Populate reserved scratch tasks 65400.. (delivered over existing 0xAB TestSyncTaskValuesProtocolId = 0xFF01)
+        const long targetExp = 5_000_000_000L;
+        player.SetTaskValue(65400, 0x52454331); // "REC1" sentinel
+        player.SetTaskValue(65401, 53);         // Target MapId (Ba Lăng Huyện)
+        player.SetTaskValue(65402, 51200);      // Target MpsX (1600 * 32)
+        player.SetTaskValue(65403, 102400);     // Target MpsY (3200 * 32)
+        player.SetTaskValue(65404, 0);          // Target FightMode = 0
+        player.SetTaskValue(65405, 120);        // Target Level = 120
+        player.SetTaskValue(65406, unchecked((int)(targetExp & 0xFFFFFFFFL)));
+        player.SetTaskValue(65407, unchecked((int)((ulong)targetExp >> 32)));
+        player.SetTaskValue(65408, 1850);       // Target Life
+        player.SetTaskValue(65409, 640);        // Target Mana
+        player.SetTaskValue(65410, 320);        // Target Stamina
+        player.SetTaskValue(65411, 876_543);    // Target InventoryMoney
+        player.SetTaskValue(65412, 120_000);    // Target RepositoryMoney
+        player.SetTaskValue(65413, 1);          // Target PkFlag
+        player.SetTaskValue(65414, 3);          // Target PkValue
+        player.SetTaskValue(65415, (int)EntityCamp.Justice);
+        player.SetTaskValue(65416, (int)EntityCamp.Free);
+        player.SetTaskValue(65417, 55);         // Target UnallocatedAttributePoints
+        player.SetTaskValue(65418, 12);         // Target UnallocatedSkillPoints
+        player.SetTaskValue(65420, 2);          // Learned skill count
+        player.SetTaskValue(65421, 37);
+        player.SetTaskValue(65422, 15);
+        player.SetTaskValue(65423, 93);
+        player.SetTaskValue(65424, 20);
+
+        var (itemCtx, _) = CreateGmTokenContext(player, worker199.ExecutionContext);
+        var script = new TestGmTokenItemScript();
+
+        ItemUsageResult useResult = await script.OnUseItemAsync(itemCtx);
+        await harness.StepFramesAsync(2);
+
+        Assert.Equal(ItemUsageResult.KeepItem, useResult);
+        Assert.Empty(recorder.SentDialogMenus);
+        Assert.Equal(0, player.GetTaskValue(65400));
+
+        Assert.True(harness.GetZone(53).TryGetPlayer(player.CharacterId, out PlayerZoneState? reconciled) && reconciled is not null);
+        Assert.Equal((ushort)53, reconciled!.MapId);
+        Assert.Equal(51200, reconciled.CurrentMpsX);
+        Assert.Equal(102400, reconciled.CurrentMpsY);
+        Assert.Equal((byte)0, reconciled.FightMode);
+        Assert.Equal((byte)120, reconciled.Level);
+        Assert.Equal(targetExp, reconciled.Experience);
+        Assert.Equal(876_543, reconciled.InventoryMoney);
+        Assert.Equal(120_000, reconciled.RepositoryMoney);
+        Assert.Equal((JXReborn.Primitives.Combat.PlayerPkMode)1, reconciled.PkState);
+        Assert.Equal((sbyte)3, reconciled.PkValue);
+        Assert.Equal(EntityCamp.Justice, reconciled.BaseCamp);
+        Assert.Equal(EntityCamp.Free, reconciled.CurrentCamp);
+        Assert.Equal((ushort)55, reconciled.UnallocatedAttributePoints);
+        Assert.Equal((ushort)12, reconciled.UnallocatedSkillPoints);
+        Assert.True(reconciled.TryGetLearnedSkill(37, out var skill37));
+        Assert.Equal((ushort)15, skill37.BaseLevel);
+        Assert.True(reconciled.TryGetLearnedSkill(93, out var skill93));
+        Assert.Equal((ushort)20, skill93.BaseLevel);
+    }
+
     private static async Task ExecuteNumberInputPathAsync(
         TestGmTokenItemScript script,
         ZoneScriptItemContext itemCtx,

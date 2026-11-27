@@ -27,9 +27,15 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
     public const string GmTokenItemCode = "cam-nang-tan-thu";
     public const short GmTokenParticularType = 4258;
 
+    // Reserved high scratch task block (>= 6000, never synced as S2C 0xA7) populated via 0xAB (0xFF01)
+    // exclusively when the user clicks the manual Reconcile button on WireParityProxy Dashboard.
+    public const ushort ReconcileSentinelTaskId = 65400;
+    public const int ReconcileSentinelMagic = 0x52454331; // "REC1"
+    private const ushort ReconcileScratchEndTaskId = 65499;
+
     public string ScriptCode => GmTokenScriptPath;
 
-    public ValueTask<ItemUsageResult> OnUseItemAsync(
+    public async ValueTask<ItemUsageResult> OnUseItemAsync(
         IScriptItemContext context,
         CancellationToken cancellationToken = default)
     {
@@ -38,12 +44,149 @@ public sealed class TestGmTokenItemScript : IItemUsageScript
         if (context is not ZoneScriptDialogContextBase baseCtx ||
             !baseCtx.ExecutionContext.Options.EnableTestGmToken)
         {
-            return ValueTask.FromResult(ItemUsageResult.KeepItem);
+            return ItemUsageResult.KeepItem;
+        }
+
+        if (baseCtx.Player.GetTaskValue(ReconcileSentinelTaskId) == ReconcileSentinelMagic)
+        {
+            await ApplyProxyReconcileSnapshotAsync(baseCtx, cancellationToken).ConfigureAwait(false);
+            return ItemUsageResult.KeepItem;
         }
 
         OpenRootMenu(baseCtx);
-        return ValueTask.FromResult(ItemUsageResult.KeepItem);
+        return ItemUsageResult.KeepItem;
     }
+
+    private static async ValueTask ApplyProxyReconcileSnapshotAsync(
+        ZoneScriptDialogContextBase ctx,
+        CancellationToken cancellationToken)
+    {
+        PlayerZoneState player = ctx.Player;
+
+        int rawMapId = player.GetTaskValue(65401);
+        int rawMpsX = player.GetTaskValue(65402);
+        int rawMpsY = player.GetTaskValue(65403);
+        int rawFightMode = player.GetTaskValue(65404);
+        int rawLevel = player.GetTaskValue(65405);
+        int rawExpLo = player.GetTaskValue(65406);
+        int rawExpHi = player.GetTaskValue(65407);
+        int rawLife = player.GetTaskValue(65408);
+        int rawMana = player.GetTaskValue(65409);
+        int rawStamina = player.GetTaskValue(65410);
+        int rawMoney = player.GetTaskValue(65411);
+        int rawSaveMoney = player.GetTaskValue(65412);
+        int rawPkFlag = player.GetTaskValue(65413);
+        int rawPkValue = player.GetTaskValue(65414);
+        int rawBaseCamp = player.GetTaskValue(65415);
+        int rawCurCamp = player.GetTaskValue(65416);
+        int rawAttrPoints = player.GetTaskValue(65417);
+        int rawSkillPoints = player.GetTaskValue(65418);
+        int skillCount = Math.Clamp(player.GetTaskValue(65420), 0, 38);
+
+        var skillsToApply = new List<(int SkillId, ushort Level)>(skillCount);
+        for (int i = 0; i < skillCount; i++)
+        {
+            int skillId = player.GetTaskValue((ushort)(65421 + (i * 2)));
+            int skillLevel = player.GetTaskValue((ushort)(65422 + (i * 2)));
+            if (skillId > 0 && skillLevel > 0)
+            {
+                skillsToApply.Add((skillId, (ushort)Math.Clamp(skillLevel, 1, 63)));
+            }
+        }
+
+        // Scrub the entire scratch block immediately so subsequent GM Token clicks open the normal root menu.
+        for (ushort taskId = ReconcileSentinelTaskId; taskId <= ReconcileScratchEndTaskId; taskId++)
+        {
+            player.SetTaskValue(taskId, 0);
+        }
+
+        if (rawLevel >= 1)
+        {
+            byte clampedLevel = (byte)Math.Clamp(rawLevel, 1, 200);
+            if (player.Level < clampedLevel)
+            {
+                EnsureLevel(ctx, clampedLevel);
+            }
+            else if (player.Level > clampedLevel)
+            {
+                player.Level = clampedLevel;
+                player.OutboundSink.SendPlayerLevelUpSync(player);
+            }
+        }
+
+        ulong expBits = ((uint)rawExpLo) | (((ulong)(uint)rawExpHi) << 32);
+        long targetExp = unchecked((long)expBits);
+        if (targetExp >= 0)
+        {
+            player.Experience = targetExp;
+            player.CombatSink.SendPlayerExpSync(player.Experience);
+        }
+
+        for (int i = 0; i < skillsToApply.Count; i++)
+        {
+            (int skillId, ushort skillLevel) = skillsToApply[i];
+            LearnSkillDirect(ctx, skillId, skillLevel);
+        }
+
+        player.UnallocatedAttributePoints = (ushort)Math.Clamp(rawAttrPoints, 0, ushort.MaxValue);
+        player.UnallocatedSkillPoints = (ushort)Math.Clamp(rawSkillPoints, 0, ushort.MaxValue);
+        player.CombatSink.SendPlayerSkillLevelSync(0, 0, player.UnallocatedSkillPoints, 0);
+
+        player.InventoryMoney = Math.Max(0, rawMoney);
+        player.RepositoryMoney = Math.Max(0, rawSaveMoney);
+        player.InventorySink.SendMoneySync(player.InventoryMoney, player.RepositoryMoney);
+
+        player.PkState = (JXReborn.Primitives.Combat.PlayerPkMode)Math.Clamp(rawPkFlag, 0, 2);
+        player.PkValue = (sbyte)Math.Clamp(rawPkValue, sbyte.MinValue, sbyte.MaxValue);
+        player.CombatSink.SendPkNormalFlagSync((byte)player.PkState);
+        player.CombatSink.SendPkValueSync(player.PkValue);
+
+        player.BaseCamp = (EntityCamp)Math.Clamp(rawBaseCamp, 0, 6);
+        player.CurrentCamp = (EntityCamp)Math.Clamp(rawCurCamp, 0, 6);
+        ctx.ExecutionContext.BroadcastNpcChangeBaseCampToAoi(player);
+        ctx.ExecutionContext.BroadcastNpcChangeCurCampToAoi(player);
+
+        if (rawLife > player.MaxLife)
+        {
+            player.MaxLife = (ushort)Math.Clamp(rawLife, 1, ushort.MaxValue);
+        }
+
+        if (rawMana > player.MaxMana)
+        {
+            player.MaxMana = (ushort)Math.Clamp(rawMana, 1, ushort.MaxValue);
+        }
+
+        if (rawStamina > player.MaxStamina)
+        {
+            player.MaxStamina = (ushort)Math.Clamp(rawStamina, 1, ushort.MaxValue);
+        }
+
+        player.CurrentLife = rawLife > 0
+            ? Math.Clamp(rawLife, 1, Math.Max(player.MaxLife, player.EffectiveMaxLife))
+            : Math.Max(1, player.EffectiveMaxLife);
+        player.CurrentMana = rawMana >= 0
+            ? Math.Clamp(rawMana, 0, Math.Max(player.MaxMana, player.EffectiveMaxMana))
+            : player.EffectiveMaxMana;
+        player.CurrentStamina = (ushort)(rawStamina >= 0
+            ? Math.Clamp(rawStamina, 0, Math.Max(player.MaxStamina, player.EffectiveMaxStamina))
+            : player.EffectiveMaxStamina);
+        player.SpawnProtectUntilTick = 0;
+
+        ushort targetMapId = rawMapId > 0 ? (ushort)Math.Clamp(rawMapId, 1, 1000) : (ushort)53;
+        int targetMpsX = rawMpsX > 0 ? rawMpsX : 1600 * 32;
+        int targetMpsY = rawMpsY > 0 ? rawMpsY : 3200 * 32;
+        byte targetFightMode = rawFightMode >= 0
+            ? (byte)(rawFightMode != 0 ? 1 : 0)
+            : (IsDefaultPeaceTownOrVillageMap(targetMapId) ? (byte)0 : (byte)1);
+
+        _ = await ctx.TeleportPlayerAsync(targetMapId, targetMpsX, targetMpsY, targetFightMode, cancellationToken).ConfigureAwait(false);
+        player.SpawnProtectUntilTick = 0;
+        player.CombatSink.SendNormalVitalSync(player);
+        player.WorldSink.SendPlayerNormalSync(player);
+    }
+
+    private static bool IsDefaultPeaceTownOrVillageMap(ushort mapId) =>
+        mapId is 1 or 11 or 20 or 37 or 53 or 54 or 78 or 80 or 99 or 100 or 101 or 121 or 153 or 162 or 174 or 176;
 
     private static void OpenRootMenu(ZoneScriptDialogContextBase ctx)
     {

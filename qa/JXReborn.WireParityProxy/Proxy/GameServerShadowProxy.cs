@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using JXReborn.Adapter.Legacy.Ciphers;
 using JXReborn.Adapter.Legacy.Packets;
 using JXReborn.DualParityServer.Diffing;
+using JXReborn.TestBase.WireCaptures;
 using JXReborn.WireParityProxy.Configuration;
 using JXReborn.WireParityProxy.Diffing;
 using JXReborn.WireParityProxy.Translation;
@@ -62,6 +63,43 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
     public WireParitySession? LatestSession => Volatile.Read(ref _latestSession);
 
     public IReadOnlyList<WireParitySession> GetSessions() => _sessions.ToArray();
+
+    public async Task<SessionReconcileResult> ReconcileLatestSessionAsync(
+        bool forceBaLangFallback = false,
+        CancellationToken cancellationToken = default)
+    {
+        WireParitySession? session = LatestSession;
+        if (session is null)
+        {
+            return new SessionReconcileResult(
+                Succeeded: false,
+                TierUsed: "None",
+                UsedBaLangFallback: false,
+                TargetMapId: 0,
+                TargetMpsX: 0,
+                TargetMpsY: 0,
+                PrimaryMapId: 0,
+                ShadowMapId: 0,
+                Message: "Chưa có phiên GameServer nào đang kết nối để đồng bộ.");
+        }
+
+        Func<bool, CancellationToken, Task<SessionReconcileResult>>? handler = session.GetReconcileHandler();
+        if (handler is null)
+        {
+            return new SessionReconcileResult(
+                Succeeded: false,
+                TierUsed: "None",
+                UsedBaLangFallback: false,
+                TargetMapId: 0,
+                TargetMpsX: 0,
+                TargetMpsY: 0,
+                PrimaryMapId: session.PrimaryState.MapId,
+                ShadowMapId: session.ShadowState.MapId,
+                Message: "Phiên GameServer đã ngắt kết nối.");
+        }
+
+        return await handler(forceBaLangFallback, cancellationToken).ConfigureAwait(false);
+    }
 
     public void Start()
     {
@@ -198,9 +236,54 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
             byte[] shadowLoginPayload = loginFrame.DecryptedPayload.ToArray();
             ticket.ShadowGuid.TryWriteBytes(shadowLoginPayload.AsSpan(1, 16));
 
+            using var primaryWriteGate = new SemaphoreSlim(1, 1);
+            using var shadowWriteGate = new SemaphoreSlim(1, 1);
+            using var clientWriteGate = new SemaphoreSlim(1, 1);
+            using var reconcileGate = new SemaphoreSlim(1, 1);
+            int reconcileInProgress = 0;
+
+            async Task SendPrimaryFrameAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
+            {
+                await primaryWriteGate.WaitAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    await primaryConn.WriteEncryptedFrameAsync(payload, ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    primaryWriteGate.Release();
+                }
+            }
+
+            async Task SendShadowFrameAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
+            {
+                await shadowWriteGate.WaitAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    await shadowConn.WriteEncryptedFrameAsync(payload, ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    shadowWriteGate.Release();
+                }
+            }
+
+            async Task SendClientFrameAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
+            {
+                await clientWriteGate.WaitAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    await clientConn.WriteEncryptedFrameAsync(payload, ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    clientWriteGate.Release();
+                }
+            }
+
             await Task.WhenAll(
-                primaryConn.WriteEncryptedFrameAsync(loginFrame.DecryptedPayload, linkCts.Token),
-                shadowConn.WriteEncryptedFrameAsync(shadowLoginPayload, linkCts.Token)).ConfigureAwait(false);
+                SendPrimaryFrameAsync(loginFrame.DecryptedPayload, linkCts.Token),
+                SendShadowFrameAsync(shadowLoginPayload, linkCts.Token)).ConfigureAwait(false);
 
             var windowLock = new Lock();
             var primarySyncEndTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -210,6 +293,127 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
             DateTimeOffset activeWindowOpenedUtc = default;
             CancellationTokenSource? windowTimerCts = null;
             int actionSeq = 0;
+
+            async Task<SessionReconcileResult> ExecuteManualReconcileAsync(bool forceBaLang, CancellationToken externalCt)
+            {
+                using var opCts = CancellationTokenSource.CreateLinkedTokenSource(linkCts.Token, externalCt);
+                CancellationToken ct = opCts.Token;
+
+                await reconcileGate.WaitAsync(ct).ConfigureAwait(false);
+                Interlocked.Increment(ref reconcileInProgress);
+                try
+                {
+                    lock (windowLock)
+                    {
+                        if (activeWindow is not null)
+                        {
+                            activeWindow = null;
+                            windowTimerCts?.Cancel();
+                            windowTimerCts?.Dispose();
+                            windowTimerCts = null;
+                        }
+                    }
+
+                    // Tier 1: Sync Shadow -> Primary without disturbing the player's live Primary position/state.
+                    if (!forceBaLang &&
+                        session.PrimaryState.IsSyncCompleted &&
+                        !session.PrimaryState.IsDead &&
+                        session.PrimaryState.Life > 0 &&
+                        session.PrimaryState.MapId > 0)
+                    {
+                        bool tier1Aligned = await TrySyncShadowToTargetAsync(
+                            session,
+                            SendShadowFrameAsync,
+                            targetMapId: session.PrimaryState.MapId,
+                            targetMpsX: session.PrimaryState.MpsX,
+                            targetMpsY: session.PrimaryState.MpsY,
+                            explicitFightMode: -1,
+                            restoreFullPrimaryVitals: false,
+                            ct).ConfigureAwait(false);
+
+                        if (tier1Aligned)
+                        {
+                            session.DiffCoordinator.ResetDrift();
+                            RecordManualReconcileNote(
+                                session,
+                                actionSeq,
+                                "Tier1_ShadowToPrimary",
+                                $"Map {session.PrimaryState.MapId} ({session.PrimaryState.MpsX / 32},{session.PrimaryState.MpsY / 32})");
+                            return new SessionReconcileResult(
+                                Succeeded: true,
+                                TierUsed: "Tier1_ShadowToPrimary",
+                                UsedBaLangFallback: false,
+                                TargetMapId: session.PrimaryState.MapId,
+                                TargetMpsX: session.PrimaryState.MpsX,
+                                TargetMpsY: session.PrimaryState.MpsY,
+                                PrimaryMapId: session.PrimaryState.MapId,
+                                ShadowMapId: session.ShadowState.MapId,
+                                Message: $"Đã đồng bộ Shadow → Primary tại Map {session.PrimaryState.MapId} ({session.PrimaryState.MpsX / 32}, {session.PrimaryState.MpsY / 32}).");
+                        }
+                    }
+
+                    // Tier 2 (Fallback or explicit button): Pull BOTH Primary and Shadow to Ba Lăng Huyện Map 53 (1600, 3200).
+                    const int baLangMapId = 53;
+                    const int baLangMpsX = 1600 * 32;
+                    const int baLangMpsY = 3200 * 32;
+
+                    bool primaryAtBaLang = await TryPullPrimaryToBaLangAsync(
+                        session,
+                        SendPrimaryFrameAsync,
+                        ct).ConfigureAwait(false);
+
+                    bool shadowAtBaLang = await TrySyncShadowToTargetAsync(
+                        session,
+                        SendShadowFrameAsync,
+                        targetMapId: baLangMapId,
+                        targetMpsX: baLangMpsX,
+                        targetMpsY: baLangMpsY,
+                        explicitFightMode: 0,
+                        restoreFullPrimaryVitals: true,
+                        ct).ConfigureAwait(false);
+
+                    bool bothAligned = primaryAtBaLang && shadowAtBaLang &&
+                                       session.PrimaryState.MapId == baLangMapId &&
+                                       session.ShadowState.MapId == baLangMapId;
+                    if (bothAligned)
+                    {
+                        session.DiffCoordinator.ResetDrift();
+                        RecordManualReconcileNote(
+                            session,
+                            actionSeq,
+                            "Tier2_BothToBaLang53",
+                            "Map 53 (1600,3200)");
+                        return new SessionReconcileResult(
+                            Succeeded: true,
+                            TierUsed: "Tier2_BothToBaLang53",
+                            UsedBaLangFallback: true,
+                            TargetMapId: baLangMapId,
+                            TargetMpsX: baLangMpsX,
+                            TargetMpsY: baLangMpsY,
+                            PrimaryMapId: session.PrimaryState.MapId,
+                            ShadowMapId: session.ShadowState.MapId,
+                            Message: "Đã đưa cả Primary và Shadow về Ba Lăng Huyện (Map 53 - 1600, 3200) và đồng bộ trạng thái.");
+                    }
+
+                    return new SessionReconcileResult(
+                        Succeeded: false,
+                        TierUsed: "Tier2_BothToBaLang53",
+                        UsedBaLangFallback: true,
+                        TargetMapId: baLangMapId,
+                        TargetMpsX: baLangMpsX,
+                        TargetMpsY: baLangMpsY,
+                        PrimaryMapId: session.PrimaryState.MapId,
+                        ShadowMapId: session.ShadowState.MapId,
+                        Message: $"Đồng bộ Ba Lăng chưa hội tụ hoàn toàn (Primary Map={session.PrimaryState.MapId}, Shadow Map={session.ShadowState.MapId}).");
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref reconcileInProgress);
+                    reconcileGate.Release();
+                }
+            }
+
+            session.AttachReconcileHandler(ExecuteManualReconcileAsync);
 
             void ScheduleWindowCloseTimerLocked(WireActionWindow window)
             {
@@ -351,7 +555,9 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                         session.ShadowState.RecordOutboundC2s(rewrite.ShadowPayload, frame.TimestampUtc);
                     }
 
-                    if (frame.Opcode != ProtocolOpcodes.c2s_ping && !suppressUnhydratedShadowProbe)
+                    if (frame.Opcode != ProtocolOpcodes.c2s_ping &&
+                        !suppressUnhydratedShadowProbe &&
+                        Volatile.Read(ref reconcileInProgress) == 0)
                     {
                         bool canOpenNewWindow = true;
                         lock (windowLock)
@@ -380,13 +586,13 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
 
                     if (suppressUnhydratedShadowProbe)
                     {
-                        await primaryConn.WriteEncryptedFrameAsync(frame.DecryptedPayload, linkCts.Token).ConfigureAwait(false);
+                        await SendPrimaryFrameAsync(frame.DecryptedPayload, linkCts.Token).ConfigureAwait(false);
                     }
                     else
                     {
                         await Task.WhenAll(
-                            primaryConn.WriteEncryptedFrameAsync(frame.DecryptedPayload, linkCts.Token),
-                            shadowConn.WriteEncryptedFrameAsync(rewrite.ShadowPayload, linkCts.Token)).ConfigureAwait(false);
+                            SendPrimaryFrameAsync(frame.DecryptedPayload, linkCts.Token),
+                            SendShadowFrameAsync(rewrite.ShadowPayload, linkCts.Token)).ConfigureAwait(false);
                     }
                 }
             }, linkCts.Token);
@@ -421,7 +627,7 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                             byte[] qaSyncPayload = ScriptProtocolC2SPacket.CreateCanonicalPayload(
                                 ScriptProtocolC2SPacket.TestSyncTaskValuesProtocolId,
                                 syncPair);
-                            await shadowConn.WriteEncryptedFrameAsync(qaSyncPayload, linkCts.Token).ConfigureAwait(false);
+                            await SendShadowFrameAsync(qaSyncPayload, linkCts.Token).ConfigureAwait(false);
                         }
                     }
 
@@ -430,7 +636,7 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
                         activeWindow?.AddPrimaryS2c(frame);
                     }
 
-                    await clientConn.WriteEncryptedFrameAsync(frame.DecryptedPayload, linkCts.Token).ConfigureAwait(false);
+                    await SendClientFrameAsync(frame.DecryptedPayload, linkCts.Token).ConfigureAwait(false);
                 }
             }, linkCts.Token);
 
@@ -493,6 +699,7 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
         }
         finally
         {
+            Volatile.Read(ref _latestSession)?.AttachReconcileHandler(null);
             if (clientConn is not null)
             {
                 await clientConn.DisposeAsync().ConfigureAwait(false);
@@ -533,6 +740,14 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
 
     private static bool ShouldCoalesceContinuationBurstC2s(JxWireFrame activeC2s, JxWireFrame incomingC2s)
     {
+        // 0. game.exe automatically emits c2s_pkapplychangenormalflag (0x76) ~60-90ms after c2s_syncend (0x43);
+        //    keep Step001_C2S_0x43 open so LoginHintScript (0x63) never splits into Missing[0x63]/Extra[0x63].
+        if (activeC2s.Opcode == ProtocolOpcodes.c2s_syncend &&
+            incomingC2s.Opcode == ProtocolOpcodes.c2s_pkapplychangenormalflag)
+        {
+            return true;
+        }
+
         // 1. Exact duplicate C2S retransmit (e.g. game.exe emitting two identical 0x72 c2s_objmouseclick frames ~10ms apart)
         if (incomingC2s.Opcode != ProtocolOpcodes.c2s_playerselui &&
             incomingC2s.DecryptedPayload.AsSpan().SequenceEqual(activeC2s.DecryptedPayload))
@@ -549,6 +764,298 @@ public sealed class GameServerShadowProxy : IAsyncDisposable
 
         return activeC2s.Opcode == ProtocolOpcodes.c2s_npcskill &&
                incomingC2s.Opcode == ProtocolOpcodes.c2s_npcskill;
+    }
+
+    private static async Task<bool> TrySyncShadowToTargetAsync(
+        WireParitySession session,
+        Func<ReadOnlyMemory<byte>, CancellationToken, Task> sendShadowAsync,
+        int targetMapId,
+        int targetMpsX,
+        int targetMpsY,
+        int explicitFightMode,
+        bool restoreFullPrimaryVitals,
+        CancellationToken ct)
+    {
+        // 1. If Shadow is currently dead, send c2s_npcrevive (0x74) first so UseInventoryItemZoneCommand won't drop 0x59.
+        if (session.ShadowState.IsDead || session.ShadowState.Life <= 0)
+        {
+            byte[] reviveBuf = new byte[PlayerReviveC2SPacket.PayloadSize];
+            new PlayerReviveC2SPacket(0).WritePayload(reviveBuf);
+            session.ShadowState.RecordOutboundC2s(reviveBuf, DateTimeOffset.UtcNow);
+            await sendShadowAsync(reviveBuf, ct).ConfigureAwait(false);
+
+            bool revived = await WaitUntilAsync(
+                () => !session.ShadowState.IsDead && session.ShadowState.Life > 0,
+                TimeSpan.FromMilliseconds(1500),
+                ct).ConfigureAwait(false);
+            if (!revived)
+            {
+                return false;
+            }
+        }
+
+        // 2. Close any open Shadow dialog cleanly before invoking GM Token.
+        if (session.ShadowState.Dialog.IsOpen)
+        {
+            int closeIdx = Math.Max(0, session.ShadowState.Dialog.OptionsTcvn3Hex.Count - 1);
+            byte[] closeBuf = new byte[PlayerSelectUiC2SPacket.PayloadSize];
+            new PlayerSelectUiC2SPacket(closeIdx).WritePayload(closeBuf);
+            session.ShadowState.RecordOutboundC2s(closeBuf, DateTimeOffset.UtcNow);
+            await sendShadowAsync(closeBuf, ct).ConfigureAwait(false);
+            await Task.Delay(30, ct).ConfigureAwait(false);
+        }
+
+        if (!session.ShadowState.TryFindGmTokenSlot(out VirtualJxItemSlot? shadowToken) || shadowToken is null)
+        {
+            return false;
+        }
+
+        // 3. Build task sync list: Primary quest/event tasks (< 6000) + scratch reconcile block (65400..).
+        var pairs = new List<(ushort TaskId, int Value)>();
+        foreach ((ushort taskId, int val) in session.PrimaryState.SnapshotTaskValues())
+        {
+            if (taskId < 6000)
+            {
+                pairs.Add((taskId, val));
+            }
+        }
+
+        long targetExp = Math.Max(0L, session.PrimaryState.Exp);
+        int targetLife = restoreFullPrimaryVitals
+            ? Math.Max(1, Math.Max(session.PrimaryState.MaxLife, session.PrimaryState.Life))
+            : Math.Max(1, session.PrimaryState.Life);
+        int targetMana = restoreFullPrimaryVitals
+            ? Math.Max(session.PrimaryState.MaxMana, session.PrimaryState.Mana)
+            : Math.Max(0, session.PrimaryState.Mana);
+        int targetStamina = restoreFullPrimaryVitals
+            ? Math.Max(session.PrimaryState.MaxStamina, session.PrimaryState.Stamina)
+            : Math.Max(0, session.PrimaryState.Stamina);
+
+        pairs.Add((65400, 0x52454331));
+        pairs.Add((65401, targetMapId));
+        pairs.Add((65402, targetMpsX));
+        pairs.Add((65403, targetMpsY));
+        pairs.Add((65404, explicitFightMode));
+        pairs.Add((65405, Math.Max(1, session.PrimaryState.Level)));
+        pairs.Add((65406, unchecked((int)(targetExp & 0xFFFFFFFFL))));
+        pairs.Add((65407, unchecked((int)((ulong)targetExp >> 32))));
+        pairs.Add((65408, targetLife));
+        pairs.Add((65409, targetMana));
+        pairs.Add((65410, targetStamina));
+        pairs.Add((65411, Math.Max(0, session.PrimaryState.Money)));
+        pairs.Add((65412, Math.Max(0, session.PrimaryState.SaveMoney)));
+        pairs.Add((65413, session.PrimaryState.PkFlag));
+        pairs.Add((65414, session.PrimaryState.PkValue));
+        pairs.Add((65415, session.PrimaryState.Camp));
+        pairs.Add((65416, session.PrimaryState.CurrentCamp));
+        pairs.Add((65417, Math.Max(0, session.PrimaryState.AttrPoints)));
+        pairs.Add((65418, Math.Max(0, session.PrimaryState.SkillPoints)));
+
+        KeyValuePair<int, ushort>[] learnedSkills = session.PrimaryState.SnapshotLearnedSkills()
+            .Where(static kv => kv.Key > 0 && kv.Value > 0)
+            .OrderBy(static kv => kv.Key)
+            .Take(38)
+            .ToArray();
+        pairs.Add((65420, learnedSkills.Length));
+        for (int i = 0; i < learnedSkills.Length; i++)
+        {
+            pairs.Add(((ushort)(65421 + (i * 2)), learnedSkills[i].Key));
+            pairs.Add(((ushort)(65422 + (i * 2)), learnedSkills[i].Value));
+        }
+
+        const int maxPairsPerChunk = 60;
+        for (int offset = 0; offset < pairs.Count; offset += maxPairsPerChunk)
+        {
+            int count = Math.Min(maxPairsPerChunk, pairs.Count - offset);
+            byte[] buf = new byte[count * 8];
+            for (int i = 0; i < count; i++)
+            {
+                (ushort tid, int tval) = pairs[offset + i];
+                BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(i * 8, 4), tid);
+                BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan((i * 8) + 4, 4), tval);
+            }
+
+            byte[] scriptPkt = ScriptProtocolC2SPacket.CreateCanonicalPayload(
+                ScriptProtocolC2SPacket.TestSyncTaskValuesProtocolId,
+                buf);
+            await sendShadowAsync(scriptPkt, ct).ConfigureAwait(false);
+        }
+
+        // Allow 1 zone tick so SyncTestTaskValuesZoneCommand is applied before UseInventoryItemZoneCommand runs.
+        await Task.Delay(35, ct).ConfigureAwait(false);
+
+        if (!session.ShadowState.TryFindGmTokenSlot(out shadowToken) || shadowToken is null)
+        {
+            return false;
+        }
+
+        byte[] eatBuf = new byte[PlayerEatItemC2SPacket.PayloadSize];
+        new PlayerEatItemC2SPacket(
+            GridX: shadowToken.GridX,
+            RuntimeItemId: shadowToken.RuntimeItemId,
+            GridY: shadowToken.GridY,
+            ContainerPlace: shadowToken.ContainerPlace).WritePayload(eatBuf);
+        session.ShadowState.RecordOutboundC2s(eatBuf, DateTimeOffset.UtcNow);
+        await sendShadowAsync(eatBuf, ct).ConfigureAwait(false);
+
+        return await WaitUntilAsync(
+            () => !session.ShadowState.IsDead &&
+                  session.ShadowState.MapId == targetMapId &&
+                  Math.Abs(session.ShadowState.MpsX - targetMpsX) <= 128 &&
+                  Math.Abs(session.ShadowState.MpsY - targetMpsY) <= 128,
+            TimeSpan.FromMilliseconds(2200),
+            ct).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> TryPullPrimaryToBaLangAsync(
+        WireParitySession session,
+        Func<ReadOnlyMemory<byte>, CancellationToken, Task> sendPrimaryAsync,
+        CancellationToken ct)
+    {
+        const int baLangMapId = 53;
+        const int baLangMpsX = 1600 * 32;
+        const int baLangMpsY = 3200 * 32;
+
+        if (session.PrimaryState.IsDead || session.PrimaryState.Life <= 0)
+        {
+            byte[] reviveBuf = new byte[PlayerReviveC2SPacket.PayloadSize];
+            new PlayerReviveC2SPacket(0).WritePayload(reviveBuf);
+            session.PrimaryState.RecordOutboundC2s(reviveBuf, DateTimeOffset.UtcNow);
+            await sendPrimaryAsync(reviveBuf, ct).ConfigureAwait(false);
+
+            bool revived = await WaitUntilAsync(
+                () => !session.PrimaryState.IsDead && session.PrimaryState.Life > 0,
+                TimeSpan.FromMilliseconds(1500),
+                ct).ConfigureAwait(false);
+            if (!revived)
+            {
+                return false;
+            }
+        }
+
+        if (session.PrimaryState.Dialog.IsOpen)
+        {
+            int closeIdx = Math.Max(0, session.PrimaryState.Dialog.OptionsTcvn3Hex.Count - 1);
+            byte[] closeBuf = new byte[PlayerSelectUiC2SPacket.PayloadSize];
+            new PlayerSelectUiC2SPacket(closeIdx).WritePayload(closeBuf);
+            session.PrimaryState.RecordOutboundC2s(closeBuf, DateTimeOffset.UtcNow);
+            await sendPrimaryAsync(closeBuf, ct).ConfigureAwait(false);
+            await Task.Delay(50, ct).ConfigureAwait(false);
+        }
+
+        if (session.PrimaryState.MapId == baLangMapId &&
+            Math.Abs(session.PrimaryState.MpsX - baLangMpsX) <= 128 &&
+            Math.Abs(session.PrimaryState.MpsY - baLangMpsY) <= 128)
+        {
+            return true;
+        }
+
+        if (!session.PrimaryState.TryFindGmTokenSlot(out VirtualJxItemSlot? primaryToken) || primaryToken is null)
+        {
+            return session.PrimaryState.MapId == baLangMapId;
+        }
+
+        uint prevSeq = session.PrimaryState.Dialog.Sequence;
+        byte[] eatBuf = new byte[PlayerEatItemC2SPacket.PayloadSize];
+        new PlayerEatItemC2SPacket(
+            GridX: primaryToken.GridX,
+            RuntimeItemId: primaryToken.RuntimeItemId,
+            GridY: primaryToken.GridY,
+            ContainerPlace: primaryToken.ContainerPlace).WritePayload(eatBuf);
+        session.PrimaryState.RecordOutboundC2s(eatBuf, DateTimeOffset.UtcNow);
+        await sendPrimaryAsync(eatBuf, ct).ConfigureAwait(false);
+
+        bool rootOpened = await WaitUntilAsync(
+            () => session.PrimaryState.Dialog.IsOpen && session.PrimaryState.Dialog.Sequence != prevSeq,
+            TimeSpan.FromMilliseconds(1000),
+            ct).ConfigureAwait(false);
+        if (!rootOpened)
+        {
+            return false;
+        }
+
+        uint rootSeq = session.PrimaryState.Dialog.Sequence;
+        byte[] selTeleportMenu = new byte[PlayerSelectUiC2SPacket.PayloadSize];
+        new PlayerSelectUiC2SPacket(5).WritePayload(selTeleportMenu); // [5] Bản đồ & Di chuyển
+        session.PrimaryState.RecordOutboundC2s(selTeleportMenu, DateTimeOffset.UtcNow);
+        await sendPrimaryAsync(selTeleportMenu, ct).ConfigureAwait(false);
+
+        bool tpOpened = await WaitUntilAsync(
+            () => session.PrimaryState.Dialog.IsOpen && session.PrimaryState.Dialog.Sequence != rootSeq,
+            TimeSpan.FromMilliseconds(1000),
+            ct).ConfigureAwait(false);
+        if (!tpOpened)
+        {
+            return false;
+        }
+
+        byte[] selBaLang = new byte[PlayerSelectUiC2SPacket.PayloadSize];
+        new PlayerSelectUiC2SPacket(0).WritePayload(selBaLang); // [0] Ba Lăng Huyện - Trung tâm (53)
+        session.PrimaryState.RecordOutboundC2s(selBaLang, DateTimeOffset.UtcNow);
+        await sendPrimaryAsync(selBaLang, ct).ConfigureAwait(false);
+
+        return await WaitUntilAsync(
+            () => session.PrimaryState.MapId == baLangMapId &&
+                  Math.Abs(session.PrimaryState.MpsX - baLangMpsX) <= 128 &&
+                  Math.Abs(session.PrimaryState.MpsY - baLangMpsY) <= 128,
+            TimeSpan.FromMilliseconds(1800),
+            ct).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> WaitUntilAsync(Func<bool> predicate, TimeSpan timeout, CancellationToken ct)
+    {
+        if (predicate())
+        {
+            return true;
+        }
+
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(20, ct).ConfigureAwait(false);
+            if (predicate())
+            {
+                return true;
+            }
+        }
+
+        return predicate();
+    }
+
+    private static void RecordManualReconcileNote(
+        WireParitySession session,
+        int stepIndex,
+        string tierLabel,
+        string targetSummary)
+    {
+        session.DiffCoordinator.RecordImmediateFinding(new ParityFinding(
+            FindingId: $"SYNC-{DateTimeOffset.UtcNow:HHmmss}",
+            ClusterKey: $"SessionReconcile::{tierLabel}",
+            Severity: FindingSeverity.Warning,
+            Category: FindingCategory.Position,
+            StepIndex: stepIndex,
+            StepName: "ManualDashboardReconcile",
+            FieldPath: "Session.ManualReconcile",
+            LegacyValue: targetSummary,
+            RebornValue: targetSummary,
+            Repro: new FindingReproContext(
+                MapId: session.PrimaryState.MapId,
+                PlayerPos: [session.PrimaryState.MpsX, session.PrimaryState.MpsY],
+                NpcName: string.Empty,
+                Actions: [tierLabel]),
+            StateDelta: new FindingStateDelta(
+                LegacyMoneyDelta: 0,
+                RebornMoneyDelta: 0,
+                LegacyExpDelta: 0,
+                RebornExpDelta: 0,
+                LegacyLevel: session.PrimaryState.Level,
+                RebornLevel: session.ShadowState.Level,
+                LegacyMapId: session.PrimaryState.MapId,
+                RebornMapId: session.ShadowState.MapId),
+            LegacyRecentS2cOpcodes: [],
+            RebornRecentS2cOpcodes: [],
+            Artifacts: new FindingArtifacts(),
+            TimestampUtc: DateTimeOffset.UtcNow));
     }
 
     private static bool HasInFlightTransitionSkew(

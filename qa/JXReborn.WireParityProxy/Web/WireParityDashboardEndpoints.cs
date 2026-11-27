@@ -80,6 +80,31 @@ public static class WireParityDashboardEndpoints
             return Results.Json(new { ok = true });
         });
 
+        app.MapPost("/api/reconcile", async (HttpRequest httpRequest, CancellationToken ct) =>
+        {
+            bool forceBaLang = false;
+            if (httpRequest.ContentLength is > 0 || httpRequest.Headers.ContainsKey("Transfer-Encoding"))
+            {
+                try
+                {
+                    JsonObject? body = await JsonNode.ParseAsync(httpRequest.Body, cancellationToken: ct) as JsonObject;
+                    string? mode = body?["mode"]?.GetValue<string>();
+                    forceBaLang = string.Equals(mode, "ba-lang", StringComparison.OrdinalIgnoreCase);
+                }
+                catch
+                {
+                    // Empty or non-JSON body defaults cleanly to auto (Tier 1 -> Tier 2 fallback).
+                }
+            }
+
+            SessionReconcileResult result = await gameServerProxy
+                .ReconcileLatestSessionAsync(forceBaLang, ct)
+                .ConfigureAwait(false);
+            return result.Succeeded
+                ? Results.Json(result)
+                : Results.BadRequest(result);
+        });
+
         app.MapPost("/api/report/export", async (CancellationToken ct) =>
         {
             WireParitySession? session = gameServerProxy.LatestSession;

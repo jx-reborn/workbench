@@ -15,6 +15,7 @@ public sealed class WireParitySession
     private long _c2sFrames;
     private long _primaryS2cFrames;
     private long _shadowS2cFrames;
+    private Func<bool, CancellationToken, Task<SessionReconcileResult>>? _reconcileHandler;
 
     public WireParitySession(string roleName, WireParityProxyOptions options, SemanticDiffEngine? sharedSemanticDiff = null)
     {
@@ -69,4 +70,10 @@ public sealed class WireParitySession
     public void IncrementPrimaryS2c() => Interlocked.Increment(ref _primaryS2cFrames);
 
     public void IncrementShadowS2c() => Interlocked.Increment(ref _shadowS2cFrames);
+
+    internal void AttachReconcileHandler(Func<bool, CancellationToken, Task<SessionReconcileResult>>? handler) =>
+        Volatile.Write(ref _reconcileHandler, handler);
+
+    internal Func<bool, CancellationToken, Task<SessionReconcileResult>>? GetReconcileHandler() =>
+        Volatile.Read(ref _reconcileHandler);
 }

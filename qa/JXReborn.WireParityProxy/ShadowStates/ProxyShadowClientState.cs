@@ -26,6 +26,7 @@ public sealed class ProxyShadowClientState
     private readonly Dictionary<uint, VirtualJxNpcEntity> _npcsById = [];
     private readonly Dictionary<int, ShadowGroundObject> _groundObjects = [];
     private readonly Dictionary<int, ushort> _learnedSkills = [];
+    private readonly Dictionary<ushort, int> _taskValues = [];
     private readonly Queue<S2cPacketSnapshot> _recentS2c = new();
     private readonly Queue<C2sPacketSnapshot> _recentC2s = new();
     private readonly List<SystemMessageSnapshot> _systemMessages = [];
@@ -89,6 +90,8 @@ public sealed class ProxyShadowClientState
     public int SkillPoints { get; private set; }
 
     public bool IsSyncCompleted { get; private set; }
+
+    public bool IsDead { get; private set; }
 
     public ShadowDialogState Dialog
     {
@@ -191,6 +194,43 @@ public sealed class ProxyShadowClientState
         }
     }
 
+    public IReadOnlyDictionary<ushort, int> SnapshotTaskValues()
+    {
+        lock (_sync)
+        {
+            return new Dictionary<ushort, int>(_taskValues);
+        }
+    }
+
+    public IReadOnlyDictionary<int, ushort> SnapshotLearnedSkills()
+    {
+        lock (_sync)
+        {
+            return new Dictionary<int, ushort>(_learnedSkills);
+        }
+    }
+
+    public bool TryFindGmTokenSlot(out VirtualJxItemSlot? tokenSlot)
+    {
+        lock (_sync)
+        {
+            foreach (VirtualJxItemSlot item in _itemsById.Values)
+            {
+                if (item.Genre == ItemGenreKind.MagicScript &&
+                    item.DetailType == 1 &&
+                    item.ParticularType == 4258 &&
+                    item.ContainerPlace is ItemContainerPlace.EquipRoom or ItemContainerPlace.Immediacy)
+                {
+                    tokenSlot = item;
+                    return true;
+                }
+            }
+        }
+
+        tokenSlot = null;
+        return false;
+    }
+
     public WorldDomSnapshot ToWorldDomSnapshot()
     {
         lock (_sync)
@@ -267,6 +307,39 @@ public sealed class ProxyShadowClientState
                     Stamina = pkt.Stamina;
                     Mana = pkt.Mana;
                     Life = pkt.Life;
+                    if (pkt.Life > 0)
+                    {
+                        IsDead = false;
+                    }
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_synccurplayerskill:
+                if (payload.Length >= SyncCurPlayerSkillS2CPacket.Size)
+                {
+                    SyncCurPlayerSkillS2CPacket skillPkt = MemoryMarshal.Read<SyncCurPlayerSkillS2CPacket>(payload);
+                    for (int i = 0; i < CharacterConsts.MaxSkillSlots; i++)
+                    {
+                        var s = skillPkt.GetSkillSlot(i);
+                        if (s.SkillId > 0 && s.BaseLevel > 0)
+                        {
+                            _learnedSkills[s.SkillId] = s.BaseLevel;
+                        }
+                    }
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_synctaskvalue:
+                if (payload.Length >= 9)
+                {
+                    int taskId = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(1, 4));
+                    int taskVal = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(5, 4));
+                    if (taskId is >= 0 and <= ushort.MaxValue)
+                    {
+                        _taskValues[(ushort)taskId] = taskVal;
+                    }
                 }
 
                 break;
@@ -397,6 +470,14 @@ public sealed class ProxyShadowClientState
                         Camp = (int)npc.Camp;
                         CurrentCamp = (int)npc.Camp;
                         Series = (int)npc.Series;
+                        if (npc.DoingState == 13 || npc.LifePercent == 0)
+                        {
+                            IsDead = true;
+                        }
+                        else if (npc.LifePercent > 0)
+                        {
+                            IsDead = false;
+                        }
                     }
                     else
                     {
@@ -503,10 +584,24 @@ public sealed class ProxyShadowClientState
                 if (payload.Length >= 5)
                 {
                     uint npcId = BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(1, 4));
-                    if (_npcsById.TryGetValue(npcId, out VirtualJxNpcEntity? deadNpc))
+                    if (npcId == SelfNpcId)
+                    {
+                        IsDead = true;
+                        Life = 0;
+                    }
+                    else if (_npcsById.TryGetValue(npcId, out VirtualJxNpcEntity? deadNpc))
                     {
                         _npcsById[npcId] = deadNpc with { LifePercent128 = 0 };
                     }
+                }
+
+                break;
+
+            case ProtocolOpcodes.s2c_playerrevive:
+                if (NpcReviveS2CPacket.TryParse(payload, out NpcReviveS2CPacket revPkt) &&
+                    revPkt.NpcId == SelfNpcId)
+                {
+                    IsDead = false;
                 }
 
                 break;

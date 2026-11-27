@@ -33,6 +33,8 @@ public static class WireParityDashboardHtml
           <h1>JXReborn.WireParityProxy &mdash; Single-Client Dual-Backend L7 Shadow Proxy</h1>
           <div class="grid" id="summary"></div>
           <div class="toolbar">
+            <button onclick="reconcileSession('auto')" style="background:#16a34a;">&#9889; Đồng bộ 2 Server (Shadow &rarr; Primary)</button>
+            <button onclick="reconcileSession('ba-lang')" style="background:#d97706;">&#127968; Đưa cả 2 về Ba Lăng (53)</button>
             <button onclick="exportReport()">Export Report (HTML/MD/JSONL)</button>
             <button onclick="resetDrift()">Reset Drift Flag</button>
             <span id="statusMsg" style="align-self:center;color:#94a3b8;font-size:13px;"></span>
@@ -82,6 +84,23 @@ public static class WireParityDashboardHtml
             }
             async function resetDrift() {
               await fetch('/api/drift/reset', { method: 'POST' });
+              refresh();
+            }
+            async function reconcileSession(mode) {
+              document.getElementById('statusMsg').textContent = mode === 'ba-lang'
+                ? 'Đang đưa cả 2 server về Ba Lăng Huyện (Map 53)...'
+                : 'Đang đồng bộ Shadow -> Primary (tự động fallback Ba Lăng nếu cần)...';
+              try {
+                const r = await fetch('/api/reconcile', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ mode })
+                });
+                const d = await r.json();
+                document.getElementById('statusMsg').textContent = d.message || (d.succeeded ? 'Đồng bộ thành công.' : 'Đồng bộ thất bại.');
+              } catch (e) {
+                document.getElementById('statusMsg').textContent = 'Lỗi kết nối khi đồng bộ: ' + e.message;
+              }
               refresh();
             }
             refresh();
